@@ -1,0 +1,140 @@
+# CI: tests, linters, schema validation, and dependency and container scanning
+# that fails on high-severity findings (NFR-21).
+#
+# Third-party actions are pinned to commit SHAs and the Trivy image to a digest:
+# tags can be moved, and scanner actions have been hijacked that way before.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+
+jobs:
+  web:
+    name: Web (lint, types, tests, e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: web
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wideline
+          POSTGRES_PASSWORD: wideline
+          POSTGRES_DB: wideline
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wideline" --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://wideline:wideline@localhost:5432/wideline
+      APP_URL: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere-else
+      CV_CALLBACK_SECRET: ci-only-callback-secret
+      S3_BUCKET: wideline
+      S3_ACCESS_KEY_ID: ci
+      S3_SECRET_ACCESS_KEY: ci-secret
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_INTERNAL_ENDPOINT: http://localhost:9000
+      SEED_ADMIN_PASSWORD: ci-admin-password-123
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma validate
+      - run: pnpm prisma generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm prisma migrate deploy
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm prisma db seed
+      - name: Start app
+        run: |
+          pnpm start > /tmp/web.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && exit 0; sleep 1; done
+          cat /tmp/web.log; exit 1
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: http://localhost:3000
+          E2E_PASSWORD: ${{ env.SEED_ADMIN_PASSWORD }}
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7
+
+  cv:
+    name: CV worker (lint, types, tests, licences)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cv_worker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+      - name: No AGPL/GPL code in the CV path
+        run: uv run python scripts/check_licences.py
+
+  scan:
+    name: Dependency and container scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: pnpm audit (high and above)
+        working-directory: web
+        run: pnpm audit --prod --audit-level high
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - name: pip-audit
+        working-directory: cv_worker
+        run: |
+          uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt
+          uvx pip-audit --strict -r /tmp/requirements.txt
+      - name: Build images
+        run: |
+          docker build --target web -t wideline-web:ci web
+          docker build --target worker -t wideline-transcode:ci web
+          docker build -t wideline-cv:ci cv_worker
+      - name: Trivy filesystem scan (lockfiles, Dockerfiles, secrets)
+        run: |
+          docker run --rm -v "$PWD:/src" "$TRIVY_IMAGE" fs \
+            --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed /src
+      - name: Trivy image scan
+        run: |
+          for img in wideline-web:ci wideline-transcode:ci wideline-cv:ci; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" image \
+              --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed "$img"
+          done

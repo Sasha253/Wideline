@@ -1,0 +1,8 @@
+.next
+node_modules
+src/generated
+pnpm-lock.yaml
+playwright-report
+test-results
+src/styles/tokens.css
+src/styles/components.css

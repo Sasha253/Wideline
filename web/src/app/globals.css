@@ -1,0 +1,119 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/components.css";
+
+/* Point the token font stacks at the self-hosted next/font families. */
+:root {
+  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-instrument), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+/* Expose design tokens as Tailwind utilities: bg-surface, text-ink, border-line… */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-pitch: var(--pitch);
+  --color-on-pitch: var(--on-pitch);
+  --color-pitch-soft: var(--pitch-soft);
+  --color-floodlight: var(--floodlight);
+  --color-on-floodlight: var(--on-floodlight);
+  --color-home: var(--home);
+  --color-away: var(--away);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-focus: var(--focus);
+  --color-turf: var(--turf);
+  --color-chalk: var(--chalk);
+  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-instrument), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+}
+
+html {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Tailwind ships an `overline` utility (text-decoration), which collides with
+   the design system's .overline text style. Use .eyebrow in markup instead. */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Form controls (not in the component bundle yet). */
+.wl-input {
+  height: 40px;
+  width: 100%;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font: 400 15px/22px var(--font-sans);
+}
+
+/* Tables: sticky headers, line dividers, no zebra stripes. */
+.wl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.wl-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-raised);
+  text-align: left;
+  font: 500 13px/18px var(--font-sans);
+  color: var(--ink-muted);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.wl-table td {
+  height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.wl-table th.num {
+  text-align: right;
+}
+.wl-table td.num {
+  text-align: right;
+  font: 500 13px/18px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+.next
+src/generated
+playwright-report
+test-results
+coverage
+.env
+*.log

@@ -1,0 +1,41 @@
+# Local reverse proxy. Plain HTTP on *.localhost; production gets real TLS.
+{
+	auto_https off
+	admin off
+}
+
+http://wideline.localhost {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+# S3 API. CORS is answered here so local dev does not depend on the storage
+# backend's CORS support. Production sets the same rules on the bucket.
+http://s3.wideline.localhost {
+	@preflight method OPTIONS
+	header {
+		Access-Control-Allow-Origin "http://wideline.localhost"
+		Access-Control-Allow-Methods "GET, PUT, HEAD"
+		Access-Control-Allow-Headers "*"
+		Access-Control-Expose-Headers "ETag"
+		Access-Control-Max-Age "3600"
+		defer
+	}
+	respond @preflight 204
+	request_body {
+		max_size 0
+	}
+	reverse_proxy rustfs:9000 {
+		# Keep the original Host header: S3 signatures include it.
+		header_up Host {host}
+		flush_interval -1
+	}
+}
+
+http://mail.wideline.localhost {
+	reverse_proxy mailpit:8025
+}
+
+http://console.wideline.localhost {
+	reverse_proxy rustfs:9001
+}

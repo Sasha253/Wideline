@@ -1,0 +1,305 @@
+// Wideline data model. Field names follow the PRD's Data model section.
+//
+// Tenancy (NFR-16): every model except the global ones (Organisation, User and
+// the Better Auth tables) carries organisationId. Application code reaches the
+// database only through the scoped client in src/server/db/scoped.ts, which
+// injects organisationId into every query. See TENANT_SCOPED in that file and
+// keep it in step with this schema.
+//
+// References between tenant tables are composite foreign keys on
+// (organisationId, id), so the database itself refuses a row that points at
+// another organisation's row.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Organisations and accounts
+// ---------------------------------------------------------------------------
+
+enum OrganisationType {
+  academy
+  club
+  agency
+  platform
+}
+
+enum OrganisationStatus {
+  pending
+  active
+  suspended
+}
+
+// AUTH-03. analyst is merged into scout.
+enum Role {
+  owner
+  admin
+  coach
+  scout
+  agent
+  player
+  guardian
+  platform_admin
+}
+
+model Organisation {
+  id        String             @id @default(cuid())
+  name      String
+  type      OrganisationType
+  country   String             @default("ZA")
+  region    String?
+  status    OrganisationStatus @default(active)
+  planId    String?
+  // REVIEW-10: auto-accept thresholds per event type, plus other per-org
+  // settings. Shape is defined and defaulted in src/server/settings.ts.
+  settings  Json               @default("{}")
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  memberships Membership[]
+  teams       Team[]
+  players     Player[]
+  matches     Match[]
+  lineups     Lineup[]
+  auditLogs   AuditLog[]
+}
+
+// Global. Columns match what Better Auth expects for its user model.
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  memberships Membership[] @relation("MembershipUser")
+  invitations Membership[] @relation("MembershipInvitedBy")
+}
+
+// Better Auth: database sessions, so a session can be revoked server-side.
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Better Auth: one row per sign-in method. Passwords live here (providerId
+// "credential"), hashed by Better Auth.
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// Better Auth: magic-link and other verification tokens.
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  role           Role
+  invitedById    String?
+  invitedBy      User?        @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([organisationId, userId, role])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Squads
+// ---------------------------------------------------------------------------
+
+model Team {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  name           String
+  ageGroup       String?
+  // A label only; no behaviour depends on it (SQUAD-01).
+  gender         String?
+  season         String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  players     Player[]
+  homeMatches Match[]  @relation("HomeTeam")
+  awayMatches Match[]  @relation("AwayTeam")
+  lineups     Lineup[]
+
+  @@unique([organisationId, id])
+  @@index([organisationId])
+}
+
+enum ConsentState {
+  none
+  requested
+  club_only
+  scout_visible
+  withdrawn
+}
+
+enum ClubStatus {
+  active
+  departed
+}
+
+enum PreferredFoot {
+  left
+  right
+  both
+}
+
+model Player {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  teamId         String?
+  team           Team?          @relation(fields: [organisationId, teamId], references: [organisationId, id])
+  // Names are optional: V0 Lab lineups use shirt-number placeholders only, so
+  // no per-player data is derived about a named, non-consented child (NFR-08).
+  firstName      String?
+  lastName       String?
+  // SQUAD-07: unnamed placeholder, e.g. an opposition player.
+  isPlaceholder  Boolean        @default(false)
+  dateOfBirth    DateTime?      @db.Date
+  position       String?
+  preferredFoot  PreferredFoot?
+  heightCm       Int?
+  squadNumber    Int?
+  // Cached current state; the Consent table (later) is the source of truth.
+  consentState   ConsentState   @default(none)
+  clubStatus     ClubStatus     @default(active)
+  departedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  lineups Lineup[]
+
+  @@unique([organisationId, id])
+  @@index([organisationId])
+  @@index([teamId])
+}
+
+// ---------------------------------------------------------------------------
+// Matches
+// ---------------------------------------------------------------------------
+
+enum MatchStatus {
+  draft
+  uploading
+  processing
+  awaiting_review
+  in_review
+  published
+  failed
+}
+
+model Match {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  homeTeamId     String
+  homeTeam       Team         @relation("HomeTeam", fields: [organisationId, homeTeamId], references: [organisationId, id])
+  awayTeamId     String
+  awayTeam       Team         @relation("AwayTeam", fields: [organisationId, awayTeamId], references: [organisationId, id])
+  playedAt       DateTime
+  venue          String?
+  competition    String?
+  status         MatchStatus  @default(draft)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  lineups Lineup[]
+
+  @@unique([organisationId, id])
+  @@index([organisationId, playedAt])
+}
+
+model Lineup {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId        String
+  match          Match        @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  teamId         String
+  team           Team         @relation(fields: [organisationId, teamId], references: [organisationId, id])
+  playerId       String
+  player         Player       @relation(fields: [organisationId, playerId], references: [organisationId, id])
+  shirtNumber    Int
+  position       String?
+  isStarter      Boolean      @default(true)
+  // Match seconds the player came on and went off (SQUAD-06). startedAt is 0
+  // for starters; endedAt is null if they finished the match.
+  startedAt      Int?
+  endedAt        Int?
+
+  @@unique([matchId, playerId])
+  @@unique([matchId, teamId, shirtNumber])
+  @@index([organisationId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit (AUTH-07, NFR-20)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  // Null for platform-level events such as a login, which belong to a user,
+  // not an organisation.
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  actorUserId    String?
+  action         String
+  targetType     String?
+  targetId       String?
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now())
+
+  @@index([organisationId, createdAt])
+  @@index([actorUserId, createdAt])
+}
