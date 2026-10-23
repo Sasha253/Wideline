@@ -16,3 +16,6 @@ cv_worker/out/
 cv_worker/tests/fixtures/*.mp4
 *.log
 .DS_Store
+
+# TypeScript incremental build cache
+*.tsbuildinfo

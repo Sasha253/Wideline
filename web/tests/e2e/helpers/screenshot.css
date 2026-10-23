@@ -1,0 +1,5 @@
+/* Injected into screenshots only: the Next.js dev-tools badge exists on the
+   dev server, not in CI's production build. */
+nextjs-portal {
+  display: none !important;
+}

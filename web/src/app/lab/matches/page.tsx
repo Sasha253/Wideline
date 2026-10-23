@@ -1,4 +1,4 @@
-import { MatchStatusChip } from "@/components/StatusChip";
+import { MatchStatusChip } from "@/components/ui/StatusChip";
 import { LAB_ROLES, requirePageRole } from "@/server/auth/session";
 
 export const metadata = { title: "Matches" };

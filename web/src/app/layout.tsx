@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { ThemeScript } from "@/components/ui/theme";
 import "./globals.css";
 
 const barlow = Barlow_Condensed({
@@ -25,7 +26,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-ZA" className={`${barlow.variable} ${instrument.variable} ${plexMono.variable}`}>
+    // ThemeScript sets data-theme before hydration, so React must not warn about it.
+    <html
+      lang="en-ZA"
+      className={`${barlow.variable} ${instrument.variable} ${plexMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <ThemeScript />
+      </head>
       <body>{children}</body>
     </html>
   );

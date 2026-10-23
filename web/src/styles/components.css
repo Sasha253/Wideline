@@ -1,5 +1,9 @@
-/* Wideline component styles, from the design system bundle (wideline-design-system/components/bundle.css).
-   Fonts load through next/font in app/layout.tsx instead of a Google Fonts @import. */
+/* Wideline component styles, from the design system bundle (docs/design-system/components/bundle.css).
+   Every bundle rule is copied verbatim and in order, with two deliberate omissions:
+   - the Google Fonts @import: fonts load through next/font in app/layout.tsx;
+   - the bundle's `body { ... }` rule: its `padding: var(--space-4)` would pad every app page.
+     globals.css owns body.
+   tests/unit/design-system.test.ts checks this. Local rules go in the "Additions" block at the end. */
 /* Wideline component styles. Every value comes from tokens.css. */
 .wl-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .wl-stack { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -88,3 +92,78 @@
 .wl-pitch .h1 { fill: var(--heat-1); } .wl-pitch .h2 { fill: var(--heat-2); } .wl-pitch .h3 { fill: var(--heat-3); } .wl-pitch .h4 { fill: var(--heat-4); } .wl-pitch .h5 { fill: var(--heat-5); }
 .wl-legend { display: flex; gap: 2px; align-items: center; font: 400 12px/16px var(--font-sans); color: var(--ink-muted); margin-top: var(--space-2); }
 .wl-legend i { width: 20px; height: 8px; display: inline-block; }
+
+/* Additions (not in bundle.css)
+   Rules the design system implies but does not ship. Every value is a var() token, or a
+   dimension the design system fixes itself (the 44px touch target, the Cover geometry from
+   Cover/preview.html). See docs/build/design/D01.md. */
+
+/* Cover, from Cover/preview.html (the component has no README). Block classes are scoped
+   under .wl-cover__art so .pitch and .turf do not clash with .wl-pitch. */
+.wl-cover { position: relative; overflow: hidden; background: var(--surface); }
+.wl-cover__art { display: none; }
+.wl-cover__art svg { display: block; width: 480px; height: 288px; }
+.wl-cover__art .pitch { fill: var(--pitch); }
+.wl-cover__art .turf { fill: var(--turf); }
+.wl-cover__art .flood { fill: var(--floodlight); }
+.wl-cover__art .deep { fill: var(--ink); }
+.wl-cover__art .home { fill: var(--home); }
+.wl-cover__art .spot { fill: var(--chalk); }
+.wl-cover__art .blk { rx: var(--radius-lg); }
+.wl-cover__art .sm { rx: var(--radius-sm); }
+.wl-cover__art .chalk { fill: none; stroke: var(--chalk); stroke-width: 1.5; }
+.wl-cover__words { padding: var(--space-8) var(--space-4) var(--space-6); }
+/* Type comes from .display-xl (name) and .body (tagline) in the markup. */
+.wl-cover__name { margin: 0; color: var(--ink); }
+.wl-cover__tag { margin: var(--space-2) 0 0; color: var(--ink-muted); }
+@media (min-width: 768px) {
+  .wl-cover { height: 288px; }
+  .wl-cover__words { position: absolute; left: var(--space-8); bottom: var(--space-8); max-width: 440px; padding: 0; }
+  /* Accepted exception: the 88px wordmark from Cover/preview.html is not on the type scale. */
+  .wl-cover__name { font-size: 88px; line-height: .92; }
+}
+/* At 768px the art would sit under the 88px wordmark, so it starts at 1024px. */
+@media (min-width: 1024px) {
+  .wl-cover__art { display: block; position: absolute; top: 0; right: 0; width: 480px; height: 288px; overflow: hidden; }
+}
+
+/* Phones: 44px touch targets, and review rows stack onto two lines. */
+@media (max-width: 767px) {
+  .wl-iconbtn { width: 44px; height: 44px; }
+  .wl-btn, .wl-btn--sm { min-height: 44px; }
+  .wl-event { grid-template-columns: auto 1fr auto; }
+  .wl-event > :nth-child(1) { grid-column: 1; grid-row: 1; align-self: start; }
+  .wl-event > .wl-event__what { grid-column: 2 / -1; grid-row: 1; }
+  .wl-event > :nth-child(3) { grid-column: 1 / 3; grid-row: 2; justify-self: start; }
+  .wl-event > :nth-child(4) { grid-column: 3; grid-row: 2; justify-self: end; }
+}
+
+/* PitchHeatmap legend: at 375px the tail wraps under the swatches instead of squeezing them. */
+.wl-legend { flex-wrap: wrap; }
+
+/* PlayerCard: four stats fit at 375px by wrapping onto a second line. */
+.wl-player__stats { flex-wrap: wrap; row-gap: var(--space-3); }
+
+/* PlayerCard focus. The name is a stretched link, so the ring draws around the whole card.
+   The link's own ring would be clipped by the name's line clamp, so it is replaced. */
+.wl-player:has(.wl-player__link:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wl-player__link:focus-visible { outline: none; }
+
+/* PlayerCard menu. The design system has no menu component; this is built from tokens. */
+.wl-menu { position: absolute; right: 0; top: calc(100% + var(--space-1)); z-index: 20; min-width: calc(var(--space-12) * 4); padding: var(--space-1); background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-pop); }
+.wl-menu__item { display: flex; align-items: center; gap: var(--space-2); width: 100%; height: 40px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink); text-decoration: none; cursor: pointer; transition: background-color 150ms ease-out; }
+/* Type comes from .body in the markup. Icons are 18px, as in .wl-btn and .wl-iconbtn. */
+.wl-menu__item svg { width: 18px; height: 18px; }
+.wl-menu__item:hover, .wl-menu__item:focus-visible { background: var(--surface-sunken); }
+@media (max-width: 767px) {
+  .wl-menu__item { height: 44px; }
+}
+
+/* AveragePositionMap dots. The chalk halo on home and chalk fill on away keep the dots at 3:1
+   against turf, and give the sides different centres in greyscale. */
+.wl-pitch .dot-home { fill: var(--home); stroke: var(--chalk); stroke-width: .6; }
+.wl-pitch .dot-away { fill: var(--chalk); stroke: var(--away); stroke-width: .8; }
+/* Accepted exception: the label size is in SVG user units of the pitch viewBox, not px. */
+.wl-pitch .dot-label { fill: var(--chalk); font: 600 3.2px var(--font-display); }
+/* A turf halo keeps a label legible where it crosses a chalk line. */
+.wl-pitch .dot-label { paint-order: stroke; stroke: var(--turf); stroke-width: .8; stroke-linejoin: round; }

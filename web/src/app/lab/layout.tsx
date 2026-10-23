@@ -1,6 +1,7 @@
 import { ListVideo } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/lab/SignOutButton";
+import { ThemeScope } from "@/components/ui/theme";
 import { LAB_ROLES, requirePageRole } from "@/server/auth/session";
 
 // The CV Lab uses the dark theme: video reads better on it.
@@ -8,7 +9,7 @@ export default async function LabLayout({ children }: { children: React.ReactNod
   const ctx = await requirePageRole(LAB_ROLES);
 
   return (
-    <div data-theme="dark" className="min-h-screen bg-surface text-ink lg:flex">
+    <ThemeScope theme="dark" className="min-h-screen lg:flex">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-10 wl-btn wl-btn--secondary"
@@ -39,6 +40,6 @@ export default async function LabLayout({ children }: { children: React.ReactNod
       <main id="main" className="min-w-0 flex-1 px-4 py-6 md:px-6 lg:px-8">
         {children}
       </main>
-    </div>
+    </ThemeScope>
   );
 }

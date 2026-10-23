@@ -113,3 +113,6 @@ export function withRole<P = unknown>(roles: readonly Role[], handler: RouteHand
 
 /** Roles allowed into the CV Lab. Only platform admins in V0. */
 export const LAB_ROLES: readonly Role[] = ["platform_admin"];
+
+/** Roles allowed into the developer pages (/dev), such as the component gallery. */
+export const DEV_ROLES: readonly Role[] = ["platform_admin"];

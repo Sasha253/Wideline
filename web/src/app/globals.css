@@ -1,6 +1,10 @@
 @import "tailwindcss";
-@import "../styles/tokens.css";
-@import "../styles/components.css";
+/* Tokens and type styles (.body, .display-xl…) sit in the base layer, under the components
+   and utilities layers, so a wl- rule or a utility on the same element can adjust them. */
+@import "../styles/tokens.css" layer(base);
+/* The wl- component classes sit in Tailwind's components layer, so utilities on the same
+   element (h-12, w-full, p-0, relative…) override them instead of losing to unlayered CSS. */
+@import "../styles/components.css" layer(components);
 
 /* Point the token font stacks at the self-hosted next/font families. */
 :root {
@@ -45,6 +49,14 @@ html {
   color: var(--ink);
 }
 
+/* Native controls and scrollbars follow the theme, on <html> and inside any ThemeScope. */
+[data-theme="light"] {
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-sans);
   font-size: 15px;
@@ -52,10 +64,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
+/* The focus ring is the bundle's :focus-visible rule in components.css. It sits in the
+   components layer, so a component can swap it for a replacement ring (see PlayerCard). */
 
 /* Tailwind ships an `overline` utility (text-decoration), which collides with
    the design system's .overline text style. Use .eyebrow in markup instead. */

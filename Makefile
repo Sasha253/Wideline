@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 WEB := $(COMPOSE) exec web
 
-.PHONY: help env up down logs ps migrate migrate-new seed test test-web test-e2e test-cv lint typecheck cv-run reset
+.PHONY: help env up down logs ps migrate migrate-new seed test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run reset
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -43,8 +43,23 @@ test: test-web test-cv ## Run all tests
 test-web: ## Web unit and integration tests (needs the stack running)
 	$(WEB) pnpm test
 
-test-e2e: ## Playwright smoke test against the running stack
-	cd web && E2E_BASE_URL=http://wideline.localhost pnpm test:e2e
+# Playwright runs in its official image (same version as @playwright/test) on the
+# compose network, so `make test-e2e` compares the same Linux PNG baselines as CI
+# (ubuntu). Chromium always resolves *.localhost to loopback, so a small TCP relay
+# inside the container forwards 127.0.0.1:80 to Caddy.
+PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.1-noble
+LOOPBACK_TO_CADDY := require("net").createServer(c=>{const s=require("net").connect(80,"caddy");c.on("error",()=>s.destroy());s.on("error",()=>c.destroy());c.pipe(s).pipe(c)}).listen(80,"127.0.0.1")
+PLAYWRIGHT_RUN = docker run --rm --ipc=host --network wideline_default \
+	  -v "$(CURDIR)/web:/work" -w /work \
+	  -e CI= -e E2E_BASE_URL=http://wideline.localhost -e E2E_PASSWORD \
+	  $(PLAYWRIGHT_IMAGE) sh -c 'node -e '"'"'$(LOOPBACK_TO_CADDY)'"'"' & sleep 1; \
+	    node node_modules/@playwright/test/cli.js test $(1) $(ARGS)'
+
+test-e2e: ## Playwright against the running stack, in the Linux image: make test-e2e E2E_PASSWORD=…
+	$(call PLAYWRIGHT_RUN,)
+
+test-e2e-update: ## Regenerate the Linux screenshot baselines: make test-e2e-update E2E_PASSWORD=…
+	$(call PLAYWRIGHT_RUN,--update-snapshots=all)
 
 test-cv: ## CV worker tests
 	cd cv_worker && uv run pytest
