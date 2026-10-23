@@ -82,11 +82,19 @@ export function InvitationsSection({ invitations }: { invitations: InvitationIte
               <caption className="sr-only">Open invitations, newest first</caption>
               <thead>
                 <tr>
-                  <th scope="col">Invitation</th>
-                  <th scope="col">Role</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Expires</th>
-                  <th scope="col" className="num">
+                  <th scope="col" className="label">
+                    Invitation
+                  </th>
+                  <th scope="col" className="label">
+                    Role
+                  </th>
+                  <th scope="col" className="label">
+                    Status
+                  </th>
+                  <th scope="col" className="label">
+                    Expires
+                  </th>
+                  <th scope="col" className="label num">
                     Actions
                   </th>
                 </tr>

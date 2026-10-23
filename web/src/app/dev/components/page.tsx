@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ThemeScope } from "@/components/ui/theme";
 import { DEV_ROLES, requirePageRole } from "@/server/auth/session";
 import { Gallery } from "./Gallery";
@@ -31,6 +32,12 @@ export default async function ComponentsPage() {
           Dark theme
         </a>
       </nav>
+      <p className="caption mt-2 text-ink-muted">
+        See also:{" "}
+        <Link href="/dev/templates" className="text-pitch underline">
+          Page templates
+        </Link>
+      </p>
       <ThemeScope theme="light" className={`mt-8 ${band}`}>
         <Gallery theme="light" />
       </ThemeScope>

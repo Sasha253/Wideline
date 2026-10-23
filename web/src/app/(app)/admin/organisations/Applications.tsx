@@ -175,14 +175,26 @@ export function Applications({
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Organisation</th>
-                  <th scope="col">Applicant</th>
-                  <th scope="col">{pending ? "Applied" : "Decided"}</th>
-                  <th scope="col">Status</th>
-                  <th scope="col" className={pending ? "num" : undefined}>
+                  <th scope="col" className="label">
+                    Organisation
+                  </th>
+                  <th scope="col" className="label">
+                    Applicant
+                  </th>
+                  <th scope="col" className="label">
+                    {pending ? "Applied" : "Decided"}
+                  </th>
+                  <th scope="col" className="label">
+                    Status
+                  </th>
+                  <th scope="col" className={pending ? "label num" : "label"}>
                     {pending ? "Actions" : "Reason"}
                   </th>
-                  {!pending && <th scope="col">Owner invitation</th>}
+                  {!pending && (
+                    <th scope="col" className="label">
+                      Owner invitation
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>

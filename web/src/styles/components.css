@@ -199,3 +199,151 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
   .wl-dialog__actions { flex-direction: column-reverse; }
   .wl-dialog__actions .wl-btn { width: 100%; justify-content: center; }
 }
+
+/* App shell, popovers, templates and states for D02 (docs/build/design/D02.md). Not in the design
+   system; built from tokens. Type comes from the type classes in the markup.
+   Widths: sidebar calc(space-12 * 5) = 240px, rail calc(space-12 * 2) = 96px, bar height
+   calc(space-12 + space-2) = 56px, popover calc(space-12 * 6) = 288px, decision column
+   calc(space-12 * 12) = 576px. 44px and 40px are the design system's touch target and row height.
+   Breakpoints are plain media queries (992px sidebar, 768-991px rail, under 768px phone), so
+   Tailwind's md and lg stay as they are. A hidden variant is display: none, which takes it out
+   of the tab order and the accessibility tree. */
+/* align-content: start keeps the phone rows (top bar, main) at their own height. */
+.wl-shell { display: grid; min-height: 100vh; grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; }
+/* The sidebar does not scroll itself: that would clip the popovers that open beside or below
+   it. Its nav scrolls instead, with a space-1 inset so the focus ring is not clipped. */
+.wl-sidebar { position: sticky; top: 0; z-index: 15; height: 100vh; display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-6) var(--space-4); background: var(--surface-sunken); border-right: 1px solid var(--line); }
+.wl-sidebar__nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--space-1); margin: calc(var(--space-1) * -1); }
+.wl-sidebar__account { margin-top: auto; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.wl-brand { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.wl-sidebar .wl-brand { align-self: flex-start; }
+.wl-topbar { position: relative; z-index: 15; display: flex; align-items: center; gap: var(--space-3); min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-2) var(--space-4); background: var(--surface-sunken); border-bottom: 1px solid var(--line); }
+.wl-main { min-width: 0; padding-bottom: var(--space-6); }
+/* A text link on its own line, with the 44px target (account block, wordmark on phones). */
+.wl-link-row { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* Main nav: sidebar and rail. The current item has three cues: bar, weight and fill. */
+.wl-nav { display: flex; flex-direction: column; gap: var(--space-1); }
+.wl-nav__item { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: 0 var(--space-3); border-radius: var(--radius-md); color: var(--ink-muted); text-decoration: none; transition: background-color 150ms ease-out, color 150ms ease-out; }
+.wl-nav__item:hover { color: var(--ink); background: var(--surface-raised); }
+.wl-nav__item svg { width: 20px; height: 20px; flex: none; }
+.wl-nav__item[aria-current="page"] { color: var(--ink); background: var(--pitch-soft); box-shadow: inset 2px 0 0 var(--pitch); }
+.wl-nav__item[aria-current="page"] > span { font-weight: 600; }
+
+/* Tab bar (phones). */
+.wl-tabbar { position: fixed; inset: auto 0 0 0; z-index: 10; display: flex; background: var(--surface-raised); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.wl-tabbar__more { flex: 1 1 0; min-width: 0; display: flex; }
+.wl-tabbar__item { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-1); color: var(--ink-muted); text-decoration: none; background: transparent; border: 0; cursor: pointer; text-align: center; }
+.wl-tabbar__item svg { width: 20px; height: 20px; flex: none; }
+.wl-tabbar__item[aria-current="page"], .wl-tabbar__item[aria-current="true"] { color: var(--ink); box-shadow: inset 0 2px 0 var(--pitch); }
+.wl-tabbar__item[aria-current="page"] > span, .wl-tabbar__item[aria-current="true"] > span { font-weight: 600; }
+
+/* Popovers: the org switcher, the account menu and the tab bar's More. Disclosure pattern. */
+.wl-popover { position: absolute; z-index: 20; min-width: calc(var(--space-12) * 6); max-width: calc(100vw - var(--space-8)); max-height: 70vh; overflow-y: auto; padding: var(--space-1); background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-pop); }
+.wl-popover--below { top: calc(100% + var(--space-1)); left: 0; }
+.wl-popover--below-end { top: calc(100% + var(--space-1)); right: 0; }
+.wl-popover--beside { left: calc(100% + var(--space-2)); top: 0; }
+.wl-popover--beside-end { left: calc(100% + var(--space-2)); top: auto; bottom: 0; }
+.wl-popover--above-end { bottom: calc(100% + var(--space-1)); right: var(--space-2); }
+.wl-popover--sheet { top: 100%; left: var(--space-4); right: var(--space-4); min-width: 0; }
+.wl-popover__heading { padding: var(--space-2) var(--space-3) var(--space-1); color: var(--ink-muted); }
+.wl-popover__item { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 44px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink); text-decoration: none; text-align: left; cursor: pointer; transition: background-color 150ms ease-out; }
+.wl-popover__item svg { width: 18px; height: 18px; flex: none; }
+.wl-popover__item:hover, .wl-popover__item:focus-visible { background: var(--surface-sunken); }
+.wl-popover__item[aria-current="page"] { font-weight: 600; background: var(--pitch-soft); box-shadow: inset 2px 0 0 var(--pitch); }
+.wl-popover__item[disabled] { opacity: .45; cursor: not-allowed; }
+.wl-popover__item--static { cursor: default; }
+.wl-popover__item--static:hover { background: transparent; }
+.wl-popover__footer { margin-top: var(--space-1); padding-top: var(--space-1); border-top: 1px solid var(--line); }
+
+/* Org switcher triggers. line-strong marks the trigger as a control (3:1). */
+.wl-switcher { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-2) var(--space-3); background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-md); text-align: left; cursor: pointer; }
+.wl-switcher:hover { background: var(--surface); }
+.wl-switcher svg { width: 20px; height: 20px; flex: none; margin-left: auto; color: var(--ink-muted); }
+.wl-switcher--compact { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: var(--space-1) var(--space-2); }
+.wl-switcher--static { border-color: transparent; background: transparent; cursor: default; }
+.wl-switcher--static:hover { background: transparent; }
+.wl-switcher__avatar { display: grid; place-items: center; align-self: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; border-radius: var(--radius-pill); cursor: pointer; }
+
+/* Skip link: visually hidden until focused. */
+.wl-skip:not(:focus) { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.wl-skip:focus { position: absolute; left: var(--space-2); top: var(--space-2); z-index: 30; }
+
+/* Skeletons: static under reduced motion. */
+.wl-skeleton { display: block; background: var(--surface-sunken); border-radius: var(--radius-sm); animation: wl-pulse 1.2s ease-in-out infinite; }
+.wl-skeleton--title { height: calc(var(--space-8) + var(--space-1)); }
+.wl-skeleton--line { height: var(--space-4); }
+.wl-skeleton--row { height: 40px; }
+.wl-skeleton--hero { height: calc(var(--space-12) * 4); border-radius: var(--radius-lg); }
+.wl-skeleton--video { aspect-ratio: 16 / 9; border-radius: var(--radius-md); }
+@keyframes wl-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  .wl-skeleton { animation: none; }
+}
+
+/* Templates: DetailPage hero, Workspace, DecisionFlow, EmptyState. */
+.wl-hero { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-6); }
+.wl-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+.wl-workspace__toolbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; background: var(--surface); border-bottom: 1px solid var(--line); }
+.wl-decision { max-width: calc(var(--space-12) * 12); margin-inline: auto; }
+.wl-decision__choice { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-3) var(--space-4); background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); cursor: pointer; transition: border-color 150ms ease-out, background-color 150ms ease-out; }
+.wl-decision__choice input[type="radio"] { accent-color: var(--pitch); width: 20px; height: 20px; margin: 0; flex: none; }
+.wl-decision__choice input[type="radio"]:focus-visible { outline: none; }
+.wl-decision__choice > svg { width: 20px; height: 20px; flex: none; margin-left: auto; color: var(--pitch); visibility: hidden; }
+.wl-decision__choice:has(input:checked) { border-color: var(--pitch); box-shadow: inset 0 0 0 1px var(--pitch); background: var(--pitch-soft); }
+.wl-decision__choice:has(input:checked) > svg { visibility: visible; }
+.wl-decision__choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wl-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-3); padding: var(--space-12) var(--space-4); max-width: 65ch; margin-inline: auto; }
+.wl-empty__art { width: calc(var(--space-12) * 4); height: auto; margin-bottom: var(--space-3); }
+.wl-empty__art .turf { fill: var(--turf); rx: var(--radius-md); }
+.wl-empty__art .chalk { fill: none; stroke: var(--chalk); stroke-width: 1.5; }
+
+/* Tables (moved from globals.css): sticky headers, line dividers, no zebra stripes. Type comes
+   from .label on th and .data on numeric td in the markup. */
+.wl-table { width: 100%; border-collapse: collapse; }
+.wl-table th { position: sticky; top: 0; background: var(--surface-raised); text-align: left; color: var(--ink-muted); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
+.wl-table td { height: 40px; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
+.wl-table th.num { text-align: right; }
+.wl-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.wl-table-wrap { overflow: auto; }
+@media (pointer: coarse) {
+  .wl-table td { height: 48px; }
+}
+
+/* Width ranges. */
+@media (min-width: 992px) {
+  .wl-shell { grid-template-columns: calc(var(--space-12) * 5) minmax(0, 1fr); }
+  .wl-only-rail, .wl-only-phone { display: none; }
+}
+@media (min-width: 768px) and (max-width: 991px) {
+  .wl-shell { grid-template-columns: calc(var(--space-12) * 2) minmax(0, 1fr); }
+  .wl-sidebar { padding: var(--space-4) var(--space-2); }
+  .wl-sidebar .wl-brand { align-self: center; }
+  .wl-nav__item { flex-direction: column; justify-content: center; gap: var(--space-1); min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-2) var(--space-1); text-align: center; }
+  .wl-only-sidebar, .wl-only-phone { display: none; }
+}
+@media (min-width: 768px) {
+  .wl-topbar, .wl-tabbar { display: none; }
+  .wl-hero { padding: var(--space-8); }
+  .wl-table-wrap { max-height: 70vh; }
+}
+@media (max-width: 767px) {
+  .wl-sidebar { display: none; }
+  .wl-main--tabbar { padding-bottom: calc(var(--space-12) + var(--space-2) + var(--space-6) + env(safe-area-inset-bottom)); }
+  /* The fixed tab bar covers the bottom of the viewport, so keyboard focus must scroll clear of it
+     (WCAG 2.2 SC 2.4.11, NFR23). Bar height plus a gap that clears its 1px border and the 4px focus ring. */
+  html:has(.wl-tabbar) { scroll-padding-bottom: calc(var(--space-12) + var(--space-2) + var(--space-2) + env(safe-area-inset-bottom)); }
+  .wl-only-sidebar, .wl-only-rail { display: none; }
+}
+@media (min-width: 1280px) {
+  .wl-hero { padding: var(--space-12); }
+  .wl-workspace { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .wl-workspace__primary { grid-column: span 8; }
+  .wl-workspace__side { grid-column: span 4; }
+  /* The 4-column side pane is about as narrow as a phone, so review rows stack as they do there. */
+  .wl-workspace__side .wl-event { grid-template-columns: auto 1fr auto; }
+  .wl-workspace__side .wl-event > :nth-child(1) { grid-column: 1; grid-row: 1; align-self: start; }
+  .wl-workspace__side .wl-event > .wl-event__what { grid-column: 2 / -1; grid-row: 1; }
+  .wl-workspace__side .wl-event > :nth-child(3) { grid-column: 1 / 3; grid-row: 2; justify-self: start; }
+  .wl-workspace__side .wl-event > :nth-child(4) { grid-column: 3; grid-row: 2; justify-self: end; }
+}

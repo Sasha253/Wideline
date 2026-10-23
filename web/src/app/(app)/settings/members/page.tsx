@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/templates/PageHeader";
 import { formatDate, relativeExpiry, ROLE_LABELS } from "@/lib/labels";
 import { ORG_ADMIN_ROLES, requirePageRole } from "@/server/auth/session";
 import { listInvitations } from "@/server/organisations/invitations";
@@ -45,10 +46,10 @@ export default async function MembersPage() {
 
   return (
     <>
-      <h1 className="heading-1">Members</h1>
-      <p className="body mt-2 max-w-prose text-ink-muted">
-        People who can sign in to {ctx.organisationName}, and invitations that are still open.
-      </p>
+      <PageHeader
+        title="Members"
+        intro={`People who can sign in to ${ctx.organisationName}, and invitations that are still open.`}
+      />
       <SettingsNav current="members" />
       <InviteCard orgName={ctx.organisationName} roles={roles} isOwner={isOwner} />
       <InvitationsSection invitations={invitationItems} />

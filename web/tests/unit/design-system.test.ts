@@ -12,8 +12,12 @@ const tokensCss = join(web, "src/styles/tokens.css");
 const designSystem = join(web, "../docs/design-system");
 
 const devDir = join(web, "src/app/dev");
+// D02: the app shell, page templates, shared states and the template showcase.
+const d02Dirs = ["shell", "templates", "states"].map((d) => join(web, "src/components", d));
+const templatesShowcase = join(web, "src/app/(app)/dev/templates");
+const globalsCss = join(web, "src/app/globals.css");
 
-const uiFiles = [uiDir, devDir].flatMap((dir) =>
+const uiFiles = [uiDir, devDir, ...d02Dirs, templatesShowcase].flatMap((dir) =>
   readdirSync(dir, { recursive: true, encoding: "utf8" })
     .filter((f) => /\.(ts|tsx|css)$/.test(f))
     .map((f) => join(dir, f)),
@@ -58,6 +62,21 @@ describe("components.css Additions block", () => {
       ...additions.matchAll(/\b(?:margin|padding|gap|row-gap|column-gap)(?:-\w+)?\s*:([^;}]*)/g),
     ].filter(([, value]) => /\d*\.?\d+px\b/.test(value!));
     expect(spacing.map(([decl]) => decl)).toEqual([]);
+  });
+});
+
+describe("tables (D02)", () => {
+  it("keep .wl-table in the components.css Additions block, not in globals.css", () => {
+    const css = readFileSync(componentsCss, "utf8");
+    expect(css.indexOf(".wl-table {")).toBeGreaterThan(css.indexOf("/* Additions"));
+    expect(readFileSync(globalsCss, "utf8")).not.toContain(".wl-table");
+  });
+
+  it("set no font in the .wl-table rules: th uses .label and numeric td .data", () => {
+    const css = readFileSync(componentsCss, "utf8");
+    const tableRules = rules(css).filter((r) => r.startsWith(".wl-table"));
+    expect(tableRules.length).toBeGreaterThan(0);
+    for (const rule of tableRules) expect(rule).not.toMatch(/\bfont(-size)?\s*:/);
   });
 });
 

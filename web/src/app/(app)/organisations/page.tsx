@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SignOutButton } from "@/components/SignOutButton";
+import { PageHeader } from "@/components/templates/PageHeader";
 import { locationText, ORG_TYPE_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { requireUser } from "@/server/auth/session";
 import { OrganisationList } from "./OrganisationList";
@@ -12,11 +13,10 @@ export default async function OrganisationsPage() {
 
   return (
     <>
-      <h1 className="heading-1">Your organisations</h1>
-      <p className="body mt-2 max-w-prose text-ink-muted">
-        Choose which organisation you are working in. Wideline shows that organisation&apos;s
-        squads, matches and settings.
-      </p>
+      <PageHeader
+        title="Your organisations"
+        intro="Choose which organisation you are working in. Wideline shows that organisation's squads, matches and settings."
+      />
 
       {ctx.organisations.length === 0 ? (
         <div className="mt-6">

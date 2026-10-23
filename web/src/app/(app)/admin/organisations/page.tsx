@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/templates/PageHeader";
 import { formatDate, locationText, ORG_TYPE_LABELS } from "@/lib/labels";
 import { PLATFORM_ROLES, requirePageRole } from "@/server/auth/session";
 import {
@@ -38,11 +39,10 @@ export default async function OrganisationApplicationsPage({
 
   return (
     <>
-      <h1 className="heading-1">Organisation applications</h1>
-      <p className="body mt-2 max-w-prose text-ink-muted">
-        Academies, clubs and agencies that asked to join the pilot. Approving one emails the
-        applicant an owner invitation.
-      </p>
+      <PageHeader
+        title="Organisation applications"
+        intro="Academies, clubs and agencies that asked to join the pilot. Approving one emails the applicant an owner invitation."
+      />
       <nav aria-label="Application status" className="wl-tabs mt-6">
         <Link
           href="/admin/organisations?status=pending"

@@ -1,63 +1,15 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { expectKeyboardFocusRing, expectNoAxeViolations } from "./helpers/a11y";
 import { requireAdminPassword, signInAsAdmin } from "./helpers/auth";
 import { databaseUrl, sql } from "./helpers/db";
 import { findInviteEmail } from "./helpers/mailpit";
+import { acceptAsNewUser, DEMO, invite, LAB, mail, switchTo, unique } from "./helpers/orgs";
 
 // C01: apply, approve, accept and invite through Mailpit; switching
 // organisation; axe on every C01 screen at 375, 768 and 1280 px.
+// D02 moved the owner and coach home to /dashboard (homeFor in src/lib/nav.ts).
 
 const WIDTHS = [375, 768, 1280];
-const LAB = "Wideline Lab";
-const DEMO = "Wideline Demo FC";
-const PASSWORD = "e2e-password-0123";
-
-const unique = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const mail = (local: string) => `${local}@e2e.wideline.localhost`;
-
-async function expectNoAxeViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(results.violations, page.url()).toEqual([]);
-}
-
-/** Presses Tab until the locator has focus, then checks the focus ring is drawn. */
-async function expectKeyboardFocusRing(page: Page, target: Locator) {
-  const focused = () => target.evaluate((el) => el === document.activeElement);
-  for (let i = 0; i < 60 && !(await focused()); i++) await page.keyboard.press("Tab");
-  expect(await focused()).toBe(true);
-  const outline = await target.evaluate((el) => getComputedStyle(el).outlineStyle);
-  expect(outline).toBe("solid");
-}
-
-/** As the seeded admin, makes the named organisation active through /organisations. */
-async function switchTo(page: Page, name: string) {
-  await page.goto("/organisations");
-  const current = page.getByRole("listitem").filter({ hasText: name });
-  if ((await current.getAttribute("aria-current")) === "true") return;
-  await page.getByRole("button", { name: `Switch to ${name}` }).click();
-  await expect(page).not.toHaveURL(/\/organisations/);
-}
-
-/** Opens an invitation link signed out, creates the account and joins. */
-async function acceptAsNewUser(browser: Browser, path: string, name: string) {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await page.goto(path);
-  await page.getByLabel("Your name").fill(name);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account and join" }).click();
-  await expect(page).not.toHaveURL(/\/invite\//);
-  return page;
-}
-
-async function invite(page: Page, email: string, role: string) {
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Role", { exact: true }).selectOption(role);
-  await page.getByRole("button", { name: "Send invitation", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: email })).toBeVisible();
-}
 
 test("apply, approve, accept and invite, end to end", async ({ browser }) => {
   requireAdminPassword();
@@ -98,10 +50,11 @@ test("apply, approve, accept and invite, end to end", async ({ browser }) => {
 
   // 4. The applicant creates an account and lands in the new organisation.
   const owner = await acceptAsNewUser(browser, ownerMail.path, "Thandi Mokoena");
-  await expect(owner).toHaveURL(/\/settings\/members/);
+  await expect(owner).toHaveURL(/\/dashboard/);
   await expect(owner.getByTestId("active-organisation")).toHaveText(orgName);
 
   // 5. The owner invites a coach; the row shows a Pending chip.
+  await owner.goto("/settings/members");
   const coachEmail = mail(`coach-${tag}`);
   await invite(owner, coachEmail, "coach");
   await expect(
@@ -112,7 +65,7 @@ test("apply, approve, accept and invite, end to end", async ({ browser }) => {
   const coachMail = await findInviteEmail(visitor, coachEmail);
   expect(coachMail.subject).toBe(`Thandi Mokoena invited you to ${orgName} on Wideline`);
   const coach = await acceptAsNewUser(browser, coachMail.path, "Chris Coach");
-  await expect(coach).toHaveURL(/\/organisations/);
+  await expect(coach).toHaveURL(/\/dashboard/);
   await expect(coach.getByTestId("active-organisation")).toHaveText(orgName);
 
   // 7. A coach cannot open the members page.
@@ -149,17 +102,16 @@ test("the seeded admin switches between organisations", async ({ page }) => {
   await switchTo(page, LAB);
   await page.goto("/organisations");
   await expect(page.getByTestId("active-organisation")).toHaveText(LAB);
-  await expect(page.getByRole("listitem").filter({ hasText: LAB })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  await expect(
+    page.getByRole("main").getByRole("listitem").filter({ hasText: LAB }),
+  ).toHaveAttribute("aria-current", "true");
 
-  await page.getByRole("button", { name: `Switch to ${DEMO}` }).click();
-  await expect(page).toHaveURL(/\/settings\/members/);
+  await page.getByRole("button", { name: `Switch to ${DEMO}`, exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
   await expect(page.getByTestId("active-organisation")).toHaveText(DEMO);
 
   await page.goto("/organisations");
-  await page.getByRole("button", { name: `Switch to ${LAB}` }).click();
+  await page.getByRole("button", { name: `Switch to ${LAB}`, exact: true }).click();
   await expect(page).toHaveURL(/\/lab\/matches/);
 });
 

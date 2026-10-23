@@ -7,7 +7,12 @@ import { NextResponse, type NextRequest } from "next/server";
 //
 // It also passes the requested path on in the x-wl-path header (PATH_HEADER in
 // src/server/auth/session.ts), so requirePageRole can send an expired session
-// to /login?next=<path>. /invite and /apply are public and not matched.
+// to /login?next=<path>.
+//
+// The matcher takes every path apart from the public ones (/login, /apply,
+// /invite), the API, Next.js internals and files with an extension, so a new
+// shell page is covered without editing this file. The root / is matched too,
+// which is harmless: it sends signed-out visitors to /login anyway.
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname + request.nextUrl.search;
   if (!getSessionCookie(request)) {
@@ -21,11 +26,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/lab/:path*",
-    "/dev/:path*",
-    "/settings/:path*",
-    "/organisations/:path*",
-    "/admin/:path*",
-  ],
+  matcher: ["/((?!login|apply|invite|api|_next|favicon\\.ico|robots\\.txt|.*\\..*).*)"],
 };

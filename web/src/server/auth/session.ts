@@ -251,6 +251,12 @@ export const ALL_ROLES: readonly Role[] = ROLE_ORDER;
 /** Organisation administrators: settings, members and invitations. */
 export const ORG_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
 
+/** Club staff: the dashboard, squad and matches (D02 nav; C04, C06, C14 pages). */
+export const CLUB_ROLES: readonly Role[] = ["owner", "admin", "coach"];
+
+/** Scouts: the review queue and shortlists (D02 nav; C10, C15 pages). */
+export const SCOUT_ROLES: readonly Role[] = ["scout"];
+
 /** Wideline staff: the organisation approval queue (ADMIN01). */
 export const PLATFORM_ROLES: readonly Role[] = ["platform_admin"];
 

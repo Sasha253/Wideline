@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/templates/PageHeader";
 import { countryOptions, SA_PROVINCES } from "@/lib/labels";
 import { ORG_ADMIN_ROLES, requirePageRole } from "@/server/auth/session";
 import { SettingsNav } from "../SettingsNav";
@@ -14,10 +15,10 @@ export default async function OrganisationSettingsPage() {
 
   return (
     <>
-      <h1 className="heading-1">Organisation settings</h1>
-      <p className="body mt-2 max-w-prose text-ink-muted">
-        How {org.name} appears to scouts and on player profiles.
-      </p>
+      <PageHeader
+        title="Organisation settings"
+        intro={`How ${org.name} appears to scouts and on player profiles.`}
+      />
       <SettingsNav current="organisation" />
       <section aria-label="Organisation details" className="wl-card mt-8 max-w-xl">
         <SettingsForm initial={org} countries={countryOptions()} provinces={SA_PROVINCES} />

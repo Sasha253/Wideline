@@ -78,35 +78,6 @@ body {
   text-transform: uppercase;
 }
 
-/* Tables: sticky headers, line dividers, no zebra stripes. */
-.wl-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.wl-table th {
-  position: sticky;
-  top: 0;
-  background: var(--surface-raised);
-  text-align: left;
-  font: 500 13px/18px var(--font-sans);
-  color: var(--ink-muted);
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--line);
-}
-.wl-table td {
-  height: 40px;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--line);
-}
-.wl-table th.num {
-  text-align: right;
-}
-.wl-table td.num {
-  text-align: right;
-  font: 500 13px/18px var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

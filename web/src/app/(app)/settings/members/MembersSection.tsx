@@ -130,10 +130,16 @@ export function MembersSection({
           <caption className="sr-only">Members of {orgName}, by name</caption>
           <thead>
             <tr>
-              <th scope="col">Member</th>
-              <th scope="col">Role</th>
-              <th scope="col">Joined</th>
-              <th scope="col" className="num">
+              <th scope="col" className="label">
+                Member
+              </th>
+              <th scope="col" className="label">
+                Role
+              </th>
+              <th scope="col" className="label">
+                Joined
+              </th>
+              <th scope="col" className="label num">
                 Actions
               </th>
             </tr>

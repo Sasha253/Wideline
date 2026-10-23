@@ -51,12 +51,25 @@ docs/                PRD
   the seed.
 - **Permissions** (AUTH-06): every page, route handler and server action calls
   `requireRole()` (or `requirePageRole()` / `withRole()`) from
-  `src/server/auth/session.ts`. `src/proxy.ts` only redirects signed-out
+  `src/server/auth/session.ts`. Pages that only need a signed-in user, with or
+  without an organisation (`/organisations`, `/forbidden`, the app layout), call
+  `requireUser()`. `src/proxy.ts` only redirects signed-out
   visitors; it is not a permission check. Only `platform_admin` can use the Lab
   and the organisation approval queue (`/admin/organisations`). A unit test
   (`tests/unit/server-actions-guarded.test.ts`) checks every `actions.ts`;
   the only public actions are accepting an invitation (the token is the
   capability) and the "Join the pilot" form at `/apply`.
+- **App shell and navigation** (D02): every signed-in page renders inside
+  `src/components/shell/AppShell.tsx` (sidebar from 992px, rail from 768px, top
+  bar and bottom tab bar on phones). The nav comes from `src/lib/nav.ts` by the
+  roles in the active organisation; it is a convenience only, and every page
+  still calls `requirePageRole()`. A new top-level page adds its item to
+  `NAV_ITEMS` with the matching role constant (`CLUB_ROLES`, `SCOUT_ROLES`,
+  `ORG_ADMIN_ROLES`, `PLATFORM_ROLES` in `session.ts`; a unit test keeps the two
+  in step). `homeFor()` picks where `/` sends each role. Pages are built from
+  `src/components/templates/` and `src/components/states/`; see
+  `/dev/templates`. `src/proxy.ts` matches every path apart from the public ones,
+  so new shell pages need no proxy change.
 - **Organisations and invitations** (AUTH-03 to AUTH-05, ADMIN-01): new
   organisations apply at `/apply` and start `pending`; a platform admin approves
   them, which emails the applicant an owner invitation. Owners and admins invite
