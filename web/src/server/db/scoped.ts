@@ -11,7 +11,8 @@ import { rawDb } from "./raw";
  *    organisation anywhere in a write, including nested writes;
  *  - exposes global models only in a narrowed form (User: read-only and only
  *    members of this organisation; Organisation: only this one);
- *  - refuses the Better Auth tables and the scout tables entirely.
+ *  - refuses the Better Auth tables, the scout tables and the plan,
+ *    entitlement and usage tables entirely.
  *
  * Cross-tenant foreign keys are blocked in the database too: references between
  * tenant tables are composite (organisationId, id) foreign keys, so a row can
@@ -32,19 +33,31 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Invitation",
 ]);
 
-// Global tables no organisation may reach: the Better Auth tables, and the
-// scout tables (AUTH08 to AUTH10), which belong to the scout, not to any
-// organisation. Scout code uses src/server/scouts/ and src/server/platform/.
+// Tables no organisation may reach: the Better Auth tables, the scout tables
+// (AUTH08 to AUTH10), which belong to the scout, not to any organisation, and
+// the plan, entitlement and usage tables (C03), which only Wideline changes.
+// Scout code uses src/server/scouts/ and src/server/platform/; entitlements use
+// src/server/entitlements/ and src/server/usage/.
 const FORBIDDEN = new Set<Prisma.ModelName>([
   "Session",
   "Account",
   "Verification",
   "ScoutProfile",
   "ScoutAffiliation",
+  "Plan",
+  "Subscription",
+  "Entitlement",
+  "UsageEvent",
 ]);
+const ENTITLEMENTS_REASON =
+  "plans and entitlements are set by Wideline; read them with entitlement() or may() from src/server/entitlements/";
 const FORBIDDEN_REASON: Partial<Record<Prisma.ModelName, string>> = {
   ScoutProfile: "scout data is global and scout-owned; use src/server/scouts/",
   ScoutAffiliation: "scout data is global and scout-owned; use src/server/scouts/",
+  Plan: ENTITLEMENTS_REASON,
+  Subscription: ENTITLEMENTS_REASON,
+  Entitlement: ENTITLEMENTS_REASON,
+  UsageEvent: "usage is recorded with recordUsage() from src/server/usage/meter.ts",
 };
 
 const UNIQUE_WHERE_OPS = new Set(["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"]);
@@ -122,9 +135,15 @@ const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy"]);
 // another organisation's rows (NFR16).
 const SCOPED_ORG_FIELDS = new Set(["name", "type", "country", "region", "settings"]);
 
-// Relations on Organisation that would reveal scout data: which scouts declared
-// a conflict with this organisation.
-const ORG_PRIVATE_RELATIONS = new Set(["scoutAffiliations"]);
+// Relations on Organisation that would reveal scout data (which scouts declared
+// a conflict with this organisation), or plan data and the platform admins'
+// internal override notes (C03).
+const ORG_PRIVATE_RELATIONS = new Set([
+  "scoutAffiliations",
+  "subscription",
+  "entitlements",
+  "usageEvents",
+]);
 
 function assertOrgUpdateAllowed(data: unknown): void {
   const d = (data ?? {}) as Record<string, unknown>;
@@ -154,7 +173,7 @@ function assertNoUserPrivateRelations(tree: unknown, atUser: boolean): void {
   }
 }
 
-/** Throws if an include or select names Organisation.scoutAffiliations, at any depth. */
+/** Throws if an include or select names a private Organisation relation, at any depth. */
 function assertNoOrgPrivateRelations(tree: unknown): void {
   if (tree === null || typeof tree !== "object") return;
   for (const [key, v] of Object.entries(tree)) {
@@ -172,6 +191,8 @@ function assertNoOrgPrivateRelations(tree: unknown): void {
 // Relation filters that would let a scoped query test scout data ("clubs some
 // scout declared"), so they are refused anywhere in a where clause.
 const SCOUT_RELATION_FILTERS = new Set(["scoutAffiliations", "scoutProfile"]);
+// Likewise for plan and entitlement data, such as the text of an override note.
+const ENTITLEMENT_RELATION_FILTERS = new Set(["subscription", "entitlements", "usageEvents"]);
 
 function assertNoScoutFilters(where: unknown, path = "where"): void {
   if (Array.isArray(where)) {
@@ -182,6 +203,9 @@ function assertNoScoutFilters(where: unknown, path = "where"): void {
   for (const [key, v] of Object.entries(where)) {
     if (SCOUT_RELATION_FILTERS.has(key)) {
       throw new TenantScopeError(`${path}.${key}: scout data cannot be filtered on when scoped`);
+    }
+    if (ENTITLEMENT_RELATION_FILTERS.has(key)) {
+      throw new TenantScopeError(`${path}.${key}: plan data cannot be filtered on when scoped`);
     }
     assertNoScoutFilters(v, `${path}.${key}`);
   }

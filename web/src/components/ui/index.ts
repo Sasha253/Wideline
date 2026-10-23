@@ -12,6 +12,7 @@ export { ReviewEventRow, type EventWho } from "./ReviewEventRow";
 export { StatTile } from "./StatTile";
 export {
   EventStatusChip,
+  FlagStateChip,
   InvitationStatusChip,
   MatchStatusChip,
   OrganisationStatusChip,

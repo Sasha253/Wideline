@@ -15,6 +15,10 @@ const RAW_DB_ALLOWED = [
   // tables. Every export is either the public registration or takes the
   // caller's own session userId.
   "src/server/scouts/**",
+  // Entitlements and the usage meter (BILL01, ADMIN05): every export takes an
+  // explicit organisationId and touches only that organisation's rows.
+  "src/server/entitlements/**",
+  "src/server/usage/meter.ts",
   "src/worker/**",
   "src/app/api/jobs/*/callback/**",
   "prisma/seed.ts",

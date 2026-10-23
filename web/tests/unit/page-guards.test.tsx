@@ -33,6 +33,11 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
   ["/admin", () => import("@/app/(app)/admin/page"), session.PLATFORM_ROLES],
   ["/admin/scouts", () => import("@/app/(app)/admin/scouts/page"), session.PLATFORM_ROLES],
+  [
+    "/admin/organisations/[organisationId]",
+    () => import("@/app/(app)/admin/organisations/[organisationId]/page"),
+    session.PLATFORM_ROLES,
+  ],
   ["/dev/templates", () => import("@/app/(app)/dev/templates/page"), session.DEV_ROLES],
   ["/dev/templates/list", () => import("@/app/(app)/dev/templates/list/page"), session.DEV_ROLES],
   [
@@ -71,7 +76,11 @@ describe.each(PAGES)("%s", (_name, load, roles) => {
     });
     const page = (await load()).default as Page;
     await expect(
-      page({ children: null, searchParams: Promise.resolve({}) } as never),
+      page({
+        children: null,
+        searchParams: Promise.resolve({}),
+        params: Promise.resolve({ organisationId: "org-1" }),
+      } as never),
     ).rejects.toThrow("NEXT_REDIRECT");
     expect(requirePageRole).toHaveBeenCalledTimes(1);
     expect(requirePageRole).toHaveBeenCalledWith(roles);

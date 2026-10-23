@@ -4,7 +4,9 @@ import type {
   Role,
   ScoutAffiliationType,
   ScoutStatus,
+  SubscriptionStatus,
 } from "@/generated/prisma/enums";
+import { LIMIT_KEYS, type EntitlementSource, type LimitKey } from "./entitlement-keys";
 
 // Display copy shared by server pages, emails and client components
 // (docs/build/design/C01.md, "Rules for the whole chunk").
@@ -51,6 +53,49 @@ export const AFFILIATION_TYPE_LABELS: Record<ScoutAffiliationType, string> = {
   club: "Club",
   player: "Player",
 };
+
+// Plans and entitlements (docs/build/design/C03.md). Draft copy.
+export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  active: "Active",
+  past_due: "Past due",
+  cancelled: "Cancelled",
+  lapsed: "Lapsed",
+};
+
+/** Where an effective value came from. "{plan}" is replaced by the plan name. */
+export const ENTITLEMENT_SOURCE_LABELS: Record<EntitlementSource, string> = {
+  default: "Built-in default",
+  plan: "From the {plan} plan",
+  override: "From an override",
+  flag: "From a flag",
+};
+
+/** "From the Pilot plan", "From a flag". With no plan name, a plan source reads as the built-in default. */
+export function sourceText(source: EntitlementSource, planName: string | null): string {
+  if (source === "plan" && !planName) return ENTITLEMENT_SOURCE_LABELS.default;
+  return ENTITLEMENT_SOURCE_LABELS[source].replace("{plan}", planName ?? "");
+}
+
+const countFormat = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
+const gbFormat = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 });
+
+/** "10,000": whole numbers grouped with commas. */
+export function formatCount(n: number): string {
+  return countFormat.format(n);
+}
+
+/** "8.59 GB", "10 GB": decimal gigabytes (10^9 bytes), never GiB. */
+export function formatGB(bytes: number): string {
+  return `${gbFormat.format(bytes / 1_000_000_000)} GB`;
+}
+
+/** A limit as text: "Unlimited", "8.59 GB", "1 match", "100 matches". */
+export function limitText(key: LimitKey, value: number): string {
+  if (value === Infinity) return "Unlimited";
+  const def = LIMIT_KEYS[key];
+  if (def.unit === "bytes") return formatGB(value);
+  return `${formatCount(value)} ${value === 1 ? def.noun[0] : def.noun[1]}`;
+}
 
 /** The types an organisation can choose. platform and scout_network are display only. */
 export const SELECTABLE_ORG_TYPES = ["academy", "club", "agency"] as const;

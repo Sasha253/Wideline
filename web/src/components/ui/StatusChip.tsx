@@ -4,6 +4,7 @@ import {
   CheckCheck,
   CircleAlert,
   CircleDashed,
+  CircleOff,
   Clock,
   Eye,
   LoaderCircle,
@@ -99,6 +100,13 @@ export const SCOUT_STATES: Record<ScoutStatus, Preset> = {
   rejected: { tone: "danger", icon: X, label: "Not approved" },
 };
 
+// Feature flag states on the admin flags and limits page (docs/build/design/C03.md).
+// neutral is the README's tone for "inactive"; the word and icon carry the state.
+export const FLAG_STATES: Record<"on" | "off", Preset> = {
+  on: { tone: "ok", icon: Check, label: "On" },
+  off: { tone: "neutral", icon: CircleOff, label: "Off" },
+};
+
 export function EventStatusChip({ state }: { state: EventReviewState }) {
   return <StatusChip {...EVENT_STATES[state]} />;
 }
@@ -117,4 +125,8 @@ export function OrganisationStatusChip({ status }: { status: OrganisationStatus 
 
 export function ScoutStatusChip({ status }: { status: ScoutStatus }) {
   return <StatusChip {...SCOUT_STATES[status]} />;
+}
+
+export function FlagStateChip({ on }: { on: boolean }) {
+  return <StatusChip {...FLAG_STATES[on ? "on" : "off"]} />;
 }

@@ -1,6 +1,7 @@
 // No "server-only" import: prisma/seed.ts runs this under plain Node.
 import { Prisma } from "@/generated/prisma/client";
 import { rawDb } from "../db/raw";
+import { ensureSubscription } from "../entitlements/plans";
 
 /**
  * The scout network (AUTH08): one shared organisation, "Wideline scouts", that
@@ -13,9 +14,12 @@ import { rawDb } from "../db/raw";
 export const SCOUT_NETWORK_ORG_ID = "scout-network";
 export const SCOUT_NETWORK_NAME = "Wideline scouts";
 
-type Db = Pick<typeof rawDb, "organisation">;
+type Db = Pick<typeof rawDb, "organisation" | "plan" | "subscription">;
 
-/** Creates the scout network organisation if it is missing. Idempotent and safe to race. */
+/**
+ * Creates the scout network organisation if it is missing, on the pilot plan
+ * (BILL02). Idempotent and safe to race.
+ */
 export async function ensureScoutNetwork(db: Db = rawDb): Promise<void> {
   try {
     await db.organisation.upsert({
@@ -33,4 +37,5 @@ export async function ensureScoutNetwork(db: Db = rawDb): Promise<void> {
     // Two first registrations at once: the other one created it.
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
   }
+  await ensureSubscription(db, SCOUT_NETWORK_ORG_ID);
 }

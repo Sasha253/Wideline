@@ -22,6 +22,15 @@
 // them. The active organisation of a signed-in user is stored per session in
 // Session.activeOrganisationId (AUTH05), a plain column with no relation, so a
 // scoped Organisation read can never reach session tokens.
+//
+// Plans and entitlements (BILL01, BILL02, ADMIN04): Plan is global. Subscription
+// (one per organisation), Entitlement (overrides and feature flags) and
+// UsageEvent (the usage meter, ADMIN05, NFR04) carry organisationId but are
+// refused by the scoped client, like the scout tables: only
+// src/server/entitlements/, src/server/usage/meter.ts and
+// src/server/platform/entitlements.ts touch them, always for one explicit
+// organisation. Every limit is read through entitlement() / hasCapacity(),
+// never from a constant.
 
 generator client {
   provider = "prisma-client"
@@ -73,7 +82,6 @@ model Organisation {
   country         String             @default("ZA")
   region          String?
   status          OrganisationStatus @default(pending)
-  planId          String?
   // ADMIN01: who applied through /apply, and the platform admin's decision.
   applicantName   String?
   applicantEmail  String?
@@ -96,6 +104,13 @@ model Organisation {
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
   scoutAffiliations ScoutAffiliation[]
+
+  // Refused by the scoped client (ORG_PRIVATE_RELATIONS): plan data and the
+  // platform admins' override notes are internal. Read them through
+  // src/server/entitlements/.
+  subscription Subscription?
+  entitlements Entitlement[]
+  usageEvents  UsageEvent[]
 }
 
 // Global. Columns match what Better Auth expects for its user model.
@@ -426,6 +441,115 @@ model Lineup {
   @@unique([matchId, playerId])
   @@unique([matchId, teamId, shirtNumber])
   @@index([organisationId])
+}
+
+// ---------------------------------------------------------------------------
+// Plans, entitlements and usage (BILL01, BILL02, ADMIN04, ADMIN05, NFR04)
+// ---------------------------------------------------------------------------
+
+// Global. limits is a JSON map keyed by the registry keys in
+// src/lib/entitlement-keys.ts: a limit is a non-negative integer or
+// "unlimited", a feature is a boolean. A key the plan lacks falls back to the
+// registry. Only the pilot plan exists in v0 (seeded by the c03 migration).
+model Plan {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  priceCents Int      @default(0)
+  // ISO 4217.
+  currency   String   @default("ZAR")
+  limits     Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+enum SubscriptionStatus {
+  active
+  past_due
+  cancelled
+  // Data is never deleted when a subscription lapses; it becomes read-only (V201).
+  lapsed
+}
+
+// One per organisation. A plan change updates the row and is audited; the
+// history lives in AuditLog. provider and providerRef stay null until V201.
+model Subscription {
+  id               String             @id @default(cuid())
+  organisationId   String             @unique
+  organisation     Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status           SubscriptionStatus @default(active)
+  provider         String?
+  providerRef      String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([organisationId, id])
+}
+
+enum EntitlementSource {
+  // A per-organisation limit (or add-on) that beats the plan.
+  override
+  // A per-organisation feature flag: the last word (ADMIN04).
+  flag
+}
+
+// Per-organisation overrides and feature flags, resolved over the plan by
+// src/server/entitlements/resolve.ts. key is a plain string, not an enum, so a
+// new registry key needs no migration. value is JSON in the registry's shape.
+// reason is a platform admin's internal note. setByUserId is a plain column with
+// no User relation, so the row never reaches a user record.
+model Entitlement {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  key            String
+  source         EntitlementSource
+  value          Json
+  reason         String?
+  setByUserId    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organisationId, key, source])
+  @@unique([organisationId, id])
+}
+
+enum UsageMetric {
+  matches
+  // Minutes are stored as seconds and shown as minutes (C18).
+  video_seconds
+  // In cents of the currency the provider bills; see UsageEvent.currency.
+  gpu_cost_cents
+  storage_bytes
+}
+
+// The usage meter (ADMIN05, NFR04): one signed delta per source. Storage
+// deletions are negative rows, so current storage is the sum. Written only by
+// recordUsage() (src/server/usage/meter.ts); the unique key makes a retried job
+// count once (NFR06).
+model UsageEvent {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  metric         UsageMetric
+  quantity       BigInt
+  // ISO 4217, gpu_cost_cents only.
+  currency       String?
+  // What produced the usage, e.g. "Match" or "CvJob", and its id.
+  sourceType     String
+  sourceId       String
+  metadata       Json         @default("{}")
+  occurredAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+
+  @@unique([organisationId, metric, sourceType, sourceId])
+  @@unique([organisationId, id])
+  @@index([organisationId, metric, occurredAt])
 }
 
 // ---------------------------------------------------------------------------

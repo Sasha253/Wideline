@@ -4,12 +4,14 @@ import { acceptInvitation, findInvitationByToken } from "@/server/auth/invitatio
 import { AuthzError, contextForSession, type AuthContext } from "@/server/auth/session";
 import {
   approveOrganisation,
+  listAllOrganisations,
   listOrganisationApplications,
   rejectOrganisation,
   resendOwnerInvitation,
   submitOrganisationApplication,
 } from "@/server/platform/organisations";
 import { newInvitationToken } from "@/server/organisations/tokens";
+import { ensureScoutNetwork, SCOUT_NETWORK_ORG_ID } from "@/server/scouts/network";
 import { fixtures } from "./helpers/fixtures";
 
 // ADMIN01: organisations apply, start pending, and a platform admin approves
@@ -324,5 +326,40 @@ describe("resendOwnerInvitation", () => {
       },
     });
     expect(await findInvitationByToken(token)).toMatchObject({ fromPlatform: false });
+  });
+});
+
+// C03 (BILL02): every organisation runs on the pilot plan.
+describe("pilot subscriptions", () => {
+  it("an application creates a pilot subscription with its organisation", async () => {
+    const { id } = await apply("pilot-plan");
+    const sub = await rawDb.subscription.findUniqueOrThrow({
+      where: { organisationId: id },
+      include: { plan: true },
+    });
+    expect(sub.status).toBe("active");
+    expect(sub.provider).toBeNull();
+    expect(sub.plan.code).toBe("pilot");
+  });
+
+  it("the scout network has exactly one subscription, however often it is ensured", async () => {
+    await ensureScoutNetwork();
+    await ensureScoutNetwork();
+    expect(
+      await rawDb.subscription.count({ where: { organisationId: SCOUT_NETWORK_ORG_ID } }),
+    ).toBe(1);
+  });
+
+  it("listAllOrganisations lists every organisation with its plan, for platform admins only", async () => {
+    await expect(listAllOrganisations(clubOwner)).rejects.toBeInstanceOf(AuthzError);
+    const { id } = await apply("all-tab");
+    const noPlan = await f.org("Zz no plan");
+    const all = await listAllOrganisations(platformAdmin);
+    expect(all.find((o) => o.id === id)).toMatchObject({ planName: "Pilot", status: "pending" });
+    expect(all.find((o) => o.id === noPlan.id)?.planName).toBeNull();
+    expect(all.some((o) => o.id === SCOUT_NETWORK_ORG_ID)).toBe(true);
+    const names = all.map((o) => o.name);
+    const collator = new Intl.Collator("en-ZA", { sensitivity: "base" });
+    expect(names).toEqual([...names].sort(collator.compare));
   });
 });

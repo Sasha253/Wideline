@@ -64,6 +64,22 @@ describe("server actions", () => {
     }
   });
 
+  it("finds and guards the C03 flags and limits action file, none of it public", () => {
+    const file = actionFiles.find((f) =>
+      f.endsWith("(app)/admin/organisations/[organisationId]/actions.ts"),
+    );
+    expect(file).toBeDefined();
+    const names = exportedActions(readFileSync(file!, "utf8")).map((a) => a.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "setFeatureFlagAction",
+        "setLimitOverrideAction",
+        "clearLimitOverrideAction",
+      ]),
+    );
+    for (const name of names) expect(PUBLIC_ACTIONS.has(name), name).toBe(false);
+  });
+
   it("keeps the public allowlist to actions that exist", () => {
     const names = actionFiles
       .flatMap((f) => exportedActions(readFileSync(f, "utf8")))

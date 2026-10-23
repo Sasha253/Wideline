@@ -165,7 +165,10 @@ describe("scoped client", () => {
     const asA = scopedDb(orgA);
     for (const data of [
       { status: "active" as const },
-      { planId: "free" },
+      // C03: plan data is set by Wideline only; a nested subscription write is refused.
+      { subscription: { update: { status: "active" as const } } },
+      { subscription: { create: { planId: "plan-pilot" } } },
+      { entitlements: { create: { key: "billing", source: "flag" as const, value: true } } },
       { reviewedAt: new Date() },
       { rejectionReason: "x" },
       { applicantEmail: "x@test.local" },
@@ -344,5 +347,78 @@ describe("scoped client: scouts", () => {
     expect(await asNetwork.user.findFirst({ where: { id: userA } })).toBeNull();
     const org = await asNetwork.organisation.findFirst();
     expect(org?.id).toBe(SCOUT_NETWORK_ORG_ID);
+  });
+});
+
+// C03: plans, subscriptions, entitlements and usage are set by Wideline. No
+// organisation reaches them through the scoped client, not even its own rows.
+describe("scoped client: plans and entitlements", () => {
+  it("refuses Plan, Subscription, Entitlement and UsageEvent for every operation", async () => {
+    const asA = scopedDb(orgA);
+    const calls: (() => Promise<unknown>)[] = [
+      () => asA.plan.findMany(),
+      () => asA.plan.findUnique({ where: { code: "pilot" } }),
+      () => asA.plan.update({ where: { code: "pilot" }, data: { priceCents: 1 } }),
+      () => asA.subscription.findFirst(),
+      () => asA.subscription.count(),
+      () => asA.subscription.updateMany({ data: { status: "cancelled" } }),
+      () => asA.subscription.deleteMany(),
+      () => asA.entitlement.findMany(),
+      () =>
+        asA.entitlement.create({
+          data: { organisationId: orgA, key: "billing", source: "flag", value: true },
+        }),
+      () => asA.entitlement.deleteMany(),
+      () => asA.usageEvent.findMany(),
+      () => asA.usageEvent.aggregate({ _sum: { quantity: true } }),
+      () =>
+        asA.usageEvent.createMany({
+          data: [
+            {
+              organisationId: orgA,
+              metric: "matches",
+              quantity: BigInt(-5),
+              sourceType: "x",
+              sourceId: "y",
+            },
+          ],
+        }),
+    ];
+    for (const call of calls) await expect(call()).rejects.toBeInstanceOf(TenantScopeError);
+  });
+
+  it("refuses the private Organisation relations at any depth", async () => {
+    const asA = scopedDb(orgA);
+    for (const rel of ["subscription", "entitlements", "usageEvents"] as const) {
+      await expect(asA.organisation.findFirst({ include: { [rel]: true } })).rejects.toBeInstanceOf(
+        TenantScopeError,
+      );
+      await expect(
+        asA.organisation.findFirst({ select: { id: true, [rel]: true } }),
+      ).rejects.toBeInstanceOf(TenantScopeError);
+      await expect(
+        asA.membership.findFirst({ include: { organisation: { include: { [rel]: true } } } }),
+      ).rejects.toBeInstanceOf(TenantScopeError);
+      await expect(
+        asA.team.findFirst({ select: { organisation: { select: { [rel]: true } } } }),
+      ).rejects.toBeInstanceOf(TenantScopeError);
+    }
+    await expect(
+      asA.organisation.findFirst({
+        select: { _count: { select: { entitlements: true, usageEvents: true } } },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+
+  it("refuses filters on plan data, such as an override note", async () => {
+    const asA = scopedDb(orgA);
+    await expect(
+      asA.organisation.findFirst({ where: { entitlements: { some: { reason: "x" } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.membership.findFirst({
+        where: { organisation: { subscription: { is: { status: "active" } } } },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
   });
 });

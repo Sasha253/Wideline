@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, RotateCw, X } from "lucide-react";
+import Link from "next/link";
 import { useId, useState, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Banner, Field, SubmitButton, SuccessBanner } from "@/components/forms";
@@ -109,6 +110,30 @@ function RejectDialog({ item, forms }: { item: ApplicationItem; forms: Forms }) 
   );
 }
 
+/**
+ * The organisation name. On the Decided tab it links to flags and limits (C03);
+ * a pending organisation is decided first.
+ */
+function OrgName({
+  item,
+  linked,
+  className,
+}: {
+  item: ApplicationItem;
+  linked: boolean;
+  className: string;
+}) {
+  if (!linked) return <span className={`body-strong ${className}`}>{item.name}</span>;
+  return (
+    <Link
+      href={`/admin/organisations/${item.id}`}
+      className={`body-strong text-pitch underline ${className}`}
+    >
+      {item.name}
+    </Link>
+  );
+}
+
 /** The application list for one tab, with the banner slot and the focus target. */
 export function Applications({
   status,
@@ -201,7 +226,7 @@ export function Applications({
                 {items.map((i) => (
                   <tr key={i.id}>
                     <td>
-                      <span className="body-strong block">{i.name}</span>
+                      <OrgName item={i} linked={!pending} className="block" />
                       <span className="caption block text-ink-muted">{i.meta}</span>
                     </td>
                     <td>
@@ -248,7 +273,7 @@ export function Applications({
             {items.map((i) => (
               <li key={i.id} className="wl-card flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="body-strong min-w-0">{i.name}</span>
+                  <OrgName item={i} linked={!pending} className="min-w-0 break-words" />
                   <OrganisationStatusChip status={i.status} />
                 </div>
                 <p className="caption text-ink-muted">{i.meta}</p>

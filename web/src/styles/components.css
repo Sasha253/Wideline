@@ -390,3 +390,18 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
   .wl-inline-form > .wl-field { flex: 1 1 0; min-width: 0; }
   .wl-inline-form > .wl-btn { margin-top: calc(var(--space-6) - var(--space-1) / 2); }
 }
+
+/* Flags and limits for C03 (docs/build/design/C03.md). Not in the design system; built from tokens. */
+/* One setting card, added to a wl-card: what it is and its value, then the form. Side by side from 1280px. */
+.wl-setting { display: flex; flex-direction: column; gap: var(--space-4); }
+/* The plan, override and effective values of a limit. */
+.wl-setting__facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+/* The three flag radios, each an existing .wl-choice row. */
+.wl-choice-row { display: flex; flex-direction: column; gap: var(--space-1); }
+@media (min-width: 768px) {
+  .wl-setting__facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+  .wl-choice-row { flex-direction: row; flex-wrap: wrap; column-gap: var(--space-6); row-gap: var(--space-1); }
+}
+@media (min-width: 1280px) {
+  .wl-setting { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-6); align-items: start; }
+}

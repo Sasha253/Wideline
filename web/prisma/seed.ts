@@ -3,7 +3,8 @@
  * password, two teams of 11 placeholder players, and one match with both
  * lineups. A second active demo club, with the admin as owner, lets the
  * organisation switch (AUTH05) work locally and in e2e. The scout network
- * organisation ("Wideline scouts", AUTH08) is created too. Safe to re-run.
+ * organisation ("Wideline scouts", AUTH08) is created too. All three run on the
+ * pilot plan (BILL02). Safe to re-run.
  *
  * Players are shirt-number placeholders, not named people, so the Lab never
  * derives per-player data about a named, non-consented child (NFR-08).
@@ -12,6 +13,7 @@ import "dotenv/config";
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { rawDb as db } from "../src/server/db/raw";
+import { ensurePilotPlan, ensureSubscription } from "../src/server/entitlements/plans";
 import { ensureScoutNetwork, SCOUT_NETWORK_NAME } from "../src/server/scouts/network";
 
 const ORG_NAME = "Wideline Lab";
@@ -51,6 +53,11 @@ async function main() {
 
   // Independent scouts get their scout membership here (src/server/scouts/network.ts).
   await ensureScoutNetwork(db);
+
+  // Every organisation runs on the pilot plan (src/server/entitlements/plans.ts).
+  await ensurePilotPlan(db);
+  await ensureSubscription(db, org.id);
+  await ensureSubscription(db, demo.id);
 
   // Better Auth users and credential accounts, written directly because
   // sign-up is disabled. The password hash uses Better Auth's own hasher.

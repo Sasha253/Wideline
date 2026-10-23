@@ -5,6 +5,7 @@ import { SELECTABLE_ORG_TYPES } from "@/lib/labels";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
 import { rawDb } from "../db/raw";
+import { ensureSubscription } from "../entitlements/plans";
 import {
   applicationApprovedEmail,
   applicationRejectedEmail,
@@ -65,8 +66,9 @@ export type ApplicationInput = z.input<typeof applicationSchema>;
 
 /**
  * The public "Join the pilot" form. Creates a pending organisation with no
- * members. A filled honeypot throws ApplicationError("spam") and creates
- * nothing; the page shows the same thanks either way.
+ * members, on the pilot plan (BILL02), in one transaction. A filled honeypot
+ * throws ApplicationError("spam") and creates nothing; the page shows the same
+ * thanks either way.
  */
 export async function submitOrganisationApplication(
   input: ApplicationInput,
@@ -84,16 +86,20 @@ export async function submitOrganisationApplication(
   });
   if (duplicate) throw new ApplicationError("duplicate");
 
-  const org = await rawDb.organisation.create({
-    data: {
-      name: data.name,
-      type: data.type,
-      country: data.country,
-      region: data.region,
-      status: "pending",
-      applicantName: data.applicantName,
-      applicantEmail: data.applicantEmail,
-    },
+  const org = await rawDb.$transaction(async (tx) => {
+    const created = await tx.organisation.create({
+      data: {
+        name: data.name,
+        type: data.type,
+        country: data.country,
+        region: data.region,
+        status: "pending",
+        applicantName: data.applicantName,
+        applicantEmail: data.applicantEmail,
+      },
+    });
+    await ensureSubscription(tx, created.id);
+    return created;
   });
   await audit({
     organisationId: org.id,
@@ -181,6 +187,40 @@ export async function listOrganisationApplications(
     }
     return { ...r, ownerInvitation };
   });
+}
+
+export type OrganisationListRow = {
+  id: string;
+  name: string;
+  type: OrganisationType;
+  status: OrganisationStatus;
+  country: string;
+  region: string | null;
+  /** The plan name, or null with no subscription (BILL02: it resolves against Pilot). */
+  planName: string | null;
+};
+
+/**
+ * Every organisation, seeded ones included, by name (case-insensitive): the
+ * All tab on /admin/organisations (C03), which links to flags and limits.
+ */
+export async function listAllOrganisations(ctx: AuthContext): Promise<OrganisationListRow[]> {
+  assertPlatformAdmin(ctx);
+  const rows = await rawDb.organisation.findMany({
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      status: true,
+      country: true,
+      region: true,
+      subscription: { select: { plan: { select: { name: true } } } },
+    },
+  });
+  const collator = new Intl.Collator("en-ZA", { sensitivity: "base" });
+  return rows
+    .map(({ subscription, ...r }) => ({ ...r, planName: subscription?.plan.name ?? null }))
+    .sort((a, b) => collator.compare(a.name, b.name));
 }
 
 export async function countPendingApplications(ctx: AuthContext): Promise<number> {

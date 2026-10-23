@@ -102,6 +102,24 @@ docs/                PRD
   terms version, read on every request, so a suspension applies at once (a
   unit test checks every page under `/review` and `/api/review`). Both scout
   tables are global and refused by the scoped client.
+- **Entitlements and usage** (BILL01, BILL02, ADMIN04, ADMIN05, NFR04): every
+  limit and feature flag is read through `src/server/entitlements/`, never from
+  a constant or a role check. A value resolves from the registry fallback
+  (`src/lib/entitlement-keys.ts`, only when the plan lacks the key), then the
+  organisation's plan, then its override, then its flag; a flag has the last
+  word. Call `entitlement(orgId, key)`, `may(orgId, feature)` or
+  `hasCapacity(orgId, limit, used)`; never compare a limit with a number
+  yourself (`tests/unit/limit-literals.test.ts` fails the build). Unlimited is
+  stored as `"unlimited"` and read as `Infinity`. Every organisation gets a
+  pilot `Subscription` (on `/apply`, for the scout network, in the seed); one
+  without falls back to the pilot plan with a logged warning. Platform admins
+  set flags and limit overrides at `/admin/organisations/<id>` ("Flags and
+  limits"), each change audited in the same transaction. Usage (matches, video
+  seconds, GPU cost in cents with a currency, storage bytes as signed deltas)
+  is recorded with `recordUsage()` from `src/server/usage/meter.ts`, once per
+  source, so a retried job counts once (NFR06). `Plan`, `Subscription`,
+  `Entitlement` and `UsageEvent` are refused by the scoped client, and so are
+  the matching Organisation relations.
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and
@@ -115,8 +133,9 @@ docs/                PRD
   ESLint rule to auth (including the invitation accept path), platform
   operations (`src/server/platform/`, which take a `platform_admin` context),
   scout registration and profiles (`src/server/scouts/`, the public
-  registration or the caller's own userId), the seed, the worker and the
-  worker callback.
+  registration or the caller's own userId), entitlements and the usage meter
+  (`src/server/entitlements/`, `src/server/usage/meter.ts`, one explicit
+  organisationId per call), the seed, the worker and the worker callback.
 - **Queue**: pg-boss in the `pgboss` schema of the same Postgres. Three attempts
   per job, then the dead-letter queue (CV-10, NFR-30).
 - **Object storage**: S3 API only. Locally RustFS (MinIO no longer publishes

@@ -55,3 +55,35 @@ These questions do not block the build. Each one has a default that the build is
 - **Impact:** only `scoutConflicts()` changes, to count rows removed within the period. No schema change.
 - **Answer:** Yes: a 90-day cooling-off. A removed club conflict keeps blocking claims for 90 days. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
 - **Resolved:** differs from the default (no cooling-off). Rework note added to C10 in STATUS.md: `scoutConflicts()` must count affiliations removed within the last 90 days.
+
+## Q-007 · C03 · How numbers are written
+
+- **Question:** How should large numbers and decimals be written in the app? C03 adds the first number formatter, for limits such as "10,000 clips" and "8.59 GB".
+- **Default taken:** commas between thousands and a full stop for decimals ("10,000", "8.59"), using `Intl.NumberFormat("en-GB")` in `formatCount()` and `formatGB()` in `web/src/lib/labels.ts`. This matches the design system's own examples ("8.4 km", "0.81 confidence").
+- **Recommended:** keep the default. The South African standard style ("10 000", "8,59") is correct but less familiar on screens, and it would clash with the design system's examples.
+- **Impact:** a different style changes the locale in two helpers in `labels.ts` and the expected text in a few tests. No schema or layout change.
+- **Answer:**
+
+## Q-008 · C03 · Which roles count toward member seats and scout seats
+
+- **Question:** Which roles count toward the `member_seats` and `scout_seats` limits? The admin page describes each limit, and v2 enforcement (BILL05) will count against these words.
+- **Default taken:** member seats are owners, admins and coaches. Scout seats are scouts and agents. Players and guardians never count, because they never pay (PRD pricing). The descriptions in `web/src/lib/entitlement-keys.ts` say so, marked as draft copy.
+- **Recommended:** keep the default for v0. Nothing is enforced until v2, so confirm it when the paid plans are priced.
+- **Impact:** a different split changes two descriptions now, and the seat-counting query when BILL05 is built. No schema change.
+- **Answer:**
+
+## Q-009 · C03 · Limits on the free Pilot plan
+
+- **Question:** What limits should the free Pilot plan have?
+- **Default taken:** `matches_per_month` 100, `favourited_clips` 10,000, `member_seats` 100, `scout_seats` 50, `upload_max_bytes` 8 GiB, and every feature flag (billing, scout search, share links, scout reports) off. These are draft values, in `PILOT_PLAN_LIMITS` and in the `pilot` Plan row.
+- **Recommended:** keep these generous numbers for the pilot (the PRD says "effectively unmetered"). Nothing is enforced until V201 (BILL05), and a single club can be raised from the admin flags and limits page.
+- **Impact:** different numbers need only a new data migration that updates the Plan row's limits JSON, plus the constant. No code or schema change.
+- **Answer:**
+
+## Q-010 · C03 · Currency for GPU cost in the usage meter
+
+- **Question:** Which currency should GPU cost be recorded in for the usage meter (NFR04, NFR05)?
+- **Default taken:** each GPU cost row records cents in the provider's billing currency, with an ISO currency column. Totals are grouped by currency, with no exchange-rate conversion.
+- **Recommended:** keep the provider's currency, and add ZAR conversion in the C18 usage report once the GPU provider (a PRD open question) is chosen.
+- **Impact:** if everything must be stored in ZAR, C08 converts at record time with a stored rate. The meter already has the currency column, so nothing in C03 changes.
+- **Answer:**

@@ -6,8 +6,11 @@ import {
   useActionState,
   useEffect,
   useId,
+  useState,
+  type ComponentProps,
   type FormEvent,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from "react";
 import { useFormStatus } from "react-dom";
@@ -41,6 +44,39 @@ export function useFormAction<S>(
   return { state, pending, formProps: { action: dispatch, onSubmit } };
 }
 
+/**
+ * useFormAction for a form with a second submit button that posts to another
+ * action (docs/build/design/C03.md: Save and Use plan default share one form).
+ * Give that button `formAction={alternateAction}`; onSubmit dispatches to it
+ * when it is the submitter. Without JavaScript the native formaction attribute
+ * does the same. `state` is the result of whichever action answered last, and
+ * `lastWasAlternate` says which.
+ */
+export function useFormActionWithAlternate<S>(
+  action: (prev: Awaited<S>, formData: FormData) => Promise<S>,
+  alternate: (prev: Awaited<S>, formData: FormData) => Promise<S>,
+  initial: Awaited<S>,
+) {
+  const [mainState, mainDispatch, mainPending] = useActionState<S, FormData>(action, initial);
+  const [altState, altDispatch, altPending] = useActionState<S, FormData>(alternate, initial);
+  const [lastWasAlternate, setLastWasAlternate] = useState(false);
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+    const formData = new FormData(e.currentTarget, submitter);
+    const alt = submitter?.dataset.alternate === "true";
+    setLastWasAlternate(alt);
+    startTransition(() => (alt ? altDispatch : mainDispatch)(formData));
+  };
+  return {
+    state: lastWasAlternate ? altState : mainState,
+    lastWasAlternate,
+    pending: mainPending || altPending,
+    formProps: { action: mainDispatch, onSubmit },
+    alternateAction: altDispatch,
+  };
+}
+
 /** A submit button that disables itself and shows pendingLabel while its form's action runs. */
 export function SubmitButton({
   variant = "primary",
@@ -60,6 +96,12 @@ export function SubmitButton({
   className?: string;
   children: ReactNode;
   "aria-label"?: string;
+  ref?: Ref<HTMLButtonElement>;
+  /**
+   * Posts to another action than the form's (useFormActionWithAlternate). The
+   * button is marked data-alternate so that hook's onSubmit picks it.
+   */
+  formAction?: ComponentProps<"button">["formAction"];
 }) {
   const { pending } = useFormStatus();
   return (
@@ -71,6 +113,7 @@ export function SubmitButton({
       block={block}
       className={className}
       disabled={pending}
+      data-alternate={rest.formAction ? "true" : undefined}
       {...rest}
     >
       {pending ? pendingLabel : children}
@@ -122,7 +165,8 @@ export function Field({
   className,
   children,
 }: {
-  label: string;
+  /** Usually a string; a node allows a hidden suffix ("<span class=sr-only>for Scout search</span>"). */
+  label: ReactNode;
   hint?: ReactNode;
   error?: string;
   className?: string;
