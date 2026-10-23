@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { cx } from "./cx";
 import { iconProps } from "./icons";
 
@@ -41,7 +41,8 @@ function ButtonContent({ icon: Icon, kbd, children }: ButtonLook & { children: R
   );
 }
 
-type ButtonProps = ButtonLook & ButtonHTMLAttributes<HTMLButtonElement>;
+// ComponentProps includes ref (a plain prop in React 19), so a dialog can focus a Button.
+type ButtonProps = ButtonLook & ComponentProps<"button">;
 
 export function Button({
   variant,

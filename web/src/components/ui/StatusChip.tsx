@@ -1,4 +1,5 @@
 import {
+  Ban,
   Check,
   CheckCheck,
   CircleAlert,
@@ -12,7 +13,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { MatchStatus } from "@/generated/prisma/enums";
+import type { MatchStatus, OrganisationStatus } from "@/generated/prisma/enums";
 import { iconProps } from "./icons";
 
 export type ChipTone = "ok" | "warn" | "danger" | "neutral" | "new";
@@ -71,10 +72,36 @@ export const MATCH_STATES: Record<MatchStatus, Preset> = {
   failed: { tone: "danger", icon: CircleAlert, label: "Failed" },
 };
 
+/** Derived invitation state (src/server/organisations/invitations.ts). */
+export type InvitationState = "pending" | "expired" | "accepted" | "revoked";
+
+export const INVITATION_STATES: Record<InvitationState, Preset> = {
+  pending: { tone: "warn", icon: Clock, label: "Pending" },
+  expired: { tone: "neutral", icon: CircleDashed, label: "Expired" },
+  accepted: { tone: "ok", icon: Check, label: "Accepted" },
+  revoked: { tone: "danger", icon: X, label: "Revoked" },
+};
+
+// Keyed by the Prisma enum, so a new organisation status fails to compile here.
+export const ORGANISATION_STATES: Record<OrganisationStatus, Preset> = {
+  pending: { tone: "warn", icon: Clock, label: "Pending" },
+  active: { tone: "ok", icon: Check, label: "Active" },
+  rejected: { tone: "danger", icon: X, label: "Rejected" },
+  suspended: { tone: "danger", icon: Ban, label: "Suspended" },
+};
+
 export function EventStatusChip({ state }: { state: EventReviewState }) {
   return <StatusChip {...EVENT_STATES[state]} />;
 }
 
 export function MatchStatusChip({ status }: { status: MatchStatus }) {
   return <StatusChip {...MATCH_STATES[status]} />;
+}
+
+export function InvitationStatusChip({ state }: { state: InvitationState }) {
+  return <StatusChip {...INVITATION_STATES[state]} />;
+}
+
+export function OrganisationStatusChip({ status }: { status: OrganisationStatus }) {
+  return <StatusChip {...ORGANISATION_STATES[status]} />;
 }

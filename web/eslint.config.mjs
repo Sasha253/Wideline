@@ -8,6 +8,9 @@ const RAW_DB_ALLOWED = [
   "src/server/db/**",
   "src/server/auth/**",
   "src/server/audit.ts",
+  // Platform operations across tenants (ADMIN01). Every export takes a
+  // platform_admin AuthContext and checks it.
+  "src/server/platform/**",
   "src/worker/**",
   "src/app/api/jobs/*/callback/**",
   "prisma/seed.ts",

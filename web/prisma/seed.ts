@@ -1,6 +1,8 @@
 /**
- * Local seed: one organisation, one platform admin with a password, two teams
- * of 11 placeholder players, and one match with both lineups. Safe to re-run.
+ * Local seed: the Wideline Lab platform organisation, one platform admin with a
+ * password, two teams of 11 placeholder players, and one match with both
+ * lineups. A second active demo club, with the admin as owner, lets the
+ * organisation switch (AUTH05) work locally and in e2e. Safe to re-run.
  *
  * Players are shirt-number placeholders, not named people, so the Lab never
  * derives per-player data about a named, non-consented child (NFR-08).
@@ -11,6 +13,7 @@ import { hashPassword } from "better-auth/crypto";
 import { rawDb as db } from "../src/server/db/raw";
 
 const ORG_NAME = "Wideline Lab";
+const DEMO_ORG_NAME = "Wideline Demo FC";
 const POSITIONS = ["GK", "RB", "CB", "CB", "LB", "CM", "CM", "CM", "RW", "ST", "LW"];
 
 async function main() {
@@ -20,7 +23,28 @@ async function main() {
   const org =
     (await db.organisation.findFirst({ where: { name: ORG_NAME } })) ??
     (await db.organisation.create({
-      data: { name: ORG_NAME, type: "platform", country: "ZA", region: "Gauteng" },
+      data: {
+        name: ORG_NAME,
+        type: "platform",
+        country: "ZA",
+        region: "Gauteng",
+        // Organisations default to pending (ADMIN01); the platform one is active.
+        status: "active",
+      },
+    }));
+  if (org.status !== "active") {
+    await db.organisation.update({ where: { id: org.id }, data: { status: "active" } });
+  }
+  const demo =
+    (await db.organisation.findFirst({ where: { name: DEMO_ORG_NAME } })) ??
+    (await db.organisation.create({
+      data: {
+        name: DEMO_ORG_NAME,
+        type: "club",
+        country: "ZA",
+        region: "Gauteng",
+        status: "active",
+      },
     }));
 
   // Better Auth users and credential accounts, written directly because
@@ -63,6 +87,14 @@ async function main() {
       role: "platform_admin",
       acceptedAt: new Date(),
     },
+  });
+
+  await db.membership.upsert({
+    where: {
+      organisationId_userId_role: { organisationId: demo.id, userId: user.id, role: "owner" },
+    },
+    update: {},
+    create: { organisationId: demo.id, userId: user.id, role: "owner", acceptedAt: new Date() },
   });
 
   const existingMatch = await db.match.findFirst({ where: { organisationId: org.id } });
@@ -124,7 +156,7 @@ async function main() {
   }
 
   console.log("\nSeed complete.");
-  console.log(`  Organisation: ${org.name}`);
+  console.log(`  Organisations: ${org.name} (platform admin), ${demo.name} (owner)`);
   console.log(`  Sign in at:   ${process.env.APP_URL ?? "http://wideline.localhost"}/login`);
   console.log(`  Email:        ${email}`);
   console.log(`  Password:     ${password}`);

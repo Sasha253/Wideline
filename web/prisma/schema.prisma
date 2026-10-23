@@ -1,7 +1,7 @@
 // Wideline data model. Field names follow the PRD's Data model section.
 //
 // Tenancy (NFR-16): every model except the global ones (Organisation, User and
-// the Better Auth tables) carries organisationId. Application code reaches the
+// the Better Auth tables) carries organisationId, Invitation included. Application code reaches the
 // database only through the scoped client in src/server/db/scoped.ts, which
 // injects organisationId into every query. See TENANT_SCOPED in that file and
 // keep it in step with this schema.
@@ -9,6 +9,11 @@
 // References between tenant tables are composite foreign keys on
 // (organisationId, id), so the database itself refuses a row that points at
 // another organisation's row.
+//
+// Organisations start pending (ADMIN01): a platform admin approves or rejects
+// them. The active organisation of a signed-in user is stored per session in
+// Session.activeOrganisationId (AUTH05), a plain column with no relation, so a
+// scoped Organisation read can never reach session tokens.
 
 generator client {
   provider = "prisma-client"
@@ -34,6 +39,8 @@ enum OrganisationStatus {
   pending
   active
   suspended
+  // ADMIN01: kept, not deleted, so the decision stays on record.
+  rejected
 }
 
 // AUTH-03. analyst is merged into scout.
@@ -49,18 +56,23 @@ enum Role {
 }
 
 model Organisation {
-  id        String             @id @default(cuid())
-  name      String
-  type      OrganisationType
-  country   String             @default("ZA")
-  region    String?
-  status    OrganisationStatus @default(active)
-  planId    String?
+  id              String             @id @default(cuid())
+  name            String
+  type            OrganisationType
+  country         String             @default("ZA")
+  region          String?
+  status          OrganisationStatus @default(pending)
+  planId          String?
+  // ADMIN01: who applied through /apply, and the platform admin's decision.
+  applicantName   String?
+  applicantEmail  String?
+  reviewedAt      DateTime?
+  rejectionReason String?
   // REVIEW-10: auto-accept thresholds per event type, plus other per-org
   // settings. Shape is defined and defaulted in src/server/settings.ts.
-  settings  Json               @default("{}")
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  settings        Json               @default("{}")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   memberships Membership[]
   teams       Team[]
@@ -68,6 +80,7 @@ model Organisation {
   matches     Match[]
   lineups     Lineup[]
   auditLogs   AuditLog[]
+  invitations Invitation[]
 }
 
 // Global. Columns match what Better Auth expects for its user model.
@@ -80,23 +93,29 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  sessions    Session[]
-  accounts    Account[]
-  memberships Membership[] @relation("MembershipUser")
-  invitations Membership[] @relation("MembershipInvitedBy")
+  sessions            Session[]
+  accounts            Account[]
+  memberships         Membership[] @relation("MembershipUser")
+  invitations         Membership[] @relation("MembershipInvitedBy")
+  invitationsSent     Invitation[] @relation("InvitationInvitedBy")
+  invitationsAccepted Invitation[] @relation("InvitationAcceptedBy")
 }
 
 // Better Auth: database sessions, so a session can be revoked server-side.
 model Session {
-  id        String   @id
-  expiresAt DateTime
-  token     String   @unique
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id
+  expiresAt            DateTime
+  token                String   @unique
+  ipAddress            String?
+  userAgent            String?
+  // AUTH05: the organisation this session works in. No foreign key and no
+  // relation on purpose (see the header). A stale value falls back to the
+  // user's oldest active membership.
+  activeOrganisationId String?
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([userId])
 }
@@ -148,6 +167,33 @@ model Membership {
 
   @@unique([organisationId, userId, role])
   @@index([userId])
+}
+
+// AUTH04: an email invitation with a role. The token is stored only as a
+// sha256 hash; the raw token appears only in the email link. Accepting creates
+// a Membership. Revoked and accepted rows are kept for the audit trail.
+model Invitation {
+  id               String       @id @default(cuid())
+  organisationId   String
+  organisation     Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  // Lowercased and trimmed.
+  email            String
+  inviteeName      String?
+  role             Role
+  tokenHash        String       @unique
+  invitedById      String?
+  invitedBy        User?        @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  // 14 days after creation (AUTH04).
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  acceptedBy       User?        @relation("InvitationAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  revokedAt        DateTime?
+  createdAt        DateTime     @default(now())
+
+  @@unique([organisationId, id])
+  @@index([organisationId, email])
+  @@index([organisationId, createdAt])
 }
 
 // ---------------------------------------------------------------------------

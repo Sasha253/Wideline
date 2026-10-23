@@ -14,12 +14,17 @@ import { StatTile } from "@/components/ui/StatTile";
 import {
   EVENT_STATES,
   EventStatusChip,
+  INVITATION_STATES,
+  InvitationStatusChip,
   MATCH_STATES,
   MatchStatusChip,
+  ORGANISATION_STATES,
+  OrganisationStatusChip,
   type EventReviewState,
+  type InvitationState,
 } from "@/components/ui/StatusChip";
 import { TeamMarker } from "@/components/ui/TeamMarker";
-import type { MatchStatus } from "@/generated/prisma/enums";
+import type { MatchStatus, OrganisationStatus } from "@/generated/prisma/enums";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const count = (s: string, needle: string | RegExp) =>
@@ -375,5 +380,50 @@ describe("Cover", () => {
     expect(out).toContain("Every match filmed. Every player findable.");
     expect(out).toContain('class="wl-cover__art" aria-hidden="true"');
     expect(html(<Cover />)).toContain('<h1 class="wl-cover__name display-xl">');
+  });
+});
+
+describe("InvitationStatusChip and OrganisationStatusChip", () => {
+  const expected = {
+    invitation: {
+      pending: "Pending",
+      expired: "Expired",
+      accepted: "Accepted",
+      revoked: "Revoked",
+    },
+    organisation: {
+      pending: "Pending",
+      active: "Active",
+      rejected: "Rejected",
+      suspended: "Suspended",
+    },
+  };
+
+  it.each(Object.keys(INVITATION_STATES) as InvitationState[])(
+    "invitation %s has a word and an icon",
+    (state) => {
+      const out = html(<InvitationStatusChip state={state} />);
+      expect(out).toContain(expected.invitation[state]);
+      expect(out).toContain(`wl-chip--${INVITATION_STATES[state].tone}`);
+      expect(out).toMatch(/<svg[^>]*aria-hidden="true"/);
+    },
+  );
+
+  it.each(Object.keys(ORGANISATION_STATES) as OrganisationStatus[])(
+    "organisation %s has a word and an icon",
+    (status) => {
+      const out = html(<OrganisationStatusChip status={status} />);
+      expect(out).toContain(expected.organisation[status]);
+      expect(out).toContain(`wl-chip--${ORGANISATION_STATES[status].tone}`);
+      expect(out).toMatch(/<svg[^>]*aria-hidden="true"/);
+    },
+  );
+
+  it("uses the tones from the design spec", () => {
+    expect(INVITATION_STATES.pending.tone).toBe("warn");
+    expect(INVITATION_STATES.expired.tone).toBe("neutral");
+    expect(INVITATION_STATES.accepted.tone).toBe("ok");
+    expect(INVITATION_STATES.revoked.tone).toBe("danger");
+    expect(ORGANISATION_STATES.suspended.tone).toBe("danger");
   });
 });

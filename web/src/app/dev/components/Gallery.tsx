@@ -13,8 +13,10 @@ import { StatTile } from "@/components/ui/StatTile";
 import {
   EVENT_STATES,
   EventStatusChip,
+  InvitationStatusChip,
   MATCH_STATES,
   MatchStatusChip,
+  OrganisationStatusChip,
   StatusChip,
   type EventReviewState,
 } from "@/components/ui/StatusChip";
@@ -26,8 +28,10 @@ import {
   dangerExpiry,
   heatmapZones,
   HOME_TEAM,
+  INVITATION_STATE_FIXTURES,
   leboStats,
   now,
+  ORGANISATION_STATE_FIXTURES,
   siphoStats,
   thaboStats,
   warningExpiry,
@@ -193,6 +197,20 @@ export function Gallery({ theme }: { theme: Theme }) {
               <div className="wl-row">
                 {(Object.keys(MATCH_STATES) as MatchStatus[]).map((s) => (
                   <MatchStatusChip key={s} status={s} />
+                ))}
+              </div>
+            </Group>
+            <Group label="Invitation states">
+              <div className="wl-row">
+                {INVITATION_STATE_FIXTURES.map((s) => (
+                  <InvitationStatusChip key={s} state={s} />
+                ))}
+              </div>
+            </Group>
+            <Group label="Organisation states">
+              <div className="wl-row">
+                {ORGANISATION_STATE_FIXTURES.map((s) => (
+                  <OrganisationStatusChip key={s} status={s} />
                 ))}
               </div>
             </Group>

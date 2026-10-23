@@ -1,8 +1,9 @@
 import "server-only";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import type { Role } from "@/generated/prisma/enums";
+import type { OrganisationType, Role } from "@/generated/prisma/enums";
+import { safeNextPath } from "@/lib/safe-next";
 import { rawDb } from "../db/raw";
 import { scopedDb, type ScopedDb } from "../db/scoped";
 import { auth } from "./auth";
@@ -14,16 +15,63 @@ import { auth } from "./auth";
  * never the permission check.
  */
 
-export const ACTIVE_ORG_COOKIE = "wl_org";
+/** Request header the proxy sets to the requested path, so a redirect to /login can come back. */
+export const PATH_HEADER = "x-wl-path";
 
-export type AuthContext = {
-  user: { id: string; name: string; email: string };
+/** Message of the AuthzError for a signed-in user with no active membership. */
+export const NO_ORGANISATION = "No active organisation";
+
+// Display and sort order of roles, as in AUTH-03.
+export const ROLE_ORDER: readonly Role[] = [
+  "owner",
+  "admin",
+  "coach",
+  "scout",
+  "agent",
+  "player",
+  "guardian",
+  "platform_admin",
+];
+
+/** One organisation the user belongs to: the data source of the org switcher (D02). */
+export type OrganisationSummary = {
+  id: string;
+  name: string;
+  type: OrganisationType;
+  country: string;
+  region: string | null;
+  roles: Role[];
+};
+
+type SessionUser = { id: string; name: string; email: string };
+
+type BaseContext = {
+  sessionId: string;
+  user: SessionUser;
+  /** Every active organisation with an accepted membership, sorted by name. */
+  organisations: OrganisationSummary[];
+};
+
+export type AuthContext = BaseContext & {
   organisationId: string;
   organisationName: string;
+  organisationType: OrganisationType;
+  /** The user's roles in the active organisation. */
   roles: Role[];
   /** Database client scoped to the active organisation. */
   db: ScopedDb;
 };
+
+/** A signed-in user, who may have no active organisation (organisationId null). */
+export type UserContext =
+  | AuthContext
+  | (BaseContext & {
+      organisationId: null;
+      organisationName: null;
+      organisationType: null;
+      roles: Role[];
+      db: null;
+    });
 
 export class AuthzError extends Error {
   constructor(
@@ -35,62 +83,145 @@ export class AuthzError extends Error {
   }
 }
 
-const loadContext = cache(async (): Promise<AuthContext | null> => {
-  // Read request headers first: that marks the route dynamic before any env or
-  // database access, so `next build` never tries to prerender it.
-  const requestHeaders = await headers();
-  const session = await auth().api.getSession({ headers: requestHeaders });
-  if (!session) return null;
-
+/**
+ * Builds the context for a session. The active organisation is the session's
+ * activeOrganisationId when the user still has an accepted membership in that
+ * organisation and it is active; otherwise the oldest such membership (AUTH-05).
+ * A stale value (membership removed, organisation suspended) therefore falls
+ * back on the next request. Exported for the integration tests.
+ */
+export async function contextForSession({
+  sessionId,
+  user,
+  activeOrganisationId,
+}: {
+  sessionId: string;
+  user: SessionUser;
+  activeOrganisationId: string | null | undefined;
+}): Promise<UserContext> {
   const memberships = await rawDb.membership.findMany({
     where: {
-      userId: session.user.id,
+      userId: user.id,
       acceptedAt: { not: null },
       organisation: { status: "active" },
     },
-    include: { organisation: { select: { id: true, name: true } } },
+    include: {
+      organisation: { select: { id: true, name: true, type: true, country: true, region: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
-  if (memberships.length === 0) return null;
 
-  // AUTH-05: a user may belong to several organisations; the active one comes
-  // from a cookie, falling back to the oldest membership.
-  const wanted = (await cookies()).get(ACTIVE_ORG_COOKIE)?.value;
-  const active = memberships.find((m) => m.organisationId === wanted) ?? memberships[0]!;
-  const organisationId = active.organisationId;
+  const byOrg = new Map<string, OrganisationSummary>();
+  for (const m of memberships) {
+    const entry = byOrg.get(m.organisationId) ?? { ...m.organisation, roles: [] };
+    entry.roles.push(m.role);
+    byOrg.set(m.organisationId, entry);
+  }
+  for (const org of byOrg.values()) {
+    org.roles.sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b));
+  }
+  const organisations = [...byOrg.values()].sort((a, b) => a.name.localeCompare(b.name, "en-ZA"));
+  const base = { sessionId, user, organisations };
+
+  const activeId =
+    activeOrganisationId && byOrg.has(activeOrganisationId)
+      ? activeOrganisationId
+      : memberships[0]?.organisationId;
+  const active = activeId ? byOrg.get(activeId) : undefined;
+  if (!active) {
+    return {
+      ...base,
+      organisationId: null,
+      organisationName: null,
+      organisationType: null,
+      roles: [],
+      db: null,
+    };
+  }
 
   return {
-    user: { id: session.user.id, name: session.user.name, email: session.user.email },
-    organisationId,
-    organisationName: active.organisation.name,
-    roles: memberships.filter((m) => m.organisationId === organisationId).map((m) => m.role),
-    db: scopedDb(organisationId),
+    ...base,
+    organisationId: active.id,
+    organisationName: active.name,
+    organisationType: active.type,
+    roles: active.roles,
+    db: scopedDb(active.id),
   };
+}
+
+// The Better Auth session for this request only, read once per request.
+const loadSession = cache(async () => {
+  // Read request headers first: that marks the route dynamic before any env or
+  // database access, so `next build` never tries to prerender it.
+  const requestHeaders = await headers();
+  return auth().api.getSession({ headers: requestHeaders });
 });
 
-/** The signed-in user's context, or null. Does not check any role. */
+const loadContext = cache(async (): Promise<UserContext | null> => {
+  const session = await loadSession();
+  if (!session) return null;
+  return contextForSession({
+    sessionId: session.session.id,
+    user: { id: session.user.id, name: session.user.name, email: session.user.email },
+    activeOrganisationId: session.session.activeOrganisationId,
+  });
+});
+
+/** The signed-in user's context with an active organisation, or null. Checks no role. */
 export async function getAuthContext(): Promise<AuthContext | null> {
+  const ctx = await loadContext();
+  return ctx?.organisationId ? ctx : null;
+}
+
+/** The signed-in user's context, with or without an organisation, or null. Checks no role. */
+export async function getUserContext(): Promise<UserContext | null> {
   return loadContext();
 }
 
-/** Throws AuthzError (401 or 403) unless the user holds one of the roles. */
+/**
+ * Throws AuthzError unless the user holds one of the roles in the active
+ * organisation: 401 when signed out, 403 with NO_ORGANISATION when the user
+ * has no active membership, otherwise 403.
+ */
 export async function requireRole(roles: readonly Role[]): Promise<AuthContext> {
   const ctx = await loadContext();
   if (!ctx) throw new AuthzError(401, "Not signed in");
+  if (!ctx.organisationId) throw new AuthzError(403, NO_ORGANISATION);
   if (!ctx.roles.some((r) => roles.includes(r))) {
     throw new AuthzError(403, `Requires one of: ${roles.join(", ")}`);
   }
   return ctx;
 }
 
-/** For server components and pages: redirects instead of throwing. */
+async function loginRedirect(): Promise<never> {
+  const path = safeNextPath((await headers()).get(PATH_HEADER), "");
+  redirect(path ? `/login?next=${encodeURIComponent(path)}` : "/login");
+}
+
+/**
+ * For server components and pages: redirects instead of throwing. Signed out
+ * goes to /login, no organisation to /organisations, a missing role to /forbidden.
+ */
 export async function requirePageRole(roles: readonly Role[]): Promise<AuthContext> {
   try {
     return await requireRole(roles);
   } catch (err) {
-    if (err instanceof AuthzError) redirect(err.status === 401 ? "/login" : "/forbidden");
+    if (err instanceof AuthzError) {
+      if (err.status === 401) return loginRedirect();
+      redirect(err.message === NO_ORGANISATION ? "/organisations" : "/forbidden");
+    }
     throw err;
   }
+}
+
+/**
+ * For pages that only need a signed-in user (/organisations, the app layout).
+ * The organisation is optional. Redirects to /login when signed out.
+ */
+export async function requireUser(): Promise<UserContext> {
+  const ctx = await loadContext();
+  if (!ctx) return loginRedirect();
+  return ctx;
 }
 
 type RouteHandler<P> = (req: Request, ctx: AuthContext, params: P) => Promise<Response>;
@@ -110,6 +241,15 @@ export function withRole<P = unknown>(roles: readonly Role[], handler: RouteHand
     return handler(req, ctx, await routeCtx.params);
   };
 }
+
+/** Every role: any member of the active organisation. */
+export const ALL_ROLES: readonly Role[] = ROLE_ORDER;
+
+/** Organisation administrators: settings, members and invitations. */
+export const ORG_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
+
+/** Wideline staff: the organisation approval queue (ADMIN01). */
+export const PLATFORM_ROLES: readonly Role[] = ["platform_admin"];
 
 /** Roles allowed into the CV Lab. Only platform admins in V0. */
 export const LAB_ROLES: readonly Role[] = ["platform_admin"];

@@ -11,7 +11,7 @@ Needs Docker Desktop (Compose v2), and port 80 free.
 
 ```sh
 make up      # creates .env with fresh secrets, builds and starts everything
-make seed    # creates the Lab organisation, an admin user, two teams and a match
+make seed    # creates the Lab and demo organisations, an admin user, two teams and a match
 ```
 
 Open http://wideline.localhost and sign in with the email and password `make
@@ -21,7 +21,7 @@ without any setup. Safari does not.
 | URL | What |
 |---|---|
 | http://wideline.localhost | The app |
-| http://mail.wideline.localhost | Mailpit: magic-link emails land here |
+| http://mail.wideline.localhost | Mailpit: magic-link and invitation emails land here |
 | http://console.wideline.localhost | RustFS console (object storage) |
 | http://s3.wideline.localhost | S3 API, used by presigned URLs |
 
@@ -52,15 +52,32 @@ docs/                PRD
 - **Permissions** (AUTH-06): every page, route handler and server action calls
   `requireRole()` (or `requirePageRole()` / `withRole()`) from
   `src/server/auth/session.ts`. `src/proxy.ts` only redirects signed-out
-  visitors; it is not a permission check. Only `platform_admin` can use the Lab.
+  visitors; it is not a permission check. Only `platform_admin` can use the Lab
+  and the organisation approval queue (`/admin/organisations`). A unit test
+  (`tests/unit/server-actions-guarded.test.ts`) checks every `actions.ts`;
+  the only public actions are accepting an invitation (the token is the
+  capability) and the "Join the pilot" form at `/apply`.
+- **Organisations and invitations** (AUTH-03 to AUTH-05, ADMIN-01): new
+  organisations apply at `/apply` and start `pending`; a platform admin approves
+  them, which emails the applicant an owner invitation. Owners and admins invite
+  people by email with a role from `/settings/members`. Invitations last 14
+  days and only a sha256 hash of the token is stored; `/invite/<token>` creates
+  the account or links an existing one in one transaction. `platform_admin` is
+  never assignable, only an owner grants owner, and the last owner cannot be
+  removed. Membership and invitation changes are written to `AuditLog`.
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and
-  rejects writes that name another organisation. References between tenant
-  tables are composite `(organisationId, id)` foreign keys, so the database
-  also refuses cross-tenant links. The unscoped client
-  (`src/server/db/raw.ts`) is limited by an ESLint rule to auth, the seed,
-  the worker and the worker callback.
+  rejects writes that name another organisation, or that change an
+  organisation's platform-only fields (status, plan, review). References between
+  tenant tables are composite `(organisationId, id)` foreign keys, so the
+  database also refuses cross-tenant links. The active organisation is stored
+  per session (`Session.activeOrganisationId`) and changed only by
+  `setActiveOrganisation()`; a stale value falls back to the user's oldest active
+  membership. The unscoped client (`src/server/db/raw.ts`) is limited by an
+  ESLint rule to auth (including the invitation accept path), platform
+  operations (`src/server/platform/`, which take a `platform_admin` context),
+  the seed, the worker and the worker callback.
 - **Queue**: pg-boss in the `pgboss` schema of the same Postgres. Three attempts
   per job, then the dead-letter queue (CV-10, NFR-30).
 - **Object storage**: S3 API only. Locally RustFS (MinIO no longer publishes
@@ -77,6 +94,8 @@ docs/                PRD
 make migrate-new name=add_something   # create a migration from schema changes
 make test-web                         # Vitest inside the web container
 make test-e2e E2E_PASSWORD=…          # Playwright against the running stack
+# add E2E_DATABASE_URL=postgresql://…@postgres:5432/… for the e2e checks that
+# set database state directly (an expired invitation); they skip without it
 make test-cv                          # pytest for the worker (needs uv)
 make lint                             # ESLint, Prettier, tsc, ruff, mypy
 ```

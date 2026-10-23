@@ -1,5 +1,7 @@
 import type { PlayerPosition } from "@/components/ui/PitchHeatmap";
 import type { PlayerStat } from "@/components/ui/PlayerCard";
+import type { InvitationState } from "@/components/ui/StatusChip";
+import type { OrganisationStatus } from "@/generated/prisma/enums";
 
 // Deterministic sample data for the component gallery. Copy comes from the
 // design-system README and component previews. Nothing here is tenant data.
@@ -55,4 +57,18 @@ export const leboStats: PlayerStat[] = [
   { label: "Passes per 90", value: "48" },
   { label: "Chances created per 90", value: "1.3" },
   { label: "Distance", value: "10.2 km" },
+];
+
+// C01 chip presets, in the order of docs/build/design/C01.md (Surface 8).
+export const INVITATION_STATE_FIXTURES: InvitationState[] = [
+  "pending",
+  "expired",
+  "accepted",
+  "revoked",
+];
+export const ORGANISATION_STATE_FIXTURES: OrganisationStatus[] = [
+  "pending",
+  "active",
+  "rejected",
+  "suspended",
 ];

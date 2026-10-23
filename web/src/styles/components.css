@@ -167,3 +167,35 @@
 .wl-pitch .dot-label { fill: var(--chalk); font: 600 3.2px var(--font-display); }
 /* A turf halo keeps a label legible where it crosses a chalk line. */
 .wl-pitch .dot-label { paint-order: stroke; stroke: var(--turf); stroke-width: .8; stroke-linejoin: round; }
+
+/* Forms, banners, tabs and dialogs for C01 (docs/build/design/C01.md). Not in the design
+   system; built from tokens. Type comes from the type classes in the markup. */
+.wl-input { height: 40px; width: 100%; padding: 0 var(--space-3); border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--surface-sunken); color: var(--ink); font: inherit; }
+.wl-input[aria-invalid="true"] { border-color: var(--danger); }
+.wl-input[readonly] { color: var(--ink-muted); }
+textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding: var(--space-2) var(--space-3); resize: vertical; }
+.wl-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.wl-field__hint { color: var(--ink-muted); }
+.wl-field__error { display: flex; gap: var(--space-1); align-items: center; color: var(--danger); }
+.wl-field__error svg { width: 16px; height: 16px; flex: none; }
+.wl-choice { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; }
+.wl-choice input[type="radio"] { accent-color: var(--pitch); width: 20px; height: 20px; margin: 0; }
+.wl-banner--ok { background: var(--pitch-soft); border-color: var(--pitch); }
+.wl-banner--ok svg, .wl-banner--ok b { color: var(--pitch); }
+/* The base line is an inset shadow, not a border, so the current tab's 2px bar covers it
+   without a negative margin (spacing here is tokens only). */
+.wl-tabs { display: flex; gap: var(--space-1); box-shadow: inset 0 -1px 0 var(--line); overflow-x: auto; }
+.wl-tabs a { display: inline-flex; align-items: center; gap: var(--space-2); height: 40px; padding: 0 var(--space-3); color: var(--ink-muted); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; transition: color 150ms ease-out; }
+.wl-tabs a:hover { color: var(--ink); }
+.wl-tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--pitch); }
+.wl-dialog { margin: auto; width: min(calc(100% - var(--space-8)), calc(var(--space-12) * 10)); padding: var(--space-6); background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); }
+.wl-dialog::backdrop { background: color-mix(in srgb, var(--surface-sunken) 80%, transparent); }
+.wl-dialog__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; margin-top: var(--space-6); }
+@media (max-width: 767px) {
+  .wl-input:not(textarea) { height: 44px; }
+  .wl-choice { min-height: 44px; }
+  .wl-tabs a { height: 44px; }
+  .wl-dialog { padding: var(--space-4); }
+  .wl-dialog__actions { flex-direction: column-reverse; }
+  .wl-dialog__actions .wl-btn { width: 100%; justify-content: center; }
+}

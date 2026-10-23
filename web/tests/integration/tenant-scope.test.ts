@@ -13,9 +13,13 @@ let matchA: string;
 let playerA: string;
 let teamB: string;
 let userA: string;
+let invitationA: string;
 
 async function makeOrg(name: string) {
-  const org = await rawDb.organisation.create({ data: { name: `${name} ${tag}`, type: "club" } });
+  // Organisations default to pending (ADMIN01); these fixtures are approved ones.
+  const org = await rawDb.organisation.create({
+    data: { name: `${name} ${tag}`, type: "club", status: "active" },
+  });
   const [home, away] = await Promise.all(
     ["Home", "Away"].map((n) =>
       rawDb.team.create({ data: { organisationId: org.id, name: n, season: "2026" } }),
@@ -50,6 +54,17 @@ beforeAll(async () => {
   await rawDb.membership.create({
     data: { organisationId: orgA, userId: userA, role: "coach", acceptedAt: new Date() },
   });
+  const invitation = await rawDb.invitation.create({
+    data: {
+      organisationId: orgA,
+      email: `invitee-${tag}@test.local`,
+      role: "coach",
+      tokenHash: `hash-${tag}`,
+      invitedById: userA,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+  invitationA = invitation.id;
 });
 
 afterAll(async () => {
@@ -143,5 +158,78 @@ describe("scoped client", () => {
     const asB = scopedDb(orgB);
     expect(await asB.organisation.findUnique({ where: { id: orgA } })).toBeNull();
     expect((await asB.organisation.findFirst())?.id).toBe(orgB);
+  });
+
+  it("refuses platform-only organisation fields", async () => {
+    const asA = scopedDb(orgA);
+    for (const data of [
+      { status: "active" as const },
+      { planId: "free" },
+      { reviewedAt: new Date() },
+      { rejectionReason: "x" },
+      { applicantEmail: "x@test.local" },
+      { applicantName: "x" },
+      { type: "platform" as const },
+      { type: { set: "platform" as const } },
+    ]) {
+      await expect(asA.organisation.update({ where: { id: orgA }, data })).rejects.toBeInstanceOf(
+        TenantScopeError,
+      );
+    }
+    const org = await asA.organisation.update({ where: { id: orgA }, data: { region: "Gauteng" } });
+    expect(org.region).toBe("Gauteng");
+  });
+});
+
+describe("scoped client: invitations", () => {
+  it("lists only the current organisation's invitations", async () => {
+    expect(await scopedDb(orgB).invitation.findMany()).toEqual([]);
+    expect((await scopedDb(orgA).invitation.findMany()).map((i) => i.id)).toEqual([invitationA]);
+  });
+
+  it("cannot read, update or delete another organisation's invitation", async () => {
+    const asB = scopedDb(orgB);
+    expect(await asB.invitation.findUnique({ where: { id: invitationA } })).toBeNull();
+    const { count } = await asB.invitation.updateMany({
+      where: { id: invitationA },
+      data: { revokedAt: new Date() },
+    });
+    expect(count).toBe(0);
+    await expect(
+      asB.invitation.update({ where: { id: invitationA }, data: { revokedAt: new Date() } }),
+    ).rejects.toThrow();
+    expect((await asB.invitation.deleteMany({ where: { id: invitationA } })).count).toBe(0);
+    const still = await rawDb.invitation.findUnique({ where: { id: invitationA } });
+    expect(still?.revokedAt).toBeNull();
+  });
+
+  it("refuses to create an invitation in another organisation", async () => {
+    await expect(
+      scopedDb(orgB).invitation.create({
+        data: {
+          organisationId: orgA,
+          email: "x@test.local",
+          role: "coach",
+          tokenHash: `other-${tag}`,
+          expiresAt: new Date(),
+        },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+
+  it("hides the user's invitation relations", async () => {
+    const asA = scopedDb(orgA);
+    await expect(
+      asA.user.findFirst({ where: { id: userA }, include: { invitationsSent: true } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.user.findFirst({ where: { id: userA }, include: { invitationsAccepted: true } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.invitation.findFirst({ include: { invitedBy: { include: { sessions: true } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.invitation.findFirst({ include: { acceptedBy: { select: { accounts: true } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
   });
 });

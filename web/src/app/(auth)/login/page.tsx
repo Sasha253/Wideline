@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { googleSignInEnabled } from "@/server/auth/auth";
-import { getAuthContext } from "@/server/auth/session";
+import { safeNextPath } from "@/lib/safe-next";
+import { getUserContext } from "@/server/auth/session";
 import { LoginForm } from "./LoginForm";
 
 export const metadata = { title: "Sign in" };
@@ -12,9 +13,11 @@ export default async function LoginPage({
 }) {
   const { next, error } = await searchParams;
   // Only same-site paths, so the login page cannot be used as an open redirect.
-  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : "/lab/matches";
+  const safeNext = safeNextPath(next, "/");
 
-  if (await getAuthContext()) redirect(safeNext);
+  const ctx = await getUserContext();
+  if (ctx)
+    redirect(ctx.organisationId || safeNext.startsWith("/invite/") ? safeNext : "/organisations");
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4 py-12">

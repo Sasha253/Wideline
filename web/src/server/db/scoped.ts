@@ -29,6 +29,7 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Match",
   "Lineup",
   "AuditLog",
+  "Invitation",
 ]);
 
 const FORBIDDEN = new Set<Prisma.ModelName>(["Session", "Account", "Verification"]);
@@ -90,8 +91,37 @@ function assertWriteStaysInTenant(value: unknown, organisationId: string, path =
 }
 
 // Relations on User that would reveal other organisations or credentials.
-const USER_PRIVATE_RELATIONS = new Set(["sessions", "accounts", "memberships", "invitations"]);
-const USER_RELATION_KEYS = new Set(["user", "invitedBy"]);
+const USER_PRIVATE_RELATIONS = new Set([
+  "sessions",
+  "accounts",
+  "memberships",
+  "invitations",
+  "invitationsSent",
+  "invitationsAccepted",
+]);
+const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy"]);
+
+// Organisation fields only a platform admin may change (ADMIN01, BILL01), so an
+// organisation admin can never approve their own organisation or pick a plan.
+const PLATFORM_ONLY_ORG_FIELDS = [
+  "status",
+  "planId",
+  "reviewedAt",
+  "rejectionReason",
+  "applicantName",
+  "applicantEmail",
+];
+
+function assertOrgUpdateAllowed(data: unknown): void {
+  const d = (data ?? {}) as Record<string, unknown>;
+  for (const key of PLATFORM_ONLY_ORG_FIELDS) {
+    if (key in d) throw new TenantScopeError(`Organisation.${key} is platform-only`);
+  }
+  const type = d.type && typeof d.type === "object" ? (d.type as { set?: unknown }).set : d.type;
+  if (type === "platform") {
+    throw new TenantScopeError("Organisation.type cannot be set to platform");
+  }
+}
 
 function assertNoUserPrivateRelations(tree: unknown, atUser: boolean): void {
   if (tree === null || typeof tree !== "object") return;
@@ -134,7 +164,10 @@ export function scopedDb(organisationId: string) {
             if (!["findUnique", "findUniqueOrThrow", "findFirst", "update"].includes(operation)) {
               throw new TenantScopeError(`Organisation.${operation} is not allowed when scoped`);
             }
-            if (operation === "update") assertWriteStaysInTenant(a.data, organisationId);
+            if (operation === "update") {
+              assertWriteStaysInTenant(a.data, organisationId);
+              assertOrgUpdateAllowed(a.data);
+            }
             // Keep the caller's where as an AND, so asking for another
             // organisation's id matches nothing rather than this one.
             a.where = UNIQUE_WHERE_OPS.has(operation)

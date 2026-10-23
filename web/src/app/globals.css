@@ -78,18 +78,6 @@ body {
   text-transform: uppercase;
 }
 
-/* Form controls (not in the component bundle yet). */
-.wl-input {
-  height: 40px;
-  width: 100%;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line-strong);
-  background: var(--surface-sunken);
-  color: var(--ink);
-  font: 400 15px/22px var(--font-sans);
-}
-
 /* Tables: sticky headers, line dividers, no zebra stripes. */
 .wl-table {
   width: 100%;

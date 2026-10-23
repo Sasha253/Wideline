@@ -51,7 +51,7 @@ PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.1-noble
 LOOPBACK_TO_CADDY := require("net").createServer(c=>{const s=require("net").connect(80,"caddy");c.on("error",()=>s.destroy());s.on("error",()=>c.destroy());c.pipe(s).pipe(c)}).listen(80,"127.0.0.1")
 PLAYWRIGHT_RUN = docker run --rm --ipc=host --network wideline_default \
 	  -v "$(CURDIR)/web:/work" -w /work \
-	  -e CI= -e E2E_BASE_URL=http://wideline.localhost -e E2E_PASSWORD \
+	  -e CI= -e E2E_BASE_URL=http://wideline.localhost -e E2E_PASSWORD -e E2E_DATABASE_URL \
 	  $(PLAYWRIGHT_IMAGE) sh -c 'node -e '"'"'$(LOOPBACK_TO_CADDY)'"'"' & sleep 1; \
 	    node node_modules/@playwright/test/cli.js test $(1) $(ARGS)'
 

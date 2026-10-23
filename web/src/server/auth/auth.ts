@@ -21,6 +21,11 @@ function createAuth() {
     session: {
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
+      // AUTH05: the active organisation persists per session. Only the server
+      // sets it (setActiveOrganisation in ./organisations.ts), never a client.
+      additionalFields: {
+        activeOrganisationId: { type: "string", required: false, input: false },
+      },
     },
     // Invite-only (AUTH-04, ADMIN-01): nobody can create an account by signing
     // in. Users are created by invitation or by the seed script.
