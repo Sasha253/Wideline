@@ -12,7 +12,7 @@ export default async function WorkspaceTemplatePage() {
       toolbar={
         <>
           {/* The page's one h1: the workspace is about this match. */}
-          <h1 className="body-strong">Wideline Demo FC v Hellenic U17</h1>
+          <h1 className="heading-2">Wideline Demo FC v Hellenic U17</h1>
           <span className="data text-ink-muted">12 Oct 2026</span>
         </>
       }

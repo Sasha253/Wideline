@@ -13,9 +13,7 @@ function GoalsPer90({ row }: { row: SquadRow }) {
     <>
       {row.goalsPer90}
       {row.matches < SMALL_SAMPLE && (
-        <span className="caption block text-warning">
-          Small sample · based on {row.matches} matches
-        </span>
+        <span className="caption block text-warning">Small sample · {row.matches} matches</span>
       )}
     </>
   );

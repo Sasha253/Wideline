@@ -103,7 +103,10 @@ services:
       # Anonymous: refreshed from the image on every `make up` (-V), so the
       # image is the single source of installed dependencies.
       - /app/node_modules
-      - web-next:/app/.next
+      # Also anonymous, so the dev build cache is renewed with node_modules.
+      # A cache built against other installed packages sends the browser into
+      # a Fast Refresh reload loop.
+      - /app/.next
     depends_on:
       init:
         condition: service_completed_successfully
@@ -132,4 +135,3 @@ volumes:
   postgres-data:
   rustfs-data:
   caddy-data:
-  web-next:

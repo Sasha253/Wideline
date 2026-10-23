@@ -48,6 +48,7 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
     session.DEV_ROLES,
   ],
   ["Lab layout", () => import("@/app/(app)/lab/layout"), session.LAB_ROLES],
+  ["/lab", () => import("@/app/(app)/lab/page"), session.LAB_ROLES],
 ];
 
 beforeEach(() => {

@@ -1,5 +1,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
+import { isPublicPath } from "@/lib/public-paths";
 
 // Redirects signed-out visitors to the login page. This is a convenience only:
 // it checks that a session cookie exists, not that it is valid. Permission
@@ -9,11 +10,12 @@ import { NextResponse, type NextRequest } from "next/server";
 // src/server/auth/session.ts), so requirePageRole can send an expired session
 // to /login?next=<path>.
 //
-// The matcher takes every path apart from the public ones (/login, /apply,
-// /invite), the API, Next.js internals and files with an extension, so a new
-// shell page is covered without editing this file. The root / is matched too,
-// which is harmless: it sends signed-out visitors to /login anyway.
+// The matcher skips only Next.js internals and the two root files. Public
+// paths are skipped in code (isPublicPath, unit-tested), so a new shell page
+// is covered without editing this file. The root / is matched too, which is
+// harmless: it sends signed-out visitors to /login anyway.
 export function proxy(request: NextRequest) {
+  if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next();
   const path = request.nextUrl.pathname + request.nextUrl.search;
   if (!getSessionCookie(request)) {
     const url = new URL("/login", request.url);
@@ -26,5 +28,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|apply|invite|api|_next|favicon\\.ico|robots\\.txt|.*\\..*).*)"],
+  matcher: ["/((?!_next/|favicon\\.ico|robots\\.txt).*)"],
 };
