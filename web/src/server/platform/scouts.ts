@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import type { IdDocumentType, ScoutAffiliationType, ScoutStatus } from "@/generated/prisma/enums";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
@@ -31,9 +32,12 @@ import { rejectionReasonField } from "./organisations";
  * takes a platform_admin AuthContext and checks it again here. Each decision
  * is one guarded updateMany (the status it starts from is in the where), so
  * two admins deciding at once give one success and one refusal. Each decision
- * is audited with the actor and emailed after the write; a failed email is
- * logged and reported as emailSent false, and the decision stands. The ID
- * number hash is never read here.
+ * and its AuditLog row (with the actor) are written in one transaction, so a
+ * decision is never committed unaudited (NFR20). The email goes after the
+ * commit; a failed email is logged and reported as emailSent false (in the
+ * return value only), and the decision stands. Audit metadata never holds a
+ * declared club or player name: those are children's names in free text, and
+ * the AuditLog is append-only. The ID number hash is never read here.
  */
 
 export type ScoutDecisionErrorCode =
@@ -227,20 +231,25 @@ async function send(to: string, { subject, text }: Email, profileId: string, wha
   }
 }
 
+/** Writes the decision's AuditLog row in tx; a failure throws and rolls the decision back. */
 async function auditDecision(
+  tx: Prisma.TransactionClient,
   ctx: AuthContext,
   action: string,
   profile: { id: string; userId: string },
-  metadata: Record<string, string | boolean | null>,
+  metadata: Record<string, string | null> = {},
 ) {
-  await audit({
-    organisationId: null,
-    actorUserId: ctx.user.id,
-    action,
-    targetType: "ScoutProfile",
-    targetId: profile.id,
-    metadata: { scoutUserId: profile.userId, ...metadata },
-  });
+  await audit(
+    {
+      organisationId: null,
+      actorUserId: ctx.user.id,
+      action,
+      targetType: "ScoutProfile",
+      targetId: profile.id,
+      metadata: { scoutUserId: profile.userId, ...metadata },
+    },
+    tx,
+  );
 }
 
 /**
@@ -248,8 +257,9 @@ async function auditDecision(
  * verification): the admin judges identity from name, phone, email and
  * affiliations, so the email must be real. Sets verifiedAt, then links every
  * unchecked affiliation whose name matches exactly one active organisation
- * (autoLinkAffiliations). Rows with no match, or several, stay unchecked;
- * scoutConflicts counts name matches either way.
+ * (autoLinkAffiliations), in the same transaction as the approval and its
+ * audit row. Rows with no match, or several, stay unchecked; scoutConflicts
+ * counts name matches either way.
  */
 export async function approveScout(ctx: AuthContext, id: string): Promise<ScoutDecision> {
   assertPlatformAdmin(ctx);
@@ -257,22 +267,26 @@ export async function approveScout(ctx: AuthContext, id: string): Promise<ScoutD
   if (p.status !== "pending") throw new ScoutDecisionError("not_pending");
   if (!p.user.emailVerified) throw new ScoutDecisionError("email_unconfirmed");
   const now = new Date();
-  const { count } = await rawDb.scoutProfile.updateMany({
-    where: { id, status: "pending", user: { is: { emailVerified: true } } },
-    data: { status: "approved", verifiedAt: now, reviewedAt: now, reviewedById: ctx.user.id },
+  const approved = await rawDb.$transaction(async (tx) => {
+    const { count } = await tx.scoutProfile.updateMany({
+      where: { id, status: "pending", user: { is: { emailVerified: true } } },
+      data: { status: "approved", verifiedAt: now, reviewedAt: now, reviewedById: ctx.user.id },
+    });
+    if (count !== 1) return false;
+    await auditDecision(tx, ctx, "scout.approved", p);
+    await linkMatches(tx, ctx, p.userId);
+    return true;
   });
-  if (count !== 1) {
+  if (!approved) {
     const fresh = await loadProfile(id);
     throw new ScoutDecisionError(fresh.status !== "pending" ? "not_pending" : "email_unconfirmed");
   }
-  await autoLinkAffiliations(ctx, p.userId);
   const emailSent = await send(
     p.user.email,
     scoutApprovedEmail({ name: p.user.name, appUrl: env().APP_URL }),
     id,
     "approval",
   );
-  await auditDecision(ctx, "scout.approved", p, { emailSent });
   return { name: p.user.name, email: p.user.email, emailSent };
 }
 
@@ -285,23 +299,25 @@ export async function rejectScout(
   assertPlatformAdmin(ctx);
   const rejectionReason = rejectionReasonField.parse(reason ?? undefined);
   const p = await loadProfile(id);
-  const { count } = await rawDb.scoutProfile.updateMany({
-    where: { id, status: "pending" },
-    data: {
-      status: "rejected",
-      rejectionReason,
-      reviewedAt: new Date(),
-      reviewedById: ctx.user.id,
-    },
+  await rawDb.$transaction(async (tx) => {
+    const { count } = await tx.scoutProfile.updateMany({
+      where: { id, status: "pending" },
+      data: {
+        status: "rejected",
+        rejectionReason,
+        reviewedAt: new Date(),
+        reviewedById: ctx.user.id,
+      },
+    });
+    if (count !== 1) throw new ScoutDecisionError("not_pending");
+    await auditDecision(tx, ctx, "scout.rejected", p, { reason: rejectionReason });
   });
-  if (count !== 1) throw new ScoutDecisionError("not_pending");
   const emailSent = await send(
     p.user.email,
     scoutRejectedEmail({ name: p.user.name, reason: rejectionReason }),
     id,
     "rejection",
   );
-  await auditDecision(ctx, "scout.rejected", p, { reason: rejectionReason, emailSent });
   return { name: p.user.name, email: p.user.email, emailSent };
 }
 
@@ -326,18 +342,20 @@ export async function suspendScout(
   assertPlatformAdmin(ctx);
   const suspensionReason = suspensionReasonField.parse(reason);
   const p = await loadProfile(id);
-  const { count } = await rawDb.scoutProfile.updateMany({
-    where: { id, status: "approved" },
-    data: { status: "suspended", suspendedAt: new Date(), suspensionReason },
+  await rawDb.$transaction(async (tx) => {
+    const { count } = await tx.scoutProfile.updateMany({
+      where: { id, status: "approved" },
+      data: { status: "suspended", suspendedAt: new Date(), suspensionReason },
+    });
+    if (count !== 1) throw new ScoutDecisionError("not_approved");
+    await auditDecision(tx, ctx, "scout.suspended", p, { reason: suspensionReason });
   });
-  if (count !== 1) throw new ScoutDecisionError("not_approved");
   const emailSent = await send(
     p.user.email,
     scoutSuspendedEmail({ name: p.user.name, reason: suspensionReason }),
     id,
     "suspension",
   );
-  await auditDecision(ctx, "scout.suspended", p, { reason: suspensionReason, emailSent });
   return { name: p.user.name, email: p.user.email, emailSent };
 }
 
@@ -345,11 +363,14 @@ export async function suspendScout(
 export async function reinstateScout(ctx: AuthContext, id: string): Promise<ScoutDecision> {
   assertPlatformAdmin(ctx);
   const p = await loadProfile(id);
-  const { count } = await rawDb.scoutProfile.updateMany({
-    where: { id, status: "suspended" },
-    data: { status: "approved", suspendedAt: null, suspensionReason: null },
+  await rawDb.$transaction(async (tx) => {
+    const { count } = await tx.scoutProfile.updateMany({
+      where: { id, status: "suspended" },
+      data: { status: "approved", suspendedAt: null, suspensionReason: null },
+    });
+    if (count !== 1) throw new ScoutDecisionError("not_suspended");
+    await auditDecision(tx, ctx, "scout.reinstated", p);
   });
-  if (count !== 1) throw new ScoutDecisionError("not_suspended");
   const emailSent = await send(
     p.user.email,
     scoutReinstatedEmail({
@@ -360,7 +381,6 @@ export async function reinstateScout(ctx: AuthContext, id: string): Promise<Scou
     id,
     "reinstatement",
   );
-  await auditDecision(ctx, "scout.reinstated", p, { emailSent });
   return { name: p.user.name, email: p.user.email, emailSent };
 }
 
@@ -368,11 +388,21 @@ export async function reinstateScout(ctx: AuthContext, id: string): Promise<Scou
  * Links each unchecked active affiliation of a scout whose name (a club's
  * name, a player's club) equals exactly one active academy, club or agency,
  * case-insensitively, the match the admin page suggests. Each link is audited
- * as scout.affiliation_linked with automatic: true. Returns how many it linked.
+ * as scout.affiliation_linked with automatic: true, in the same transaction as
+ * the link. Returns how many it linked.
  */
 export async function autoLinkAffiliations(ctx: AuthContext, scoutUserId: string): Promise<number> {
   assertPlatformAdmin(ctx);
-  const rows = await rawDb.scoutAffiliation.findMany({
+  return rawDb.$transaction((tx) => linkMatches(tx, ctx, scoutUserId));
+}
+
+/** autoLinkAffiliations inside the caller's transaction (approveScout's, or its own). */
+async function linkMatches(
+  tx: Prisma.TransactionClient,
+  ctx: AuthContext,
+  scoutUserId: string,
+): Promise<number> {
+  const rows = await tx.scoutAffiliation.findMany({
     where: { scoutUserId, ...UNCHECKED_AFFILIATION },
     select: { id: true, type: true, name: true, clubName: true },
   });
@@ -383,25 +413,29 @@ export async function autoLinkAffiliations(ctx: AuthContext, scoutUserId: string
     const matches = name ? (byName.get(nameKey(name)) ?? []) : [];
     if (matches.length !== 1) continue;
     const org = matches[0]!;
-    const { count } = await rawDb.scoutAffiliation.updateMany({
+    const { count } = await tx.scoutAffiliation.updateMany({
       where: { id: row.id, ...UNCHECKED_AFFILIATION },
       data: { organisationId: org.id, linkedAt: new Date(), linkedById: ctx.user.id },
     });
     if (count !== 1) continue;
     linked++;
-    await audit({
-      organisationId: null,
-      actorUserId: ctx.user.id,
-      action: "scout.affiliation_linked",
-      targetType: "ScoutAffiliation",
-      targetId: row.id,
-      metadata: {
-        scoutUserId,
-        linkedOrganisationId: org.id,
-        previousOrganisationId: null,
-        automatic: true,
+    await audit(
+      {
+        organisationId: null,
+        actorUserId: ctx.user.id,
+        action: "scout.affiliation_linked",
+        targetType: "ScoutAffiliation",
+        targetId: row.id,
+        metadata: {
+          scoutUserId,
+          type: row.type,
+          linkedOrganisationId: org.id,
+          previousOrganisationId: null,
+          automatic: true,
+        },
       },
-    });
+      tx,
+    );
   }
   return linked;
 }
@@ -432,25 +466,31 @@ export async function linkAffiliation(
   }
   const row = await rawDb.scoutAffiliation.findUnique({
     where: { id: affiliationId },
-    select: { id: true, name: true, organisationId: true, scoutUserId: true },
+    select: { id: true, type: true, name: true, organisationId: true, scoutUserId: true },
   });
   if (!row) throw new ScoutDecisionError("affiliation_removed");
-  const { count } = await rawDb.scoutAffiliation.updateMany({
-    where: { id: affiliationId, removedAt: null },
-    data: { organisationId, linkedAt: new Date(), linkedById: ctx.user.id },
-  });
-  if (count !== 1) throw new ScoutDecisionError("affiliation_removed");
-  await audit({
-    organisationId: null,
-    actorUserId: ctx.user.id,
-    action: "scout.affiliation_linked",
-    targetType: "ScoutAffiliation",
-    targetId: row.id,
-    metadata: {
-      scoutUserId: row.scoutUserId,
-      linkedOrganisationId: organisationId,
-      previousOrganisationId: row.organisationId,
-    },
+  await rawDb.$transaction(async (tx) => {
+    const { count } = await tx.scoutAffiliation.updateMany({
+      where: { id: affiliationId, removedAt: null },
+      data: { organisationId, linkedAt: new Date(), linkedById: ctx.user.id },
+    });
+    if (count !== 1) throw new ScoutDecisionError("affiliation_removed");
+    await audit(
+      {
+        organisationId: null,
+        actorUserId: ctx.user.id,
+        action: "scout.affiliation_linked",
+        targetType: "ScoutAffiliation",
+        targetId: row.id,
+        metadata: {
+          scoutUserId: row.scoutUserId,
+          type: row.type,
+          linkedOrganisationId: organisationId,
+          previousOrganisationId: row.organisationId,
+        },
+      },
+      tx,
+    );
   });
   return { name: row.name, organisationName };
 }

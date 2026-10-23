@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
 import { AuthzError, type AuthContext } from "@/server/auth/session";
 import { rawDb } from "@/server/db/raw";
 import {
@@ -77,7 +78,7 @@ describe("decisions", () => {
       actorUserId: admin.user.id,
       organisationId: null,
       targetType: "ScoutProfile",
-      metadata: { scoutUserId: user.id, emailSent: true },
+      metadata: { scoutUserId: user.id },
     });
     expect(sendMail).toHaveBeenCalledWith(
       user.email,
@@ -123,7 +124,7 @@ describe("decisions", () => {
     expect(audits).toHaveLength(1);
     expect(audits[0]).toMatchObject({
       actorUserId: admin.user.id,
-      metadata: { reason: "Could not confirm your club role.", emailSent: true },
+      metadata: { reason: "Could not confirm your club role." },
     });
     expect(sendMail.mock.calls[0]![0]).toBe(user.email);
     expect(sendMail.mock.calls[0]![2]).toContain("Reason: Could not confirm your club role.");
@@ -148,7 +149,7 @@ describe("decisions", () => {
     expect(suspended).toHaveLength(1);
     expect(suspended[0]).toMatchObject({
       actorUserId: admin.user.id,
-      metadata: { reason: "Downloaded footage", emailSent: true },
+      metadata: { reason: "Downloaded footage" },
     });
 
     await reinstateScout(admin, profile.id);
@@ -206,7 +207,95 @@ describe("decisions", () => {
       "approved",
     );
     const audits = await auditsFor(profile.id, "scout.approved");
-    expect(audits[0]!.metadata).toMatchObject({ emailSent: false });
+    expect(audits).toHaveLength(1);
+    // emailSent is in the return value only, never in the audit row.
+    expect(audits[0]!.metadata).not.toHaveProperty("emailSent");
+  });
+});
+
+/**
+ * Makes every AuditLog insert inside rawDb.$transaction fail in the database
+ * (a foreign key to an organisation that does not exist), as a broken audit
+ * write would. Restore the spy after use.
+ */
+function failAuditInsertsInTransactions() {
+  const original = rawDb.$transaction.bind(rawDb) as (
+    fn: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ) => Promise<unknown>;
+  return vi.spyOn(rawDb, "$transaction").mockImplementation(((
+    fn: (tx: Prisma.TransactionClient) => Promise<unknown>,
+  ) =>
+    original((tx) =>
+      fn(
+        new Proxy(tx, {
+          get(target, key) {
+            if (key !== "auditLog") return Reflect.get(target, key);
+            return {
+              create: (args: Prisma.AuditLogCreateArgs) =>
+                target.auditLog.create({
+                  ...args,
+                  data: { ...args.data, organisationId: "missing-organisation" },
+                } as Prisma.AuditLogCreateArgs),
+            };
+          },
+        }),
+      ),
+    )) as never);
+}
+
+// NFR20: a decision and its AuditLog row commit together. If the audit insert
+// fails, the decision is rolled back, nothing is emailed, and the caller sees the error.
+describe("decisions are audited atomically", () => {
+  it.each([
+    ["approve", "pending", (id: string) => approveScout(admin, id)],
+    ["reject", "pending", (id: string) => rejectScout(admin, id, "No club role")],
+    ["suspend", "approved", (id: string) => suspendScout(admin, id, "Downloaded footage")],
+    ["reinstate", "suspended", (id: string) => reinstateScout(admin, id)],
+  ] as const)("rolls back %s when the audit insert fails", async (label, status, decide) => {
+    const { profile } = await scout(`atomic ${label}`, { status });
+    const spy = failAuditInsertsInTransactions();
+    try {
+      await expect(decide(profile.id)).rejects.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+    const fresh = await rawDb.scoutProfile.findUniqueOrThrow({ where: { id: profile.id } });
+    expect(fresh.status).toBe(status);
+    expect(await rawDb.auditLog.count({ where: { targetId: profile.id } })).toBe(0);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  it("rolls back an approval's automatic links with it", async () => {
+    const club = await f.org("Atomic Link FC");
+    const { user, profile } = await scout("atomic autolink");
+    const row = await rawDb.scoutAffiliation.create({
+      data: { scoutUserId: user.id, type: "club", name: club.name },
+    });
+    const spy = failAuditInsertsInTransactions();
+    try {
+      await expect(approveScout(admin, profile.id)).rejects.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+    const fresh = await rawDb.scoutAffiliation.findUniqueOrThrow({ where: { id: row.id } });
+    expect(fresh).toMatchObject({ organisationId: null, linkedAt: null });
+  });
+
+  it("rolls back a manual link when the audit insert fails", async () => {
+    const club = await f.org("Atomic Manual FC");
+    const { user } = await scout("atomic manual link", { status: "approved" });
+    const row = await rawDb.scoutAffiliation.create({
+      data: { scoutUserId: user.id, type: "club", name: "Atomic Manual" },
+    });
+    const spy = failAuditInsertsInTransactions();
+    try {
+      await expect(linkAffiliation(admin, row.id, club.id)).rejects.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+    const fresh = await rawDb.scoutAffiliation.findUniqueOrThrow({ where: { id: row.id } });
+    expect(fresh).toMatchObject({ organisationId: null, linkedAt: null });
+    expect(await rawDb.auditLog.count({ where: { targetId: row.id } })).toBe(0);
   });
 });
 

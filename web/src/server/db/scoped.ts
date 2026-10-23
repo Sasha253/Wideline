@@ -187,6 +187,21 @@ function assertNoScoutFilters(where: unknown, path = "where"): void {
   }
 }
 
+/**
+ * Checks the where of every relation in an include or select tree, at any
+ * depth (include: { memberships: { where } }, _count: { select: { x: { where } } }).
+ */
+function assertNoNestedScoutFilters(tree: unknown, path: string): void {
+  if (tree === null || typeof tree !== "object") return;
+  for (const [key, v] of Object.entries(tree)) {
+    if (!v || typeof v !== "object") continue;
+    const nested = v as { where?: unknown; include?: unknown; select?: unknown };
+    assertNoScoutFilters(nested.where, `${path}.${key}.where`);
+    assertNoNestedScoutFilters(nested.include, `${path}.${key}.include`);
+    assertNoNestedScoutFilters(nested.select, `${path}.${key}.select`);
+  }
+}
+
 function withOrg(data: unknown, organisationId: string): unknown {
   assertWriteStaysInTenant(data, organisationId);
   return { ...(data as object), organisationId };
@@ -207,6 +222,8 @@ export function scopedDb(organisationId: string) {
           assertNoOrgPrivateRelations(a.include);
           assertNoOrgPrivateRelations(a.select);
           assertNoScoutFilters(a.where);
+          assertNoNestedScoutFilters(a.include, "include");
+          assertNoNestedScoutFilters(a.select, "select");
 
           if (FORBIDDEN.has(model)) {
             const reason = FORBIDDEN_REASON[model];

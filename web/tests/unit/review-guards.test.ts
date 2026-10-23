@@ -1,43 +1,73 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { REVIEW_ROUTE_PREFIXES } from "@/server/auth/reviewer";
+import {
+  REVIEW_ROUTE_PREFIXES,
+  REVIEWER_ROUTE_PREFIXES,
+  SCOUT_PLAYER_DATA_PREFIXES,
+} from "@/server/auth/reviewer";
 
 // C02 acceptance (AUTH09, ADMIN06): an unapproved or suspended scout gets 403 on every
-// review route. Every page.tsx, route.ts and actions.ts under the review paths must use
+// review route, and reaches no scout page that shows player data. Every page.tsx,
+// route.ts and actions.ts whose URL falls under REVIEWER_ROUTE_PREFIXES must use
 // requireReviewerPage(), requireReviewer() or withReviewer(), not requireRole or
-// requirePageRole alone, so the C10 and C11 routes inherit the check.
+// requirePageRole alone, so the C10, C11 and C15 routes inherit the check. The test
+// walks all of src/app, so a gated URL served from any route group is caught.
 
 const appDir = join(import.meta.dirname, "../../src/app");
 
-/** The app directories that serve each review URL prefix. */
-const DIRS: Record<(typeof REVIEW_ROUTE_PREFIXES)[number], string> = {
-  "/review": join(appDir, "(app)/review"),
-  "/api/review": join(appDir, "api/review"),
-};
+const ROUTE_FILE = /^(page\.tsx|route\.ts|actions\.ts)$/;
 
-function filesUnder(dir: string): string[] {
-  try {
-    return readdirSync(dir, { recursive: true, encoding: "utf8" })
-      .filter((f) => /(^|\/)(page\.tsx|route\.ts|actions\.ts)$/.test(f))
-      .map((f) => join(dir, f));
-  } catch {
-    return []; // /api/review does not exist yet (C10).
-  }
+/** The URL a file under src/app serves: (group) segments and the file name dropped. */
+function urlOf(relativeFile: string): string {
+  const segments = relativeFile.split(sep).slice(0, -1);
+  const kept = segments.filter((s) => !(s.startsWith("(") && s.endsWith(")")));
+  return `/${kept.join("/")}`;
 }
 
-const files = REVIEW_ROUTE_PREFIXES.flatMap((p) => filesUnder(DIRS[p]));
+function isGated(url: string): boolean {
+  return REVIEWER_ROUTE_PREFIXES.some((p) => url === p || url.startsWith(`${p}/`));
+}
 
-describe("review routes", () => {
-  it("covers every review prefix", () => {
-    expect(Object.keys(DIRS).sort()).toEqual([...REVIEW_ROUTE_PREFIXES].sort());
+const all = readdirSync(appDir, { recursive: true, encoding: "utf8" })
+  .filter((f) => ROUTE_FILE.test(f.split(sep).at(-1)!))
+  .map((f) => ({ file: join(appDir, f), url: urlOf(f) }));
+
+const gated = all.filter((f) => isGated(f.url));
+
+describe("urlOf", () => {
+  it("drops route groups and the file name", () => {
+    expect(urlOf(join("(app)", "review", "page.tsx"))).toBe("/review");
+    expect(urlOf(join("(app)", "(x)", "shortlists", "[id]", "page.tsx"))).toBe("/shortlists/[id]");
+    expect(urlOf(join("api", "review", "route.ts"))).toBe("/api/review");
+    expect(urlOf("page.tsx")).toBe("/");
   });
 
-  it("finds the review queue page", () => {
-    expect(files.some((f) => f.endsWith("(app)/review/page.tsx"))).toBe(true);
+  it("gates a prefix and its children only", () => {
+    expect(isGated("/review")).toBe(true);
+    expect(isGated("/review/abc")).toBe(true);
+    expect(isGated("/reviewers")).toBe(false);
+    expect(isGated("/scout")).toBe(false);
+  });
+});
+
+describe("reviewer-gated routes", () => {
+  it("gates review and scout player-data paths", () => {
+    expect([...REVIEWER_ROUTE_PREFIXES]).toEqual([
+      ...REVIEW_ROUTE_PREFIXES,
+      ...SCOUT_PLAYER_DATA_PREFIXES,
+    ]);
+    expect(REVIEWER_ROUTE_PREFIXES).toContain("/review");
+    expect(REVIEWER_ROUTE_PREFIXES).toContain("/shortlists");
   });
 
-  it.each(files)("%s checks review access", (file) => {
+  it("finds the review queue and shortlists pages", () => {
+    const urls = gated.map((f) => f.url);
+    expect(urls).toContain("/review");
+    expect(urls).toContain("/shortlists");
+  });
+
+  it.each(gated.map((f) => [f.url, f.file]))("%s (%s) checks review access", (_url, file) => {
     const src = readFileSync(file, "utf8");
     expect(src).toMatch(/\b(requireReviewerPage|requireReviewer|withReviewer)\(/);
     // The scout role alone is not enough: no bare role guard for scouts.

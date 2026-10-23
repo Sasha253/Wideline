@@ -5,6 +5,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 30_000,
+  // Locally the dev server and Chromium share Docker's memory; 3+ workers have
+  // OOM-killed the web container. CI uses Playwright's default.
+  workers: process.env.CI ? undefined : 2,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   // Screenshot baselines are Linux PNGs (`make test-e2e-update` regenerates them), and
@@ -14,7 +17,12 @@ export default defineConfig({
   // Never write baselines as a side effect: a missing one fails. Only
   // `--update-snapshots=all` (make test-e2e-update) writes them.
   updateSnapshots: "none",
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled" } },
+  // The dev server compiles routes on first request; with parallel workers that can
+  // take longer than the 5 s default.
+  expect: {
+    timeout: 10_000,
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled" },
+  },
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://wideline.localhost",
     trace: "retain-on-failure",

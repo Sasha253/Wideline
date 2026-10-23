@@ -1,12 +1,14 @@
 import { EmptyState } from "@/components/states/EmptyState";
 import { ListPage } from "@/components/templates/ListPage";
-import { SCOUT_ROLES, requirePageRole } from "@/server/auth/session";
+import { requireReviewerPage } from "@/server/auth/reviewer";
 
 export const metadata = { title: "Shortlists" };
 
-// Draft copy: replaced by C15
+// Draft copy: replaced by C15. Shortlists show player data, so they need an
+// approved scout profile on the current terms (requireReviewerPage, C02), not
+// only the scout role.
 export default async function ShortlistsPage() {
-  await requirePageRole(SCOUT_ROLES);
+  await requireReviewerPage("shortlists");
   return (
     <ListPage
       header={{ title: "Shortlists", intro: "Players you are following." }}

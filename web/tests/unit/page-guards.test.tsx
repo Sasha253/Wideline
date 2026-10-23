@@ -12,7 +12,8 @@ vi.mock("@/server/auth/session", async (importOriginal) => ({
   requirePageRole,
 }));
 
-// /review needs review access, not only the scout role (C02, review-guards.test.ts).
+// /review and /shortlists need review access, not only the scout role (C02,
+// review-guards.test.ts).
 const requireReviewerPage = vi.fn();
 vi.mock("@/server/auth/reviewer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/auth/reviewer")>()),
@@ -29,7 +30,6 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
   ["/squad", () => import("@/app/(app)/squad/page"), session.CLUB_ROLES],
   ["/matches", () => import("@/app/(app)/matches/page"), session.CLUB_ROLES],
   ["/scout", () => import("@/app/(app)/scout/page"), session.SCOUT_ROLES],
-  ["/shortlists", () => import("@/app/(app)/shortlists/page"), session.SCOUT_ROLES],
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
   ["/admin", () => import("@/app/(app)/admin/page"), session.PLATFORM_ROLES],
   ["/admin/scouts", () => import("@/app/(app)/admin/scouts/page"), session.PLATFORM_ROLES],
@@ -83,7 +83,6 @@ describe("placeholder pages for an allowed role", () => {
     ["/dashboard", () => import("@/app/(app)/dashboard/page"), "Nothing to show yet"],
     ["/squad", () => import("@/app/(app)/squad/page"), "No players yet"],
     ["/matches", () => import("@/app/(app)/matches/page"), "No matches yet"],
-    ["/shortlists", () => import("@/app/(app)/shortlists/page"), "No shortlists yet"],
   ])("%s renders one h1 and its empty state", async (_name, load, empty) => {
     requirePageRole.mockResolvedValue({ organisationName: "Wideline Demo FC" });
     const page = (await load()).default as Page;
@@ -93,18 +92,25 @@ describe("placeholder pages for an allowed role", () => {
     expect(html).not.toContain("undefined");
   });
 
-  it("/review checks review access first, then renders one h1 and its empty state", async () => {
-    requireReviewerPage.mockImplementationOnce(async () => {
-      throw new Error("NEXT_REDIRECT");
-    });
-    const page = (await import("@/app/(app)/review/page")).default as Page;
-    await expect(page({})).rejects.toThrow("NEXT_REDIRECT");
-    expect(requirePageRole).not.toHaveBeenCalled();
-    requireReviewerPage.mockResolvedValueOnce({ organisationName: "Wideline scouts" });
-    const html = renderToStaticMarkup(await page({}));
-    expect(html.match(/<h1/g)).toHaveLength(1);
-    expect(html).toContain("No matches waiting");
-  });
+  it.each([
+    ["/review", () => import("@/app/(app)/review/page"), "No matches waiting"],
+    ["/shortlists", () => import("@/app/(app)/shortlists/page"), "No shortlists yet"],
+  ])(
+    "%s checks review access first, then renders one h1 and its empty state",
+    async (_name, load, empty) => {
+      requireReviewerPage.mockImplementationOnce(async () => {
+        throw new Error("NEXT_REDIRECT");
+      });
+      const page = (await load()).default as Page;
+      await expect(page({})).rejects.toThrow("NEXT_REDIRECT");
+      expect(requireReviewerPage).toHaveBeenCalledTimes(1);
+      expect(requirePageRole).not.toHaveBeenCalled();
+      requireReviewerPage.mockResolvedValueOnce({ organisationName: "Wideline scouts" });
+      const html = renderToStaticMarkup(await page({}));
+      expect(html.match(/<h1/g)).toHaveLength(1);
+      expect(html).toContain(empty);
+    },
+  );
 
   it("/dashboard names the active organisation", async () => {
     requirePageRole.mockResolvedValue({ organisationName: "Wideline Demo FC" });

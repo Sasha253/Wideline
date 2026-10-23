@@ -162,7 +162,9 @@ export async function addOwnAffiliation(
     action: "scout.affiliation_added",
     targetType: "ScoutAffiliation",
     targetId: row.id,
-    metadata: { type: row.type, name: row.name, clubName: row.clubName },
+    // The id (targetId) and type only: a represented player's name is a child's
+    // name in free text, and the AuditLog is append-only. The row keeps the name.
+    metadata: { type: row.type },
   });
   return { id: row.id, name: row.name };
 }
@@ -188,7 +190,8 @@ export async function removeOwnAffiliation(
     action: "scout.affiliation_removed",
     targetType: "ScoutAffiliation",
     targetId: row.id,
-    metadata: { type: row.type, name: row.name },
+    // No name: see addOwnAffiliation.
+    metadata: { type: row.type },
   });
   return { name: row.name };
 }

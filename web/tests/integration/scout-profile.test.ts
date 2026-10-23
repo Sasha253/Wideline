@@ -63,7 +63,16 @@ describe("own profile", () => {
     await expect(addOwnAffiliation(alice.id, { type: "club", name: " " })).rejects.toThrow(
       "Enter the club name.",
     );
-    expect(await audits(alice.id, "scout.affiliation_added")).toHaveLength(2);
+    const added = await audits(alice.id, "scout.affiliation_added");
+    expect(added).toHaveLength(2);
+    // A represented player is often a child: the append-only audit log keeps the
+    // affiliation id (targetId) and type, never the name or club.
+    for (const row of added) {
+      expect(row.targetType).toBe("ScoutAffiliation");
+      expect(row.targetId).toBeTruthy();
+      expect(row.metadata).toEqual({ type: expect.any(String) });
+      expect(JSON.stringify(row.metadata)).not.toContain("Hellenic");
+    }
 
     for (let i = 0; i < 29; i++)
       await addOwnAffiliation(bob.id, { type: "club", name: `Club ${i}` });
@@ -93,7 +102,10 @@ describe("own profile", () => {
     await expect(removeOwnAffiliation(alice.id, row!.id)).rejects.toMatchObject({
       code: "already_removed",
     });
-    expect(await audits(alice.id, "scout.affiliation_removed")).toHaveLength(1);
+    const removed = await audits(alice.id, "scout.affiliation_removed");
+    expect(removed).toHaveLength(1);
+    expect(removed[0]).toMatchObject({ targetId: row!.id, metadata: { type: row!.type } });
+    expect(JSON.stringify(removed[0]!.metadata)).not.toContain(row!.name);
     // A removed name can be declared again.
     await addOwnAffiliation(alice.id, { type: "club", name: "Hellenic FC" });
   });

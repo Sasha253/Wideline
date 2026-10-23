@@ -17,7 +17,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** Settings shows for owners and admins only. Coaches see Dashboard, Squad and Matches.
 - **Recommended:** keep it hidden for coaches until there is a settings page that matters to them, such as personal notification preferences (V105).
 - **Impact:** if coaches should see it, add a read-only organisation settings view or a personal settings page for coaches, and add `coach` to the Settings roles in `web/src/lib/nav.ts`. That is one constant plus one page.
-- **Answer:**
+- **Answer:** Keep the default. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-003 · D02 · Where each role lands after sign-in or a switch
 
@@ -25,7 +26,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** platform admins go to `/lab/matches`; owners, admins and coaches to `/dashboard` (a placeholder until C14); scouts to `/review` (a placeholder until C10); anyone else to `/organisations`. With several roles, the first match in that order wins.
 - **Recommended:** keep this default. It lives in one function, `homeFor()` in `web/src/lib/nav.ts`.
 - **Impact:** a different landing page changes only `homeFor()` and the redirect expectations in the e2e specs.
-- **Answer:**
+- **Answer:** Keep the default. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-004 · C02 · Reviewer confidentiality terms wording
 
@@ -33,7 +35,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** draft wording in `web/src/server/scouts/terms.ts`, version `2026-10-draft-1`, marked "Draft for legal review". It forbids downloading or recording footage, and forbids contacting players or clubs seen in review outside Wideline. It requires declaring conflicts and confirming 18 or over.
 - **Recommended:** keep the draft for the build and have the privacy lawyer approve the final wording as part of the v0 gate (NFR15).
 - **Impact:** new wording means a new `REVIEWER_TERMS_VERSION`. Every scout is then blocked from review until they re-accept on `/scout`. That flow is built in, so nothing changes beyond the text and the version.
-- **Answer:**
+- **Answer:** Keep the draft for the build; the privacy lawyer approves the final wording before the first pilot club joins (v0 gate, NFR15). The draft's "no contact with players or clubs seen in review outside Wideline" stands as the answer to the PRD open question until the lawyer says otherwise. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default. Legal sign-off stays open as part of the v0 gate.
 
 ## Q-005 · C02 · Scout identity verification beyond a manual check
 
@@ -41,7 +44,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** manual. The admin approves on name, phone, confirmed email and affiliations. The ID is used only as a hashed uniqueness check. No third-party service and no SMS.
 - **Recommended:** manual for the pilot (10 reviewers). Revisit before v1, when there are 40 or more reviewers.
 - **Impact:** a provider adds an identity-check step and a stored verification reference. SMS adds an OTP step and a cost per message. `ScoutProfile.verifiedAt` already exists for either.
-- **Answer:**
+- **Answer:** Manual admin check for the pilot. Revisit before v1 (40+ reviewers). (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-006 · C02 · Cooling-off after removing a declared conflict
 
@@ -49,4 +53,5 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** no cooling-off. Removals are soft (`removedAt` kept) and audited, so platform admins can see the history.
 - **Recommended:** add a 90-day cooling-off in `scoutConflicts()` once C10 is in place. It is a one-line filter change.
 - **Impact:** only `scoutConflicts()` changes, to count rows removed within the period. No schema change.
-- **Answer:**
+- **Answer:** Yes: a 90-day cooling-off. A removed club conflict keeps blocking claims for 90 days. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** differs from the default (no cooling-off). Rework note added to C10 in STATUS.md: `scoutConflicts()` must count affiliations removed within the last 90 days.

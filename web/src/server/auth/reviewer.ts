@@ -19,10 +19,27 @@ import {
  * takes effect on the very next request. Every review page, route handler and
  * server action uses requireReviewer(), requireReviewerPage() or withReviewer(),
  * never requireRole(SCOUT_ROLES) alone (tests/unit/review-guards.test.ts).
+ *
+ * The same goes for every scout page that shows player data: a pending,
+ * rejected or suspended scout, or one on stale terms, must not reach it. Use
+ * the reviewer guard there too and list its path in REVIEWER_ROUTE_PREFIXES
+ * (C15 adds the shortlist pages under /shortlists).
  */
 
-/** Paths that need review access. The guard test checks every page and route under them. */
+/** Review paths: the queue, claims and review sessions (C10, C11). */
 export const REVIEW_ROUTE_PREFIXES = ["/review", "/api/review"] as const;
+
+/** Scout paths outside review that show player data (C15 shortlists). */
+export const SCOUT_PLAYER_DATA_PREFIXES = ["/shortlists", "/api/shortlists"] as const;
+
+/**
+ * Every path that needs review access. tests/unit/review-guards.test.ts walks
+ * src/app and checks every page, route and action under these prefixes.
+ */
+export const REVIEWER_ROUTE_PREFIXES = [
+  ...REVIEW_ROUTE_PREFIXES,
+  ...SCOUT_PLAYER_DATA_PREFIXES,
+] as const;
 
 export const REVIEWER_DENIED = [
   "SCOUT_NOT_REGISTERED",
@@ -71,18 +88,23 @@ export async function requireReviewer(): Promise<ReviewerContext> {
   return { ...ctx, scout };
 }
 
+/** Where a denied scout came from; /scout?from=<this> says what opens once approved. */
+export type ReviewerPageFrom = "review" | "shortlists";
+
 /**
- * For review pages: a scout who may not review yet goes to /scout (which says
- * why), a missing role to /forbidden, no organisation to /organisations, and a
- * signed-out visitor to /login.
+ * For review pages and scout pages with player data: a scout who may not
+ * review yet goes to /scout (which says why), a missing role to /forbidden, no
+ * organisation to /organisations, and a signed-out visitor to /login.
  */
-export async function requireReviewerPage(): Promise<ReviewerContext> {
+export async function requireReviewerPage(
+  from: ReviewerPageFrom = "review",
+): Promise<ReviewerContext> {
   try {
     return await requireReviewer();
   } catch (err) {
     if (err instanceof AuthzError) {
       if (err.status === 401) return loginRedirect();
-      if (isReviewerDenied(err)) redirect("/scout?from=review");
+      if (isReviewerDenied(err)) redirect(`/scout?from=${from}`);
       redirect(err.message === NO_ORGANISATION ? "/organisations" : "/forbidden");
     }
     throw err;

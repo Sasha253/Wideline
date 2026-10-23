@@ -286,6 +286,43 @@ describe("scoped client: scouts", () => {
     ).rejects.toBeInstanceOf(TenantScopeError);
   });
 
+  it("refuses scout filters in a nested where, in include, select and _count", async () => {
+    const asA = scopedDb(orgA);
+    const approved = { user: { scoutProfile: { is: { status: "approved" as const } } } };
+    await expect(
+      asA.organisation.findFirst({ include: { memberships: { where: approved } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.organisation.findFirst({ select: { memberships: { where: approved } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.organisation.findFirst({
+        select: { _count: { select: { memberships: { where: approved } } } },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.team.findFirst({
+        include: { organisation: { include: { memberships: { where: approved } } } },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.membership.findFirst({
+        include: {
+          organisation: {
+            include: {
+              memberships: { where: { organisation: { scoutAffiliations: { some: {} } } } },
+            },
+          },
+        },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    // A nested where without scout filters still works.
+    const org = await asA.organisation.findFirst({
+      include: { memberships: { where: { role: "owner" } } },
+    });
+    expect(org?.id).toBe(orgA);
+  });
+
   it("refuses making an organisation the scout network", async () => {
     const asA = scopedDb(orgA);
     await expect(

@@ -80,6 +80,12 @@ export default async function ScoutProfilePage({
             current terms.
           </Banner>
         )}
+        {params.from === "shortlists" && (
+          <Banner tone="warn">
+            Shortlists open once your scout profile is approved and you have accepted the current
+            terms.
+          </Banner>
+        )}
       </div>
       <StatusPanel
         status={profile.status}
