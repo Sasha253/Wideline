@@ -114,6 +114,9 @@ export async function contextForSession({
   const byOrg = new Map<string, OrganisationSummary>();
   for (const m of memberships) {
     const entry = byOrg.get(m.organisationId) ?? { ...m.organisation, roles: [] };
+    // platform_admin only means anything in the Wideline platform organisation.
+    // A stray platform_admin membership in a tenant grants nothing.
+    if (m.role === "platform_admin" && m.organisation.type !== "platform") continue;
     entry.roles.push(m.role);
     byOrg.set(m.organisationId, entry);
   }

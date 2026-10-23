@@ -101,21 +101,19 @@ const USER_PRIVATE_RELATIONS = new Set([
 ]);
 const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy"]);
 
-// Organisation fields only a platform admin may change (ADMIN01, BILL01), so an
-// organisation admin can never approve their own organisation or pick a plan.
-const PLATFORM_ONLY_ORG_FIELDS = [
-  "status",
-  "planId",
-  "reviewedAt",
-  "rejectionReason",
-  "applicantName",
-  "applicantEmail",
-];
+// The only Organisation fields a scoped client may change: the settings an
+// organisation edits itself. Everything else is refused, so an organisation
+// admin can never approve their own organisation or pick a plan (ADMIN01,
+// BILL01), and no nested relation write (connect, create, ...) can reach
+// another organisation's rows (NFR16).
+const SCOPED_ORG_FIELDS = new Set(["name", "type", "country", "region", "settings"]);
 
 function assertOrgUpdateAllowed(data: unknown): void {
   const d = (data ?? {}) as Record<string, unknown>;
-  for (const key of PLATFORM_ONLY_ORG_FIELDS) {
-    if (key in d) throw new TenantScopeError(`Organisation.${key} is platform-only`);
+  for (const key of Object.keys(d)) {
+    if (!SCOPED_ORG_FIELDS.has(key)) {
+      throw new TenantScopeError(`Organisation.${key} cannot be changed from a scoped client`);
+    }
   }
   const type = d.type && typeof d.type === "object" ? (d.type as { set?: unknown }).set : d.type;
   if (type === "platform") {

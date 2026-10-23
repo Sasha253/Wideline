@@ -197,7 +197,9 @@ export async function acceptInvitation({
           role: inv.role,
         },
       },
-      update: {},
+      // An existing unaccepted row for this role is accepted now, so the spent
+      // token always grants access.
+      update: { acceptedAt: now, invitedById: inv.invitedById },
       create: {
         organisationId: inv.organisationId,
         userId,

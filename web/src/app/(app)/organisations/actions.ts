@@ -12,9 +12,11 @@ export async function switchOrganisation(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const ctx = await requireRole(ALL_ROLES);
   const organisationId = z.string().min(1).safeParse(formData.get("organisationId"));
   try {
+    // Inside the try: a user whose last membership was just removed gets the
+    // form error rather than an uncaught 403.
+    const ctx = await requireRole(ALL_ROLES);
     if (!organisationId.success) throw new AuthzError(403, "No organisation");
     await setActiveOrganisation(ctx.sessionId, ctx.user.id, organisationId.data);
   } catch (err) {

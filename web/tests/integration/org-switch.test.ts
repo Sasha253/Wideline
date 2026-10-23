@@ -125,4 +125,17 @@ describe("active organisation", () => {
     expect(ctx.db).toBeNull();
     expect(ctx.organisations).toEqual([]);
   });
+
+  it("ignores a platform_admin membership outside the platform organisation", async () => {
+    const stray = await f.user("Stray admin");
+    await f.member(orgA.id, stray.id, "platform_admin");
+    await f.member(orgA.id, stray.id, "coach");
+    const ctx = await contextForSession({
+      sessionId: "x",
+      user: stray,
+      activeOrganisationId: null,
+    });
+    expect(ctx.organisationId).toBe(orgA.id);
+    expect(ctx.roles).toEqual(["coach"]);
+  });
 });

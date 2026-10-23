@@ -103,9 +103,14 @@ export async function createInvitation(
 
   const now = new Date();
   const { token, tokenHash } = newInvitationToken();
-  const { replaced, invitation } = await ctx.db.$transaction(async (tx) => {
-    const { count } = await tx.invitation.updateMany({
+  const { previousInvitationIds, invitation } = await ctx.db.$transaction(async (tx) => {
+    const open = await tx.invitation.findMany({
       where: { email, role, acceptedAt: null, revokedAt: null },
+      select: { id: true },
+    });
+    const previousInvitationIds = open.map((i) => i.id);
+    await tx.invitation.updateMany({
+      where: { id: { in: previousInvitationIds } },
       data: { revokedAt: now },
     });
     const invitation = await tx.invitation.create({
@@ -119,8 +124,21 @@ export async function createInvitation(
         expiresAt: invitationExpiry(now),
       },
     });
-    return { replaced: count > 0, invitation };
+    return { previousInvitationIds, invitation };
   });
+  const replaced = previousInvitationIds.length > 0;
+
+  // Close the audit trail of each invitation this one replaces.
+  for (const previousId of previousInvitationIds) {
+    await audit({
+      organisationId: ctx.organisationId,
+      actorUserId: ctx.user.id,
+      action: "invitation.revoked",
+      targetType: "Invitation",
+      targetId: previousId,
+      metadata: { email, role, replacedBy: invitation.id },
+    });
+  }
 
   await audit({
     organisationId: ctx.organisationId,
@@ -128,7 +146,7 @@ export async function createInvitation(
     action: "invitation.created",
     targetType: "Invitation",
     targetId: invitation.id,
-    metadata: { email, role, replaced },
+    metadata: { email, role, replaced, previousInvitationIds },
   });
 
   const emailSent = await sendInvitationEmail(ctx, invitation, token);

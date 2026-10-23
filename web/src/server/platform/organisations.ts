@@ -30,7 +30,7 @@ import { invitationExpiry, newInvitationToken } from "../organisations/tokens";
  */
 
 function assertPlatformAdmin(ctx: AuthContext): void {
-  if (!ctx.roles.includes("platform_admin")) {
+  if (!ctx.roles.includes("platform_admin") || ctx.organisationType !== "platform") {
     throw new AuthzError(403, "Requires platform_admin");
   }
 }

@@ -65,8 +65,24 @@ async function loadTarget(ctx: AuthContext, membershipId: string) {
   return target;
 }
 
-async function ownerCount(ctx: AuthContext): Promise<number> {
-  return ctx.db.membership.count({ where: { role: "owner", acceptedAt: { not: null } } });
+type Db = AuthContext["db"];
+
+async function ownerCount(db: Pick<Db, "membership">): Promise<number> {
+  return db.membership.count({ where: { role: "owner", acceptedAt: { not: null } } });
+}
+
+/**
+ * Runs the last-owner check and its write in one serializable transaction, so
+ * two owners demoting or removing each other at once cannot leave the
+ * organisation with no owner: Postgres aborts one of them.
+ */
+function guardedOwnerWrite<T>(
+  ctx: AuthContext,
+  fn: (tx: Pick<Db, "membership">, owners: number) => Promise<T>,
+): Promise<T> {
+  return ctx.db.$transaction(async (tx) => fn(tx, await ownerCount(tx)), {
+    isolationLevel: "Serializable",
+  });
 }
 
 export async function changeMemberRole(
@@ -82,9 +98,10 @@ export async function changeMemberRole(
     select: { id: true },
   });
   if (held) throw new MembershipError("same_role");
-  assertNotLastOwner({ targetRole: target.role, ownerCount: await ownerCount(ctx), newRole: role });
-
-  await ctx.db.membership.update({ where: { id: target.id }, data: { role } });
+  await guardedOwnerWrite(ctx, async (tx, owners) => {
+    assertNotLastOwner({ targetRole: target.role, ownerCount: owners, newRole: role });
+    await tx.membership.update({ where: { id: target.id }, data: { role } });
+  });
   await audit({
     organisationId: ctx.organisationId,
     actorUserId: ctx.user.id,
@@ -101,9 +118,10 @@ export async function removeMembership(
   membershipId: string,
 ): Promise<{ name: string; role: Role; userId: string }> {
   const target = await loadTarget(ctx, membershipId);
-  assertNotLastOwner({ targetRole: target.role, ownerCount: await ownerCount(ctx) });
-
-  await ctx.db.membership.delete({ where: { id: target.id } });
+  await guardedOwnerWrite(ctx, async (tx, owners) => {
+    assertNotLastOwner({ targetRole: target.role, ownerCount: owners });
+    await tx.membership.delete({ where: { id: target.id } });
+  });
   await audit({
     organisationId: ctx.organisationId,
     actorUserId: ctx.user.id,

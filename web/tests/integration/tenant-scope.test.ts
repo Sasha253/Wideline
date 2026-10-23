@@ -179,6 +179,17 @@ describe("scoped client", () => {
     const org = await asA.organisation.update({ where: { id: orgA }, data: { region: "Gauteng" } });
     expect(org.region).toBe("Gauteng");
   });
+
+  it("refuses nested relation writes on the organisation", async () => {
+    const asA = scopedDb(orgA);
+    await expect(
+      asA.organisation.update({ where: { id: orgA }, data: { teams: { connect: { id: teamB } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    // teamB still belongs to B.
+    expect((await rawDb.team.findUniqueOrThrow({ where: { id: teamB } })).organisationId).toBe(
+      orgB,
+    );
+  });
 });
 
 describe("scoped client: invitations", () => {
