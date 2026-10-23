@@ -1,0 +1,54 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wideline</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; }
+  body { background:var(--surface); color:var(--ink); font-family:var(--font-sans); overflow:hidden; }
+  .cover { position:relative; height:288px; overflow:hidden; }
+  .art { position:absolute; top:0; left:480px; width:480px; height:288px; overflow:hidden; }
+  .art svg { display:block; width:480px; height:288px; }
+  .pitch { fill:var(--pitch); }
+  .turf { fill:var(--turf); }
+  .flood { fill:var(--floodlight); }
+  .deep { fill:var(--ink); }
+  .home { fill:var(--home); }
+  .blk { rx:var(--radius-lg); }
+  .sm { rx:var(--radius-sm); }
+  .chalk { fill:none; stroke:var(--chalk); stroke-width:1.5; }
+  .words { position:absolute; left:var(--space-8); bottom:var(--space-8); max-width:440px; }
+  .name { margin:0; font-family:var(--font-display); font-size:88px; line-height:.92; font-weight:700; letter-spacing:-.01em; color:var(--ink); }
+  .tag { margin:var(--space-2) 0 0 2px; font-size:14px; line-height:20px; color:var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      turf 288×272 slab bled off the top (the pitch itself, largest; keeps chalk legible in both themes) · pitch 144×144 beside it (the brand green) · floodlight 112×48 (the one hot accent) · ink 144×96 bled off the right · home 48×16 once (team side)
+  arrangement one tall pitch slab with satellites, bottoms on one line space-4 above the edge, space-4 gutters
+  pattern     chalk pitch markings, from "pitch geometry: chalk lines, arcs and the centre circle": halfway line, centre circle and penalty box drawn in chalk over the slab
+  scales      sides in space-4 multiples; gutters space-4; corners radius-lg on blocks, radius-sm on the home tab; chalk 1.5px as tokens.json turf/chalk usage
+-->
+<rect class="turf blk" x="16" y="-16" width="288" height="288" rx="16"/>
+<line class="chalk" x1="160" y1="-16" x2="160" y2="272"/>
+<circle class="chalk" cx="160" cy="128" r="48"/>
+<circle cx="160" cy="128" r="3" fill="var(--chalk)"/>
+<rect class="chalk" x="16" y="64" width="64" height="128"/>
+<rect class="chalk" x="240" y="64" width="64" height="128"/>
+<rect class="pitch blk" x="320" y="128" width="144" height="144" rx="16"/>
+<rect class="flood blk" x="320" y="64" width="112" height="48" rx="16"/>
+<rect class="deep blk" x="352" y="-16" width="144" height="64" rx="16"/>
+<rect class="home sm" x="336" y="240" width="48" height="16" rx="4"/>
+</svg>
+</div>
+<div class="words">
+  <h1 class="name">Wideline</h1>
+  <p class="tag">Every match filmed. Every player findable.</p>
+</div>
+</div>
+</body>
+</html>

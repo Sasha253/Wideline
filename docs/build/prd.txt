@@ -1,0 +1,1196 @@
+=== PAGE 1 ===
+Wideline: Product Requirements
+Revised Oct 19, 2026 · Sasha · supersedes the "Scout" working draft of the same date
+What changed in this revision. Product named Wideline (subject to a trademark and domain
+check). The Wideline company is the responsible party under POPIA. Hosting moves from Azure
+to a small Hetzner server, with GPUs rented by the hour. Raw footage is kept for 7 days and clips
+for 14 days, unless favourited. Any registered scout can do review work. Departed players are
+deactivated, never deleted. The full list is in the Decisions log at the end. Rows marked CHANGED
+or NEW differ from the previous draft.
+Overview
+Wideline turns wide-angle match recordings from academies and amateur clubs into player stats and
+profiles that scouts can search. It starts free for invited pilot clubs, then grows into a paid scouting
+network.
+Why the name. Wideline joins the two things the product is built on: the wide-angle camera every
+club already uses, and the touchline where scouts have always stood. It reads as football without
+being generic, and it works as a domain-style brand.
+Vision. Every young player at a club that films its matches gets a verified, data-backed profile, so
+talent outside the professional system can be found.
+Problem. Youth, academy, amateur and lower-league football produces almost no data. Scouts travel
+to watch a handful of matches and rely on word of mouth. Clubs already film matches, but nobody
+turns that footage into stats.
+How it works. A club uploads a match recording and its lineups. A computer-vision CV pipeline
+detects players, the ball and key events. A registered scout picks the match up from the review queue
+and confirms or corrects anything the AI is unsure about. Stats then land on each player's profile, and
+scouts can search players whose families have opted in. CHANGED
+Review work doubles as discovery. Scouts who review matches see players they might otherwise
+never hear about, which is the incentive for doing it.
+Goals
+ Process a full 90-minute wide-angle match automatically, with a scout reviewing it in under 45
+minutes during the pilot and under 30 minutes by v1.
+ Build verified player profiles for pilot academies and their squads.
+ Give scouts and recruiters a searchable pool of consented players, filtered by stats, position, age
+and region.
+ Be ready to switch on paid subscriptions without rebuilding anything.
+ Run the pilot on minimal fixed infrastructure cost, paying for GPU time only while a match is
+processing. NEW
+Wideline PRD
+Page 1 of 26
+
+=== PAGE 2 ===
+Non-goals for now
+Broadcast TV footage, and phone footage filmed from the touchline.
+Native iOS and Android apps. Wideline is a responsive web app.
+Live, in-match analysis. Processing happens after the match.
+Replacing scouts' judgement. Wideline supports scouting; it does not rate potential or character.
+Professional league data, which can already be bought.
+A separate pipeline or rules for women's and girls' football. The same pipeline, stats and consent
+rules apply to every team. NEW
+Long-term storage of full match video. Raw footage is deleted after 7 days. NEW
+Success metrics
+Targets below are starting assumptions, to be agreed with the pilot clubs once they are chosen.
+Metric v0 Pilot
+target
+v1 target
+Pilot clubs actively uploading 5 25
+Matches processed per week 10 75
+Scout review time per match under 45 min under 30 min
+Matches reviewed within 5 days of upload (before raw footage expires)
+NEW
+90% 98%
+Active reviewing scouts NEW 10 40
+Goal and shot recall vs hand-tagged matches 95% 97%
+Pass recall vs hand-tagged matches not in scope 85%
+Processing time per match (upload to review-ready) under 4 h under 2 h
+Players consented to scout visibility not in scope 60% of
+profiles
+Weekly active scouts 10
+(reviewers)
+50
+Users
+Six personas, mapped onto the role set defined in AUTH03. A single person can hold more than one
+role, for example a coach who also scouts.
+Role Who they are What they need First release
+Club admin Runs an academy or
+amateur club
+Set up the club, invite coaches, manage
+squads, hold consent records
+v0
+Coach Coaches for a club Upload matches and lineups, see how the
+squad is performing CHANGED
+v0
+Wideline PRD
+Page 2 of 26
+
+=== PAGE 3 ===
+Scout / recruiter
+CHANGED
+Scouts for a club or
+works freelance
+Review matches from the queue, then
+search consented players, build shortlists,
+write reports, watch clips
+v0 (review),
+v1 (search)
+Platform admin Wideline staff Onboard clubs and scouts, watch
+processing jobs, quality-check reviews,
+handle takedowns and support
+v0
+Player / parent A player, or the guardian
+of one under 18
+Control who sees the profile, view and
+share stats and clips
+v1
+Agent / pro-club
+recruiter
+Represents players or
+recruits for a professional
+club
+Discover players across many clubs,
+compare them, export shortlists
+v2
+What each one does most
+Club admin. Onboards the club, adds the squad, records guardian consent for under-18s, decides
+which coaches can upload, and marks players who leave the club.
+Coach. Uploads a recording after each match, enters the lineup, and checks the squad
+dashboard. Coaches no longer do review work.
+Scout / recruiter. The heaviest v0 user. Picks matches from the review queue, links tracks to
+players, confirms or corrects events, and favourites clips worth keeping. From v1, also searches,
+shortlists and writes reports.
+Player / parent. Accepts an invitation from the club, gives or withdraws consent, favourites their
+own clips, and shares a profile link with other clubs.
+Agent / pro-club recruiter. Works across the whole consented pool rather than one club,
+compares players, and exports a shortlist.
+Platform admin. Approves new clubs and scouts during the invite-only phase, spot-checks
+reviews, re-runs failed jobs, and acts on consent withdrawals and takedown requests.
+Release roadmap
+Each release gate is an accuracy and adoption bar, not a date
+Four phases; a phase opens only once the gate before it is met
+v0 Pilot
+free, invite-only
+Upload and process
+Goals, shots, maps
+Scout review queue
+Private profiles
+v1 Scout network
+free, opt-in profiles
+Passes detected
+Consent and opt-in
+Scout search
+Shortlists, reports
+v2 Paid platform
+subscriptions on
+Tackles and duels
+Highlight reels
+AI scout notes
+Agents, pro clubs
+v3 Scale
+not yet scoped
+More camera types
+Native mobile apps
+Data partnerships
+5 clubs live
+95% shot recall
+10 active reviewers
+25 clubs live
+85% pass recall
+50 weekly scouts
+willing to pay
+Wideline release roadmap · 4 phases, 3 gates
+Wideline PRD
+Page 3 of 26
+
+=== PAGE 4 ===
+Each phase opens only when the gate before it is met, so the roadmap is driven by accuracy and
+adoption rather than by calendar dates. v0 stays invite-only until the CV pipeline is trusted; v2 only
+switches on billing once scouts have shown they will pay.
+Because scouts now do the review work, scouts join in v0 rather than v1. In v0 they review matches
+and see the players in them, but cannot search the wider pool until v1.
+Money follows the same rule. Everything is free through v0 and v1, which builds the pool of players
+that makes the product worth paying for. Billing and entitlements are built early but stay behind a
+feature flag until the v2 gate.
+Wideline PRD
+Page 4 of 26
+
+=== PAGE 5 ===
+Functional requirements
+Every requirement has an ID. The build backlog maps each chunk back to these IDs.
+AUTH — accounts, organisations, roles
+ID Requirement Release
+AUTH01 Sign up and sign in with email, magic link or password, plus Google v0
+AUTH02 An organisation holds users, teams, players and matches; all data is scoped to it v0
+AUTH03 Roles: owner, admin, coach, scout, agent, player, guardian, platform admin
+CHANGED (analyst merged into scout)
+v0
+AUTH04 Invite users by email, with a role; invitations expire after 14 days v0
+AUTH05 A user may belong to several organisations and switch between them v0
+AUTH06 Every permission check runs server-side; no client-only gating v0
+AUTH07 Audit log of logins, role changes, consent changes, exports and every review
+session
+v0
+AUTH08 Scouts register independently, without belonging to a club, and are approved by
+a platform admin during the invite-only phase CHANGED
+v0
+AUTH09 Scout registration verifies identity (name, ID or passport number, phone) and
+requires acceptance of the reviewer confidentiality terms before any review
+access NEW
+v0
+AUTH10 A scout declares club affiliations and represented players at registration; these
+are used to block conflicted review assignments NEW
+v0
+SQUAD — teams, players, lineups
+ID Requirement Release
+SQUAD01 Create teams within an organisation, with age group, gender and season.
+Gender is a label only; it does not change processing
+v0
+SQUAD02 Add players with name, date of birth, position, preferred foot, height and squad
+number
+v0
+SQUAD03 Import a squad from CSV, with a preview and per-row errors before committing v0
+SQUAD04 Squad numbers are unique per team per season, and may change between
+matches
+v0
+SQUAD05 Record a lineup per match: starters, substitutes, shirt numbers, positions v0
+SQUAD06 Record substitutions with the minute, so minutes played are correct v0
+SQUAD07 Opposition players may be added as unnamed placeholders v0
+SQUAD08 Merge duplicate player records, keeping the full history v1
+Wideline PRD
+Page 5 of 26
+
+=== PAGE 6 ===
+SQUAD09 A club admin can mark a player as departed. The player is deactivated from the
+club: removed from squads, lineups pickers and club dashboards, and no longer
+editable by the club. No data is deleted NEW
+v0
+SQUAD10 A departed player keeps their full stat history and profile. With consent, a new
+club can claim the profile, so history carries over to the new club NEW
+v1
+MATCH — matches and footage
+ID Requirement Release
+MATCH01 Create a match with date, venue, competition, home and away teams v0
+MATCH02 Upload video in chunks, resumable, up to 8 GB, in MP4 or MOV v0
+MATCH03 Validate on upload: duration, resolution at least 1080p, frame rate, aspect ratio v0
+MATCH04 Reject or warn on footage that is not wide-angle, with guidance on how to re-
+film
+v0
+MATCH05 Mark kickoff and half-time, so video time maps to match minutes v0
+MATCH06 Transcode to HLS at several bitrates for playback in the browser v0
+MATCH07 Show upload and processing status, with an estimated finish time and a
+countdown to raw-footage expiry CHANGED
+v0
+MATCH08 Delete a match and everything derived from it v0
+MATCH09 Import footage from a club's Veo or Pixellot account later
+CV — the computer-vision pipeline
+ID Requirement Release
+CV01 Queue a processing job per match and run it on an hourly-rented GPU worker
+that starts for the job and shuts down after CHANGED
+v0
+CV02 Detect players, goalkeepers, referees and the ball in every sampled frame v0
+CV03 Track each player across frames, giving a track ID per player v0
+CV04 Assign tracks to teams by kit colour, handling goalkeepers separately v0
+CV05 Calibrate the pitch once per venue and camera, mapping pixels to pitch
+coordinates
+v0
+CV06 Link tracks to lineup players, using shirt numbers where readable plus reviewer
+input
+v0
+CV07 Detect goals and shots, each with a confidence score and a video timestamp v0
+CV08 Produce per-player position tracks, heatmaps and distance covered v0
+CV09 Write results as a versioned JSON artifact, so a re-run can be compared with the
+last
+v0
+CV10 Retry a failed job up to 3 times, then raise it to a platform admin v0
+Wideline PRD
+Page 6 of 26
+
+=== PAGE 7 ===
+CV11 Cut a short clip for every detected event at processing time, so clips survive
+deletion of the raw footage NEW
+v0
+CV12 Detect passes with a sender, receiver and outcome v1
+CV13 Detect tackles and duels, with the players involved and the outcome v2
+CV14 Re-run the pipeline on a match with a newer model version. Only possible while
+raw footage still exists 7 days); older matches keep their stats as they are
+CHANGED
+v2
+REVIEW — human correction by scouts
+ID Requirement Release
+REVIEW01 A shared review queue of processed matches. Scouts claim a match; a claim
+expires after 48 hours if unfinished, and the match returns to the queue
+CHANGED
+v0
+REVIEW02 A scout cannot claim a match involving a club they are affiliated with, or a player
+they represent AUTH10 NEW
+v0
+REVIEW03 Within a claimed match, list everything below the confidence threshold. Confirm,
+correct or reject each event, with the clip playing beside it
+v0
+REVIEW04 Reassign an event to a different player v0
+REVIEW05 Add an event the AI missed, by marking the video timestamp. Only possible
+while raw footage exists
+v0
+REVIEW06 Fix a track-to-player link, which re-attributes every event on that track v0
+REVIEW07 Keyboard shortcuts for confirm, reject and next, so review stays fast v0
+REVIEW08 Mark a match reviewed, which publishes its stats to player profiles v0
+REVIEW09 Every correction is stored as training data for later model improvement v0
+REVIEW10 Auto-accept thresholds are set per organisation, per event type, in organisation
+settings
+v0
+REVIEW11 Review playback is stream-only and watermarked with the reviewer's name;
+footage cannot be downloaded, and access ends when the review is submitted
+or the claim expires NEW
+v0
+REVIEW12 The club can dispute a published review within 7 days; a platform admin
+decides. A sample of reviews is spot-checked against the footage each week
+NEW
+v0
+REVIEW13 Matches nearing raw-footage expiry rise to the top of the queue, and platform
+admins are alerted 48 hours before an unreviewed match's footage is deleted
+NEW
+v0
+REVIEW14 Show reviewer, time taken and correction count per match, plus a per-scout
+accuracy score from spot-checks
+v1
+Wideline PRD
+Page 7 of 26
+
+=== PAGE 8 ===
+PROFILE — player profiles and stats
+ID Requirement Release
+PROF01 A profile per player: bio, club, position, and career totals v0
+PROF02 Per-match stat lines, and totals and per-90 rates across a season v0
+PROF03 Heatmap and average position per match and per season v0
+PROF04 Every stat traces back to the events behind it, each with a match timestamp.
+Each event plays its clip while the clip is retained, and permanently if it is
+favourited CHANGED
+v0
+PROF05 Profiles are private to the club until consent makes them visible v0
+PROF06 Only matches marked reviewed count toward published stats v0
+PROF07 Each stat shows how many matches it is based on, so small samples are obvious v0
+PROF08 Favourite a clip to keep it beyond 14 days. Club staff, the reviewing scout, and
+the player or guardian can favourite. Favourited clips count against an
+entitlement limit NEW
+v0
+PROF09 A departed player's profile shows their former club and history, and remains
+under the player's or guardian's control NEW
+v0
+PROF10 A shareable public profile link the player or guardian can switch off v1
+PROF11 Compare up to 4 players side by side v2
+PROF12 Auto-generated highlight reel of a player's favourited clips CHANGED v2
+SEARCH — discovery
+ID Requirement Release
+SEARCH01 Search consented players by name, position, age band, region and club
+(including "no current club")
+v1
+SEARCH02 Filter by stat thresholds, such as goals per 90 above a value v1
+SEARCH03 Results exclude any player without current consent v1
+SEARCH04 Sort by any stat, with a minimum-matches filter v1
+SEARCH05 Save a search and get alerts when new players match it v2
+SCOUT — shortlists and reports
+ID Requirement Release
+SCOUT01 Create named shortlists and add or remove players. In v0, only consented
+players from matches the scout has reviewed CHANGED
+v0
+SCOUT02 Write a scouting report against a player, with ratings and free text v1
+SCOUT03 Reports are private to their author unless shared v1
+Wideline PRD
+Page 8 of 26
+
+=== PAGE 9 ===
+SCOUT04 Share a shortlist with a colleague by link or invitation v1
+SCOUT05 Export a shortlist or report to PDF or CSV v2
+CONSENT — privacy and POPIA
+ID Requirement Release
+CONS01 Every player record stores one of five consent states: none, requested, club-
+only, scout-visible, withdrawn
+v0
+CONS02 Players under 18 need consent from a parent or guardian, captured with name,
+relationship, timestamp and method
+v0
+CONS03 Consent can be withdrawn at any time, taking effect on every live query
+immediately
+v0
+CONS04 Consent wording states that matches are reviewed by independent registered
+scouts, and that data is stored and processed outside South Africa NEW
+v0
+CONS05 Guardians get an emailed consent request with a plain-language explanation of
+what is collected
+v1
+CONS06 Players turning 18 are prompted to confirm consent in their own right v1
+CONS07 Export everything held about a player, on request v1
+CONS08 Delete a player and all derived data, on request, within 30 days. This is separate
+from leaving a club, which never deletes data
+v1
+CONS09 Retention policy: raw footage and HLS renditions are deleted 7 days after
+upload; event clips 14 days after upload unless favourited; stats are kept
+CHANGED
+v0
+CONS10 Faces in shared clips can be blurred for non-consented players v2
+NOTIFY — notifications
+ID Requirement Release
+NOTIF01 Email when processing finishes or fails v0
+NOTIF02 Email scouts when new matches enter the review queue, and email the club
+when its match has been reviewed NEW
+v0
+NOTIF03 Warn the club and player or guardian 3 days before un-favourited clips are
+deleted NEW
+v0
+NOTIF04 In-app notification centre v1
+NOTIF05 Email a guardian when consent is requested, granted or withdrawn v1
+NOTIF06 Notify a player when a scout views their profile, if they have opted in v2
+Wideline PRD
+Page 9 of 26
+
+=== PAGE 10 ===
+ADMIN — platform operations
+ID Requirement Release
+ADMIN01 Approve or reject new organisations and scouts during the invite-only phase v0
+ADMIN02 Dashboard of processing jobs, with the ability to re-run or cancel v0
+ADMIN03 Act on a takedown or consent-withdrawal request v0
+ADMIN04 Feature flags per organisation v0
+ADMIN05 Usage reporting per organisation: matches, minutes, GPU cost, storage v0
+ADMIN06 Review-queue dashboard: unclaimed matches, time to expiry, reviewer activity,
+disputed reviews; suspend a scout's review access NEW
+v0
+BILL — subscriptions, built early, switched on later
+ID Requirement Release
+BILL01 Plan and entitlement model: every limit is read from entitlements, never hard-
+coded
+v0
+BILL02 All pilot organisations run on a free plan with generous limits v0
+BILL03 Payment provider integration behind a feature flag, switched off v2
+BILL04 Self-serve checkout, plan changes and cancellation v2
+BILL05 Enforce entitlement limits such as matches per month, scout seats and
+favourited clips
+v2
+BILL06 Invoices and payment history v2
+Wideline PRD
+Page 10 of 26
+
+=== PAGE 11 ===
+Stats catalogue
+Each stat has one definition, used by the CV pipeline, the review screen and the profile alike. Auto-
+accept is the confidence at or above which an event is published without review; anything below goes
+to the review queue.
+Stat Definition How it is detected Auto-
+accept
+Release
+Minutes played Minutes on the pitch, from the
+lineup and substitutions
+Entered by the club, not
+detected
+n/a v0
+Distance
+covered
+Metres run, from the player's
+position track
+Position track plus pitch
+calibration
+n/a v0
+Heatmap Share of time spent in each
+zone of the pitch
+Position track binned into a grid n/a v0
+Average position Mean pitch position while on
+the pitch
+Position track n/a v0
+Goal The ball fully crosses the goal
+line and the restart follows
+Ball track crossing the goal
+plane, plus a restart check
+0.90 v0
+Shot A deliberate attempt on goal Ball leaves a player toward goal
+above a speed threshold
+0.75 v0
+Shot on target A shot that would enter the
+goal but for a save or a block
+Ball trajectory against the goal
+frame
+0.75 v0
+Touch A player makes contact with
+the ball
+Ball track changing direction
+near a player
+0.80 v0
+Pass attempted A deliberate ball release
+toward a teammate
+Possession change between two
+players of one team
+0.70 v1
+Pass completed A pass received by the
+intended teammate
+As above, with the receiver on
+the same team
+0.70 v1
+Pass direction
+and length
+Forward, sideways or
+backward; short, medium or
+long
+Pitch coordinates of start and
+end
+n/a v1
+Cross A pass from a wide area into
+the box
+Pass with start and end zones in
+defined areas
+0.70 v1
+Assist The pass directly before a
+goal
+Last completed pass before a
+goal, same team
+0.80 v1
+Possession
+share
+Share of match time each
+team holds the ball
+Aggregated from touches n/a v1
+Tackle A challenge that takes the ball
+from an opponent
+Two opposing players close to
+the ball, then possession
+changes
+0.65 v2
+Wideline PRD
+Page 11 of 26
+
+=== PAGE 12 ===
+Duel won Any contested ball won, in the
+air or on the ground
+Proximity, contest, then
+possession outcome
+0.65 v2
+Interception A pass cut out by an
+opponent
+Pass whose receiver is from the
+other team
+0.70 v2
+Recovery Winning a loose ball Possession gained with no
+opponent contest
+0.65 v2
+Rules that apply to every stat
+Nothing is published unverified. A stat only reaches a profile once its match is marked reviewed
+REVIEW08.
+Every stat is traceable. Each one links to its events, and each event to a match timestamp. A clip
+is shown while it is retained or if it was favourited PROF04.
+Per-90 rates need a minimum sample. Below 3 matches, the profile still shows the rate but flags
+the small sample beside it PROF07.
+Opposition stats are collected but not attributed. Without a named opposition lineup, events are
+recorded against placeholder players.
+Thresholds are configurable per organisation REVIEW10. A club that wants tighter data can
+raise them; a club that wants less review can lower them.
+One pipeline for every team. Men's, women's, boys' and girls' football use the same models, stats
+and thresholds.
+Deliberately excluded
+Expected goals (xG), progressive carries and pressures are left out of v0 to v2. Each needs either a
+large training set or reliable event chains that wide-angle footage at this level does not yet support.
+Shipping them inaccurately would cost more trust than they add.
+Wideline PRD
+Page 12 of 26
+
+=== PAGE 13 ===
+System architecture
+One small server runs the product; a GPU is rented only while a match is processing
+Wideline pilot architecture on Hetzner
+Browser
+Club staff, scouts, parents
+↓ HTTPS
+Hetzner Cloud server · EU region Falkenstein, Nuremberg or Helsinki)
+Caddy  Next.js
+Web app and API, TLS, auth,
+job callbacks
+PostgreSQL
+Players, events, stats; also the
+job queue (pg-boss)
+Transcode worker
+ffmpeg to HLS and event clips,
+CPU
+↕
+Hetzner Object Storage
+Raw video 7 days), HLS 7 days), clips 14 days or favourited), CV results · lifecycle rules enforce retention
+↓ job dispatched, frames pulled by signed URL · ↑ JSON result and callback
+Hourly GPU worker
+Rented per job from an hourly GPU provider; started for the job,
+destroyed after · Python: detect, track, events
+Docker Compose · Terraform (hcloud provider) · GitHub Actions CI/CD · Sentry for errors · nightly database dumps to
+Object Storage
+Wideline architecture · request path and job path
+The web app never does heavy work. It writes a job to the queue and returns. For a CV job, a
+dispatcher starts a GPU instance by API; the worker pulls frames from Object Storage by signed URL,
+writes its JSON result back, calls the API, and the instance is destroyed. The expensive part stays
+isolated and is paid for by the minute rather than by the month.
+This is a deliberately minimal starting point. It is one server, so it is a single point of failure, and it is
+sized for the pilot, not for v1 volumes. Everything runs in containers and is described in Terraform, so
+moving to a larger Hetzner server, splitting the database out, or moving to another cloud later is a
+redeploy, not a rewrite.
+Stack
+Layer Choice Why
+Front end and
+API
+Next.js TypeScript), App Router One codebase for pages and API routes; server
+components keep player data off the client
+Wideline PRD
+Page 13 of 26
+
+=== PAGE 14 ===
+Hosting
+CHANGED
+One Hetzner Cloud server at the
+cheapest tier that fits (shared
+vCPU, 4 GB RAM to start), Docker
+Compose
+Lowest fixed cost while the product finds its feet.
+Resize the server in place when load requires it
+Database
+CHANGED
+PostgreSQL in a container on the
+same server, with a Hetzner
+Volume for data
+Relational data with JSONB for raw CV output;
+Prisma for the schema and migrations. Move to a
+dedicated database server before v1
+Object storage
+CHANGED
+Hetzner Object Storage S3-
+compatible)
+Raw video, HLS renditions, clips and CV results.
+Lifecycle rules enforce the 7 and 14-day retention
+Queue
+CHANGED
+pg-boss on PostgreSQL Durable jobs with retries and a dead-letter state,
+without running another service
+CV workers
+CHANGED
+Python container on an hourly-
+rented GPU, started per job by API
+Hetzner's entry cloud servers have no GPU and its
+GPU servers are billed monthly, so the pilot rents
+by the hour. Provider chosen on price, API control
+and region (open question)
+Video delivery
+CHANGED
+HLS served from Object Storage
+through short-lived signed URLs
+No CDN needed at pilot volumes; add one in front
+of Object Storage when playback demand grows
+Sign-in
+CHANGED
+Auth.js (or an equivalent open-
+source library) inside the Next.js
+app
+No paid identity service; supports email magic
+links, passwords and Google
+Infrastructure
+CHANGED
+Terraform with the hcloud
+provider, plus Docker Compose
+Every environment described in code
+Observability
+CHANGED
+Structured JSON logs, Sentry for
+errors, simple uptime monitoring
+Enough to reconstruct a job's history without a paid
+monitoring stack
+Data residency and cross-border transfer
+Hetzner has no data centre in South Africa. Its locations are in Germany and Finland, plus cloud
+regions in the US and Singapore. Wideline will host in an EU region, so all personal information, not
+only video frames, is stored outside South Africa. The hourly GPU worker may also run outside the
+EU, depending on the provider chosen.
+Under POPIA, transfers of personal information out of South Africa are restricted and need a lawful
+basis, such as the data subject's consent or binding agreements with the recipients. Wideline relies on
+both. The consent wording discloses offshore storage and processing CONS04. Operator
+agreements are signed with Hetzner and the GPU provider. Hosting in the EU also means data sits
+under GDPR-level protection. This position must be confirmed by a South African privacy lawyer.
+Moving data back to South Africa later remains possible, because nothing in the build depends on a
+Hetzner-specific service except S3-compatible storage.
+Wideline PRD
+Page 14 of 26
+
+=== PAGE 15 ===
+Data model
+PostgreSQL, with Prisma owning the schema and migrations. Every table except User carries an
+organisationId  and is filtered by it on every query, except review data, which is scoped to the
+claiming scout.
+Entity Key fields Notes
+Organisation name, type (academy, club, agency), country,
+region, status, planId
+The tenant boundary
+User email, name, authProviderId Global; belongs to organisations
+through Membership
+Membership userId, organisationId, role, invitedBy,
+acceptedAt
+A user may hold several
+ScoutProfile
+NEW
+userId, verifiedAt, idNumberHash, phone,
+termsAcceptedAt, status, accuracyScore
+Independent scouts; status:
+pending, approved, suspended
+ScoutAffiliation
+NEW
+scoutUserId, organisationId or playerId, type,
+declaredAt
+Blocks conflicted review claims
+Team organisationId, name, ageGroup, gender,
+season
+gender is a label; no behaviour
+depends on it
+Player CHANGED organisationId, teamId, firstName, lastName,
+dateOfBirth, position, preferredFoot, heightCm,
+squadNumber, consentState, clubStatus,
+departedAt
+dateOfBirth drives the under-18
+consent rule. clubStatus: active,
+departed. Departing never deletes
+data
+Consent playerId, state, grantedBy, relationship, method,
+wordingVersion, grantedAt, withdrawnAt,
+evidenceUrl
+Append-only; the current state is
+the newest row
+Match organisationId, homeTeamId, awayTeamId,
+playedAt, venue, competition, status
+status: draft, uploading, processing,
+awaiting_review, in_review,
+published
+Lineup matchId, playerId, shirtNumber, position,
+startedAt, endedAt, isStarter
+startedAt and endedAt give minutes
+played
+Video CHANGED matchId, blobPath, durationSec, width, height,
+fps, hlsManifestPath, four half-time offsets,
+rawExpiresAt, deletedAt
+One per match. Record survives
+deletion of the file, so metadata
+stays
+PitchCalibration videoId, homographyMatrix, confidence,
+calibratedBy
+Reusable per venue and camera
+ProcessingJob matchId, type, status, modelVersion,
+gpuProvider, startedAt, finishedAt, attempts,
+errorMessage, costCents
+type: transcode, clips, cv
+Wideline PRD
+Page 15 of 26
+
+=== PAGE 16 ===
+ReviewClaim
+NEW
+matchId, scoutUserId, claimedAt, expiresAt,
+submittedAt, status, eventsReviewed,
+corrections
+One active claim per match
+ReviewDispute
+NEW
+matchId, raisedBy, reason, resolvedBy, outcome
+Track matchId, jobId, trackIndex, teamSide, playerId,
+linkConfidence, linkedBy
+playerId null until linked
+TrackPoint trackId, timestampMs, pitchX, pitchY High volume; partitioned by match
+Event matchId, type, playerId, trackId, timestampMs,
+pitchX, pitchY, confidence, status, payload
+status: auto_accepted,
+pending_review, confirmed,
+rejected, manual
+Clip NEW eventId, blobPath, startMs, endMs, expiresAt,
+deletedAt
+Cut at processing time
+ClipFavourite
+NEW
+clipId, userId, createdAt Any favourite clears expiresAt;
+removing the last one restores it
+EventCorrection eventId, correctedBy, previousValue, newValue,
+correctedAt
+Feeds the training set
+PlayerMatchStats playerId, matchId, minutesPlayed, goals, shots,
+passesCompleted, distanceM,
+heatmapBlobPath, stats JSONB
+Derived; rebuilt when a match is re-
+reviewed. Every other stat lives in
+the JSONB map keyed by stat ID
+Shortlist ownerUserId, name, sharedWith
+ShortlistEntry shortlistId, playerId, note, addedAt
+ScoutReport authorUserId, playerId, matchId, ratings, body,
+visibility
+Plan code, name, priceCents, currency, limits limits is JSON
+Subscription organisationId, planId, status, provider,
+providerRef, currentPeriodEnd
+Entitlement organisationId, key, value, source Resolved from the plan plus any
+overrides
+AuditLog organisationId, actorUserId, action, targetType,
+targetId, metadata, createdAt
+Rules the schema must enforce
+A player's consent state is derived from the newest Consent row, never edited in place, so the
+history survives an audit.
+Event.playerId  is only set once its Track is linked. Correcting a track link re-attributes every event
+on it in one transaction.
+PlayerMatchStats  is a derived table, rebuilt from events whenever a match is published or re-
+reviewed. It is never written directly.
+Wideline PRD
+Page 16 of 26
+
+=== PAGE 17 ===
+TrackPoint  is by far the largest table, roughly 22 players  5 samples per second  90 minutes,
+about 600,000 rows per match. Partition it by match. On a small server this is the first thing to
+watch for disk and memory.
+Marking a player departed changes clubStatus  only. Nothing cascades.
+Deleting a player on request CONS08 cascades to lineups, tracks, events, clips and stats, and
+leaves a tombstone in AuditLog .
+Deleting a raw video or clip file sets deletedAt  on its record. The record and every event and stat
+that came from it are kept.
+Wideline PRD
+Page 17 of 26
+
+=== PAGE 18 ===
+CV pipeline
+Confidence decides what a scout sees
+Wideline CV pipeline, from uploaded video to published stats
+Ingest
+Sample frames
+Detect
+Players, ball, refs
+Track
+One ID per player
+Assign teams
+By kit colour
+↓
+Calibrate pitch
+Pixels to metres
+Link to lineup
+Track to player
+Detect events
+Goals, shots, passes
+Score + cut clips
+Confidence 0 to 1, one
+clip per event
+↓ above threshold? below → review queue · at or above → published
+Scout review queue
+A registered scout claims the
+match, confirms, corrects or
+adds missed events, favourites
+clips
+Published stats
+On player profiles, traceable to a
+timestamp and clip
+Correction store
+Training data for the next model
+CV pipeline · 9 stages, 1 confidence gate
+The reviewer never watches the whole match again. They see only the events the model was unsure
+about, each with its clip cued up. Every correction is kept, so the review burden should fall as the
+models improve.
+The 7-day window. Because raw footage is deleted after 7 days, the full loop of upload, processing
+and review has to finish inside that window. Adding a missed event or re-running the pipeline needs
+the raw video. After day 7, a match's stats can still be corrected event by event, but nothing new can
+be found in it.
+Models and licences
+Licensing is a real constraint, not a detail. Ultralytics YOLO is AGPL3.0 using it in a commercial SaaS
+means either open-sourcing the whole product or buying an Enterprise licence, and Ultralytics states
+that this applies even to custom-trained models and internal-only use. Build on Apache-2.0 models
+instead unless a licence is bought deliberately.
+SoccerNet data and pretrained weights are mostly released for research. Treat them as a way to
+prototype and to benchmark, not as something to ship, until the terms are checked for each
+component.
+Stage Suggested starting point Licence
+Detection RFDETR Roboflow) or RTDETR Apache-2.0, free commercially
+Tracking ByteTrack or BoTSORT Check per repo before adopting
+Wideline PRD
+Page 18 of 26
+
+=== PAGE 19 ===
+Pitch
+calibration
+Keypoint model from the SoccerNet
+calibration task
+Verify dataset terms, which are often
+research-only
+Shirt numbers SoccerNet jersey-number recognition Verify dataset terms
+Event
+detection
+Trained in-house on reviewed matches Owned outright
+The contract between the worker and the app
+The CV worker writes one versioned JSON file to Object Storage and then calls the API. Nothing else
+passes between them, so the worker can be rewritten, or moved to another GPU provider, without
+touching the web app.
+{
+  "schemaVersion": "1.0",
+  "jobId": "job_01HQ...",
+  "matchId": "match_01HQ...",
+  "modelVersions": { "detector": "rfdetr-1.2", "tracker": "bytetrack-0.4", "events": "wideline-events-
+0.3" },
+  "video": { "durationSec": 5820, "fps": 25, "sampledFps": 5 },
+  "calibration": { "confidence": 0.91, "homography": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] 
+},
+  "tracks": [
+    { "trackIndex": 14, "teamSide": "home", "shirtNumber": 7, "shirtConfidence": 0.42,
+      "points": [{ "tMs": 12000, "x": 48.2, "y": 31.7 }] }
+  ],
+  "events": [
+    { "type": "shot", "trackIndex": 14, "tMs": 1832400, "x": 88.1, "y": 34.0,
+      "confidence": 0.81, "onTarget": true, "clipStartMs": 1827400, "clipEndMs": 1835400 }
+  ],
+  "warnings": ["ball not visible for 142s total"]
+}
+Pitch coordinates are in metres on a normalised 105  68 pitch, with the origin at the bottom-left
+corner of the attacking-left team. Every event carries a clip window; the CPU worker cuts the clips
+from it straight after the CV job CV11.
+Confidence and review load
+Thresholds from the stats catalogue decide what a scout sees. Set them high at first. A high auto-
+accept threshold means fewer events clear it, so scouts review more and the correction store fills
+quickly. Lower them per event type only once measured recall justifies it. Track reviewed items per
+match as a product metric: if it is not falling over time, the models are not learning from the
+corrections.
+Wideline PRD
+Page 19 of 26
+
+=== PAGE 20 ===
+Non-functional requirements
+Performance and cost
+ID Requirement
+NFR01 A 90-minute match is review-ready within 4 hours of upload in v0, and 2 hours by v1,
+including GPU start-up time
+NFR02 Page loads in under 2 seconds on a 4G connection from South Africa to the EU-hosted
+server
+NFR03 Video playback starts in under 3 seconds, seeking in under 1 second
+NFR04 GPU cost per match is measured and recorded per job, and reported per organisation
+NFR05 Target cost per match under R120 at pilot volumes, including GPU rental and storage for the
+retention period. Fixed monthly infrastructure (server, storage, backups) kept under R500
+during the pilot CHANGED
+NFR06 Processing is idempotent, so a retried job cannot double-count events
+NFR07 A GPU instance that has been idle for 10 minutes, or has outlived its job by 30 minutes, is
+destroyed automatically, so a stuck job cannot run up a bill NEW
+POPIA and privacy
+This is the single biggest compliance risk, because most players will be children. Under POPIA section
+34 a responsible party may not process a child's personal information at all, except under section 35.
+The relevant exception for Wideline is the first one: prior consent from a competent person, meaning
+the parent or guardian.
+The Wideline company is the responsible party. It decides why and how player data is processed, so
+it carries the POPIA obligations directly. Clubs collect lineups and consent on Wideline's behalf.
+Hetzner, the GPU provider and any email provider are operators, each under a written operator
+agreement.
+Section 34 bars processing, not publication, so a gate that merely hides an unconsented child's stats
+at publish time does not satisfy it: the derivation already happened. The pipeline therefore discards
+per-player data for non-consented minors at ingest. Whole-pitch detection and tracking still run,
+because they cannot be done selectively, but nothing is retained against a child without consent.
+Scouts as reviewers is the new exposure. To review a match, a scout sees footage of every child
+on the pitch, including children whose guardians have not consented to scout visibility. Wideline
+mitigates this in four ways. Scouts are verified, and they agree to binding confidentiality terms
+AUTH09. Playback is stream-only and watermarked REVIEW11. Access ends with the review,
+and every session is logged. The consent wording discloses that independent scouts review
+matches CONS04. Whether this is enough for footage of non-consented minors is the main
+question for the privacy lawyer.
+Wideline PRD
+Page 20 of 26
+
+=== PAGE 21 ===
+ID Requirement
+NFR08 No player under 18 has per-player data derived or retained without a recorded guardian
+consent. Detection and tracking run over the whole pitch, so the gate sits at ingest: tracks
+belonging to a non-consented minor are discarded before any event is attributed, not
+merely hidden at publication
+NFR09 Consent records store who granted it, their relationship to the player, the wording version
+shown, the method and the timestamp
+NFR10 Consent is specific: separate choices for club-internal stats and for scout visibility
+NFR11 Withdrawal is as easy as granting. It takes effect immediately on every live query, and
+within 24 hours on derived artefacts such as search indexes, cached exports and clips
+NFR12 Cross-border storage and processing are disclosed in the consent wording, since all data is
+hosted in the EU and GPU work may happen elsewhere CHANGED
+NFR13 Retention is enforced by Object Storage lifecycle rules plus a daily cleanup job: raw footage
+and HLS at 7 days, un-favourited clips at 14 days CHANGED
+NFR14 The Wideline company registers an information officer, and publishes a PAIA manual and
+privacy notice before the first pilot club joins. This and NFR15 are gates on the v0 release,
+not engineering work, and need an owner outside the build team CHANGED
+NFR15 Every club signs Wideline's club terms, and every operator Hetzner, GPU provider, email
+provider) signs an operator agreement. Every scout accepts the reviewer confidentiality
+terms CHANGED
+These are product requirements, not legal advice. The consent wording, the reviewer terms, the
+responsible-party position and the cross-border position should be confirmed with a South African
+privacy lawyer before the first pilot club joins.
+Security
+ID Requirement
+NFR16 Every query is scoped by organisation, or by review claim for scouts; cross-tenant access
+is impossible by construction, not by convention
+NFR17 Video is private; playback uses short-lived signed URLs
+NFR18 Data is encrypted at rest and in transit
+NFR19 Secrets are held in an encrypted secrets file or the CI secret store, injected at deploy; none
+in source control CHANGED
+NFR20 Role changes, exports, consent changes, review sessions and deletions are written to the
+audit log
+NFR21 Dependency and container scanning runs in CI; builds fail on high-severity findings
+NFR22 The server is firewalled to ports 22 (key-only, restricted IPs), 80 and 443; the database is
+never exposed publicly; OS security updates install automatically NEW
+Wideline PRD
+Page 21 of 26
+
+=== PAGE 22 ===
+Accessibility and reach
+ID Requirement
+NFR23 WCAG 2.2 AA keyboard operation, visible focus, 4.51 text contrast, labelled controls
+NFR24 The app works at 375 px, 768 px and 1280 px; review and search work on a phone
+NFR25 Video players have captions support and keyboard controls
+NFR26 Uploads tolerate poor connectivity: resumable, with clear progress and retry
+NFR27 No colour-only meaning, since kit colours already carry meaning in the UI
+Reliability
+ID Requirement
+NFR28 99% monthly uptime for the web app during the pilot, accepting a single server; 99.5%
+from v1 CHANGED
+NFR29 Nightly database dumps to Object Storage plus Hetzner server backups, 30-day retention,
+with a restore tested quarterly CHANGED
+NFR30 Jobs that fail 3 times move to a dead-letter state and alert a platform admin
+NFR31 Structured logging, with a job's full history reconstructable
+NFR32 Raw footage is never deleted before 7 days have passed, and never deleted by any
+process other than the retention job CHANGED
+Wideline PRD
+Page 22 of 26
+
+=== PAGE 23 ===
+Pricing and billing
+Everything is free through v0 and v1. The point of the free period is to build the pool of consented
+players, because a scouting network with few players in it is worth nothing to a scout. Billing switches
+on at the v2 gate, once scouts have shown they will pay.
+The engineering consequence matters more than the pricing: build the entitlement layer from day one,
+and switch on the payment provider later. Every limit the app enforces reads from an entitlement,
+never from a hard-coded constant or a role check. Retrofitting that into a live product is far more
+expensive than carrying it from the start.
+Plan shape, to be priced later
+Plan Who Switched on Likely limits
+Pilot Invited academies v0, free forever for
+pilot clubs
+Generous; effectively unmetered
+Club
+Free
+Any academy or
+amateur club
+v1, free Matches per month, favourited clips
+Club Clubs wanting more
+volume
+v2, paid Higher match volume, several seats, more
+favourited clips
+Scout Individual scouts v2, paid Search, shortlists, reports, clip access. Active
+reviewers earn free months
+Agency Agents and
+professional clubs
+v2, paid Multiple seats, exports, saved-search alerts
+Player Players and guardians Free permanently Own profile, consent control, share link,
+favourite own clips
+Players and guardians never pay. Charging the family of a child whose data the product depends on
+would be both bad business and a bad look.
+Billing requirements
+Entitlements resolve as plan defaults, then per-organisation overrides, then feature flags. One
+function answers "may this organisation do this?"
+The payment provider sits behind an interface with one implementation per provider, so the choice
+can change without touching the product code.
+For a South African, ZAR-denominated product the realistic options are Paystack, Stripe, PayFast
+or Peach Payments. The decision should be made just before v2, not now, and should turn on
+recurring-billing support, ZAR settlement and fees at the volumes then expected.
+Usage is metered from v0 even though nothing is charged, so that pricing can be set from real
+cost data rather than guesswork.
+An organisation's data is never deleted because a subscription lapsed. It becomes read-only
+instead.
+Wideline PRD
+Page 23 of 26
+
+=== PAGE 24 ===
+Risks and open questions
+Risks
+Risk Impact What reduces it
+Player identity is unreliable:
+shirt numbers are rarely
+readable in wide-angle
+footage
+High. Stats attached to the
+wrong player destroy trust
+Lineup upload plus an explicit track-linking
+step confirmed by the reviewer, before any
+event is attributed
+Not enough scouts review in
+time NEW
+High. Unreviewed matches
+lose their raw footage after 7
+days and never publish
+Expiry-ordered queue and alerts REVIEW
+13; reviewer incentives; platform admins
+review as a fallback during the pilot
+Reviewer bias or misconduct
+NEW
+High. A scout could inflate or
+deflate a player's stats, or
+misuse footage
+Conflict blocking REVIEW02, weekly
+spot-checks and club disputes REVIEW
+12, watermarked stream-only playback,
+suspension
+Footage quality varies by
+club
+High. A bad camera position
+breaks calibration and tracking
+Minimum recording standards, validation at
+upload, and a per-venue calibration that is
+checked once and reused
+Review burden stays high High. If review takes 2 hours a
+match, scouts stop reviewing
+Measure reviewed items per match from
+day one; lower the auto-accept thresholds
+only when measured recall justifies it
+Model licensing High. Shipping AGPL code in a
+SaaS forces open-sourcing or
+a licence fee
+Apache-2.0 models only, with a licence
+review before any model enters the build
+POPIA exposure around
+children's data
+High. Regulatory and
+reputational, now carried
+directly by the Wideline
+company
+Consent before processing, reviewer
+confidentiality terms, operator agreements,
+and a lawyer's review before the first pilot
+club joins
+Single small server NEW Medium. An outage or a full
+disk takes the whole product
+down
+Nightly backups, Terraform-described
+setup so a rebuild takes under an hour,
+disk alerts, resize before v1
+GPU cost per match Medium. Could make the unit
+economics impossible
+Hourly rental, automatic shutdown NFR
+07, cost metered per job, frames sampled
+rather than all processed
+Cold start, two-sided Medium. Scouts will not come
+for 5 clubs; clubs will not film
+for 2 scouts
+Review work gives scouts early, exclusive
+sight of players, so they have a reason to
+join in v0
+Ball tracking in wide-angle
+footage
+Medium. The ball is only a few
+pixels wide
+Accept it; use possession and player-
+proximity heuristics rather than relying on
+continuous ball tracking
+Wideline PRD
+Page 24 of 26
+
+=== PAGE 25 ===
+Lost video evidence
+CHANGED
+Medium. After 14 days most
+clips are gone, so old stats
+can't be re-checked or
+disputed
+Encourage favouriting key clips; keep
+event timestamps and correction history;
+disputes must be raised within 7 days
+Cross-border storage
+CHANGED
+Medium. All data is held in the
+EU, not South Africa
+Disclose it in consent wording, operator
+agreements with Hetzner and the GPU
+provider, lawyer's sign-off
+Open questions
+Is "Wideline" clear of trademarks and available as a domain in South Africa? Alternatives if not:
+Unscouted, Touchline, Spotted.
+Which clubs are the pilot five, and what do they film with today? To be decided.
+What is the company's registered legal name, and who is the information officer?
+What do scouts get for reviewing? Options: early access to players, free months of the Scout plan
+from v2, or payment per match.
+Which hourly GPU provider? Criteria: price per hour for a T4-class or better GPU, start-up by API,
+billing by the minute, and region.
+Can a scout who reviewed a match contact a non-consented player's club about that player? This
+needs a clear rule in the reviewer terms.
+When a departed player joins a new club that also uses Wideline, who confirms the profile claim:
+the player or guardian, or the new club?
+Decisions log
+Topic Decision Oct 19, 2026
+Product name Wideline, pending trademark and domain checks
+Pilot clubs To be decided
+Ownership and POPIA The Wideline company runs the product and is the responsible party. No other
+company is involved
+Raw footage retention Raw video deleted after 1 week. Clips kept for 2 weeks, then only favourited clips
+remain
+Who reviews Any registered scout, with verification, confidentiality terms and conflict rules
+Hosting A Hetzner server at the cheapest tier that fits, with GPUs rented by the hour per
+job. No Azure
+Women's and girls'
+football
+No different handling
+Player leaves a club Profile deactivated from the club; no data deleted
+Wideline PRD
+Page 25 of 26
+
+=== PAGE 26 ===
+Sources
+Hetzner data centre locations Germany, Finland, US, Singapore) and 2026 price changes: hosting
+reviews from Better Stack and Gappsy.
+Hetzner GPU range: dedicated GEX servers billed monthly; the GEX44 is no longer orderable WZ
+IT comparison, autumn 2026.
+Ultralytics licensing: AGPL3.0 terms and when an Enterprise licence is required.
+RFDETR Apache-2.0 detection model, free to use commercially.
+POPIA sections 34 and 35 the prohibition on processing children's personal information, and its
+exceptions.
+The cost, timing and accuracy targets in this document are estimates to be tested during the pilot, not
+sourced figures.
+Wideline PRD
+Page 26 of 26

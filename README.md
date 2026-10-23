@@ -88,6 +88,20 @@ dependencies, run `make up` again: it rebuilds the image and refreshes
 For editor support on the host, run `pnpm install` in `web/` and `uv sync` in
 `cv_worker/`.
 
+## Build conventions
+
+The product is built chunk by chunk from
+[docs/build/CHUNKS.md](docs/build/CHUNKS.md). Its "Conventions for every
+chunk" section holds the rules each chunk follows: permissions, tenant data,
+entitlement limits, consent, the audit log, migrations via `make migrate-new`, UI
+tokens and voice, tests, and the definition of done.
+
+- [docs/build/STATUS.md](docs/build/STATUS.md): progress per chunk, and the log.
+- [docs/build/QUESTIONS.md](docs/build/QUESTIONS.md) and
+  [docs/build/BLOCKERS.md](docs/build/BLOCKERS.md): open decisions.
+- [docs/build/prd.txt](docs/build/prd.txt): the PRD as searchable text.
+- [docs/design-system/README.md](docs/design-system/README.md): the brand book.
+
 ## Before the pilot
 
 These are deliberately deferred from V0 and must be done before real clubs
