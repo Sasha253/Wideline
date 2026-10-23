@@ -16,8 +16,14 @@ export default async function LoginPage({
   const safeNext = safeNextPath(next, "/");
 
   const ctx = await getUserContext();
-  if (ctx)
-    redirect(ctx.organisationId || safeNext.startsWith("/invite/") ? safeNext : "/organisations");
+  // Without an organisation, only an invitation or scout registration can continue.
+  if (ctx) {
+    const canContinue =
+      ctx.organisationId ||
+      safeNext.startsWith("/invite/") ||
+      /^\/register(?:[/?]|$)/.test(safeNext);
+    redirect(canContinue ? safeNext : "/organisations");
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4 py-12">

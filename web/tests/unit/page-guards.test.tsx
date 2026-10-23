@@ -12,6 +12,13 @@ vi.mock("@/server/auth/session", async (importOriginal) => ({
   requirePageRole,
 }));
 
+// /review needs review access, not only the scout role (C02, review-guards.test.ts).
+const requireReviewerPage = vi.fn();
+vi.mock("@/server/auth/reviewer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/auth/reviewer")>()),
+  requireReviewerPage,
+}));
+
 const session =
   await vi.importActual<typeof import("@/server/auth/session")>("@/server/auth/session");
 
@@ -21,10 +28,11 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
   ["/dashboard", () => import("@/app/(app)/dashboard/page"), session.CLUB_ROLES],
   ["/squad", () => import("@/app/(app)/squad/page"), session.CLUB_ROLES],
   ["/matches", () => import("@/app/(app)/matches/page"), session.CLUB_ROLES],
-  ["/review", () => import("@/app/(app)/review/page"), session.SCOUT_ROLES],
+  ["/scout", () => import("@/app/(app)/scout/page"), session.SCOUT_ROLES],
   ["/shortlists", () => import("@/app/(app)/shortlists/page"), session.SCOUT_ROLES],
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
   ["/admin", () => import("@/app/(app)/admin/page"), session.PLATFORM_ROLES],
+  ["/admin/scouts", () => import("@/app/(app)/admin/scouts/page"), session.PLATFORM_ROLES],
   ["/dev/templates", () => import("@/app/(app)/dev/templates/page"), session.DEV_ROLES],
   ["/dev/templates/list", () => import("@/app/(app)/dev/templates/list/page"), session.DEV_ROLES],
   [
@@ -53,6 +61,7 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
 
 beforeEach(() => {
   requirePageRole.mockReset();
+  requireReviewerPage.mockReset();
 });
 
 describe.each(PAGES)("%s", (_name, load, roles) => {
@@ -61,7 +70,9 @@ describe.each(PAGES)("%s", (_name, load, roles) => {
       throw new Error("NEXT_REDIRECT");
     });
     const page = (await load()).default as Page;
-    await expect(page({ children: null })).rejects.toThrow("NEXT_REDIRECT");
+    await expect(
+      page({ children: null, searchParams: Promise.resolve({}) } as never),
+    ).rejects.toThrow("NEXT_REDIRECT");
     expect(requirePageRole).toHaveBeenCalledTimes(1);
     expect(requirePageRole).toHaveBeenCalledWith(roles);
   });
@@ -72,7 +83,6 @@ describe("placeholder pages for an allowed role", () => {
     ["/dashboard", () => import("@/app/(app)/dashboard/page"), "Nothing to show yet"],
     ["/squad", () => import("@/app/(app)/squad/page"), "No players yet"],
     ["/matches", () => import("@/app/(app)/matches/page"), "No matches yet"],
-    ["/review", () => import("@/app/(app)/review/page"), "No matches waiting"],
     ["/shortlists", () => import("@/app/(app)/shortlists/page"), "No shortlists yet"],
   ])("%s renders one h1 and its empty state", async (_name, load, empty) => {
     requirePageRole.mockResolvedValue({ organisationName: "Wideline Demo FC" });
@@ -81,6 +91,19 @@ describe("placeholder pages for an allowed role", () => {
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(html).toContain(empty);
     expect(html).not.toContain("undefined");
+  });
+
+  it("/review checks review access first, then renders one h1 and its empty state", async () => {
+    requireReviewerPage.mockImplementationOnce(async () => {
+      throw new Error("NEXT_REDIRECT");
+    });
+    const page = (await import("@/app/(app)/review/page")).default as Page;
+    await expect(page({})).rejects.toThrow("NEXT_REDIRECT");
+    expect(requirePageRole).not.toHaveBeenCalled();
+    requireReviewerPage.mockResolvedValueOnce({ organisationName: "Wideline scouts" });
+    const html = renderToStaticMarkup(await page({}));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain("No matches waiting");
   });
 
   it("/dashboard names the active organisation", async () => {

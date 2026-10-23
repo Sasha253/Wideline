@@ -5,9 +5,11 @@ import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { audit } from "../audit";
 import { rawDb } from "../db/raw";
+import { verifyEmailEmail } from "../emails/scout";
 import { env } from "../env";
 import { log } from "../log";
 import { sendMail } from "../mail";
+import { revokeUnprovenAccess } from "./password";
 
 function createAuth() {
   const e = env();
@@ -29,10 +31,34 @@ function createAuth() {
     },
     // Invite-only (AUTH-04, ADMIN-01): nobody can create an account by signing
     // in. Users are created by invitation or by the seed script.
+    // A password only signs in to an account whose email is proven. Invited
+    // and seeded users are verified when created; a self-registered scout has
+    // no password until they set one after confirming (setOwnPassword).
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
       minPasswordLength: 12,
+      requireEmailVerification: true,
+    },
+    // AUTH09: scouts who register confirm their email before a platform admin
+    // can approve them. Sent by registerScoutAction and the Resend button on
+    // /scout; the link signs them in and lands on /scout.
+    emailVerification: {
+      autoSignInAfterVerification: true,
+      expiresIn: 60 * 60 * 24,
+      // The first proof of the mailbox. Any account link or session the user
+      // gained before it carries no proof that it belongs to the mailbox
+      // owner, so it goes, as Better Auth's magic link does for unverified
+      // users (revokeUnprovenAccountAccess). Registration creates none, so
+      // this is a backstop. Only the first confirmation runs this hook.
+      beforeEmailVerification: async (user) => {
+        await revokeUnprovenAccess(user.id);
+      },
+      sendVerificationEmail: async ({ user, url }) => {
+        const { subject, text } = verifyEmailEmail({ name: user.name, url });
+        await sendMail(user.email, subject, text);
+        log.info({ userId: user.id }, "verification email sent");
+      },
     },
     socialProviders: googleEnabled
       ? {

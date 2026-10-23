@@ -13,6 +13,7 @@ export type NavIcon =
   | "Settings"
   | "ListChecks"
   | "Bookmark"
+  | "BadgeCheck"
   | "Wrench"
   | "FlaskConical";
 
@@ -82,6 +83,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "Shortlists",
     icon: "Bookmark",
     match: "/shortlists",
+    roles: NAV_SCOUT_ROLES,
+  },
+  {
+    id: "scout",
+    href: "/scout",
+    label: "Scout profile",
+    icon: "BadgeCheck",
+    match: "/scout",
     roles: NAV_SCOUT_ROLES,
   },
   {

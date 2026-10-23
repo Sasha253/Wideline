@@ -347,3 +347,46 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
   .wl-workspace__side .wl-event > :nth-child(3) { grid-column: 1 / 3; grid-row: 2; justify-self: start; }
   .wl-workspace__side .wl-event > :nth-child(4) { grid-column: 3; grid-row: 2; justify-self: end; }
 }
+
+/* Scout registration and profile for C02 (docs/build/design/C02.md). Not in the design system; built from tokens. */
+.wl-choice input[type="checkbox"] { accent-color: var(--pitch); width: 20px; height: 20px; margin: 0; flex: none; }
+.wl-choice--top { align-items: flex-start; }
+/* 1px, so the box lines up with the first line of body text. */
+.wl-choice--top input { margin-top: calc(var(--space-1) / 4); }
+/* The step progress bar, JavaScript only and aria-hidden: "Step n of 4" carries the meaning. */
+.wl-steps { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--space-1); }
+.wl-steps__seg { height: var(--space-1); border-radius: var(--radius-sm); background: var(--line-strong); }
+.wl-steps__seg[data-done="true"], .wl-steps__seg[data-current="true"] { background: var(--pitch); }
+.wl-repeat { display: flex; flex-direction: column; gap: var(--space-3); }
+.wl-repeat__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
+.wl-repeat__row--pair { grid-template-columns: minmax(0, 1fr); }
+.wl-repeat__row--pair > .wl-btn { justify-self: end; }
+/* From 768px the pair sits in one row. The club field has a hint, so rows align at the top and
+   Remove is centred on the inputs: label 18px + space-1 gap, plus half of (40px input - 32px button). */
+@media (min-width: 768px) {
+  .wl-repeat__row--pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: start; }
+  .wl-repeat__row--pair > .wl-btn { justify-self: auto; margin-top: calc(var(--space-6) + var(--space-1) / 2); }
+}
+/* The terms text: no inner scrolling at any width; the page scrolls. */
+.wl-terms { display: flex; flex-direction: column; gap: var(--space-4); }
+.wl-checklist { display: flex; flex-direction: column; gap: var(--space-2); }
+.wl-checklist li { display: flex; gap: var(--space-2); align-items: flex-start; }
+.wl-checklist svg { width: 20px; height: 20px; flex: none; color: var(--ink-muted); }
+.wl-checklist [data-done="true"] svg { color: var(--pitch); }
+/* Icon plus words in caption; the modifier colours both. Text-safe on surface and surface-raised. */
+.wl-inline-status { display: inline-flex; align-items: center; gap: var(--space-1); }
+.wl-inline-status svg { width: 16px; height: 16px; flex: none; }
+.wl-inline-status--ok { color: var(--pitch); }
+.wl-inline-status--warn { color: var(--warning); }
+/* The affiliation match select in the /admin/scouts table keeps 144px, so a narrow Conflicts
+   column makes the table region scroll sideways instead of crushing the control. */
+.wl-table .wl-link-select { min-width: calc(var(--space-12) * 3); }
+.wl-inline-status--muted { color: var(--ink-muted); }
+/* A field and its button on one row from 768px. Fields with a hint grow taller, so the row aligns
+   at the top and the 40px button lines up with the 40px input under the 18px label and space-1 gap. */
+.wl-inline-form { display: flex; flex-direction: column; gap: var(--space-3); }
+@media (min-width: 768px) {
+  .wl-inline-form { flex-direction: row; align-items: flex-start; }
+  .wl-inline-form > .wl-field { flex: 1 1 0; min-width: 0; }
+  .wl-inline-form > .wl-btn { margin-top: calc(var(--space-6) - var(--space-1) / 2); }
+}

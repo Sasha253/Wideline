@@ -7,6 +7,7 @@ import {
   listOrganisationApplications,
   type OwnerInvitationState,
 } from "@/server/platform/organisations";
+import { AdminNav } from "../AdminNav";
 import { Applications, type ApplicationItem } from "./Applications";
 
 export const metadata = { title: "Organisation applications" };
@@ -43,6 +44,7 @@ export default async function OrganisationApplicationsPage({
         title="Organisation applications"
         intro="Academies, clubs and agencies that asked to join the pilot. Approving one emails the applicant an owner invitation."
       />
+      <AdminNav current="organisations" />
       <nav aria-label="Application status" className="wl-tabs mt-6">
         <Link
           href="/admin/organisations?status=pending"

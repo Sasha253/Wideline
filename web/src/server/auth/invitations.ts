@@ -41,7 +41,8 @@ export type InvitationErrorCode =
   | "used"
   | "org_inactive"
   | "wrong_account"
-  | "account_exists";
+  | "account_exists"
+  | "email_unconfirmed";
 
 export class InvitationError extends Error {
   constructor(readonly code: InvitationErrorCode) {
@@ -117,6 +118,11 @@ export type AcceptedInvitation = {
  * that must change exactly one row, so an expired, revoked or used invitation,
  * or one into an organisation that is not active, can never be accepted, and
  * two concurrent accepts give one membership.
+ *
+ * A signed-in user must have a verified email. Every sign-in path verifies it
+ * (magic link, confirmation link) or needs it verified (password), so this is
+ * a backstop: an unproven account may hold access its typist planted, and an
+ * organisation's data must never join it.
  */
 export async function acceptInvitation({
   token,
@@ -137,6 +143,13 @@ export async function acceptInvitation({
       throw new InvitationError("wrong_account");
     }
     if (!signedInUser && !newUser) throw new InvitationError("account_exists");
+    if (signedInUser) {
+      const user = await tx.user.findUnique({
+        where: { id: signedInUser.id },
+        select: { emailVerified: true },
+      });
+      if (!user?.emailVerified) throw new InvitationError("email_unconfirmed");
+    }
 
     // Claim the invitation first: a concurrent accept waits on this row lock
     // and then matches nothing.

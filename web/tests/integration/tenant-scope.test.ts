@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { rawDb } from "@/server/db/raw";
 import { scopedDb, TenantScopeError } from "@/server/db/scoped";
+import { ensureScoutNetwork, SCOUT_NETWORK_ORG_ID } from "@/server/scouts/network";
 
 // NFR-16: a user from organisation B cannot read or change organisation A's
 // data through the scoped client.
@@ -242,5 +243,69 @@ describe("scoped client: invitations", () => {
     await expect(
       asA.invitation.findFirst({ include: { acceptedBy: { select: { accounts: true } } } }),
     ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+});
+
+// C02: the scout tables are global and scout-owned. No organisation reaches them,
+// and the scout network organisation shows no other organisation's data.
+describe("scoped client: scouts", () => {
+  it("refuses ScoutProfile and ScoutAffiliation outright", async () => {
+    const asA = scopedDb(orgA);
+    await expect(asA.scoutProfile.findMany()).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(asA.scoutProfile.count()).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(asA.scoutAffiliation.findMany()).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.scoutAffiliation.updateMany({ data: { organisationId: null } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+
+  it("refuses scout relations on Organisation and User, at any depth", async () => {
+    const asA = scopedDb(orgA);
+    await expect(
+      asA.organisation.findFirst({ include: { scoutAffiliations: true } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.organisation.findFirst({ select: { _count: { select: { scoutAffiliations: true } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.membership.findFirst({
+        include: { organisation: { include: { scoutAffiliations: true } } },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.user.findFirst({ where: { id: userA }, include: { scoutProfile: true } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.user.findFirst({ where: { id: userA }, select: { scoutProfile: true } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.membership.findFirst({ include: { user: { select: { scoutProfile: true } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.user.findFirst({ where: { scoutProfile: { is: { status: "approved" } } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+
+  it("refuses making an organisation the scout network", async () => {
+    const asA = scopedDb(orgA);
+    await expect(
+      asA.organisation.update({ where: { id: orgA }, data: { type: "scout_network" } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.organisation.update({ where: { id: orgA }, data: { type: { set: "scout_network" } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+
+  it("shows the scout network none of another organisation's teams, players or matches", async () => {
+    await ensureScoutNetwork();
+    const asNetwork = scopedDb(SCOUT_NETWORK_ORG_ID);
+    expect(await asNetwork.team.findMany()).toEqual([]);
+    expect(await asNetwork.player.findMany()).toEqual([]);
+    expect(await asNetwork.match.findMany()).toEqual([]);
+    expect(await asNetwork.match.findUnique({ where: { id: matchA } })).toBeNull();
+    expect(await asNetwork.player.findFirst({ where: { id: playerA } })).toBeNull();
+    expect(await asNetwork.user.findFirst({ where: { id: userA } })).toBeNull();
+    const org = await asNetwork.organisation.findFirst();
+    expect(org?.id).toBe(SCOUT_NETWORK_ORG_ID);
   });
 });

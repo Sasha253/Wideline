@@ -1,12 +1,13 @@
 import { EmptyState } from "@/components/states/EmptyState";
 import { ListPage } from "@/components/templates/ListPage";
-import { SCOUT_ROLES, requirePageRole } from "@/server/auth/session";
+import { requireReviewerPage } from "@/server/auth/reviewer";
 
 export const metadata = { title: "Review queue" };
 
-// Draft copy: replaced by C10
+// Draft copy: replaced by C10. Review access needs an approved scout profile on
+// the current terms (requireReviewerPage, C02), not only the scout role.
 export default async function ReviewQueuePage() {
-  await requirePageRole(SCOUT_ROLES);
+  await requireReviewerPage();
   return (
     <ListPage
       header={{ title: "Review queue", intro: "Matches to claim, soonest footage deletion first." }}

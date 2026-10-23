@@ -32,8 +32,25 @@ describe("navForRoles", () => {
     expect(labels(["coach"])).toEqual(["Dashboard", "Squad", "Matches"]);
   });
 
-  it("gives a scout the review queue and shortlists", () => {
-    expect(labels(["scout"])).toEqual(["Review queue", "Shortlists"]);
+  it("gives a scout the review queue, shortlists and the scout profile (C02)", () => {
+    expect(labels(["scout"])).toEqual(["Review queue", "Shortlists", "Scout profile"]);
+  });
+
+  it("shows the scout profile item to scouts only", () => {
+    const scoutItem = NAV_ITEMS.find((i) => i.id === "scout")!;
+    expect(scoutItem).toMatchObject({ href: "/scout", match: "/scout", icon: "BadgeCheck" });
+    expect(scoutItem.roles).toEqual(NAV_SCOUT_ROLES);
+    for (const role of [
+      "owner",
+      "admin",
+      "coach",
+      "agent",
+      "player",
+      "guardian",
+      "platform_admin",
+    ] as Role[]) {
+      expect(labels([role])).not.toContain("Scout profile");
+    }
   });
 
   it("gives a platform admin Admin and Lab", () => {
@@ -48,6 +65,7 @@ describe("navForRoles", () => {
       "Settings",
       "Review queue",
       "Shortlists",
+      "Scout profile",
     ]);
   });
 

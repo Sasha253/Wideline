@@ -13,7 +13,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { MatchStatus, OrganisationStatus } from "@/generated/prisma/enums";
+import type { MatchStatus, OrganisationStatus, ScoutStatus } from "@/generated/prisma/enums";
 import { iconProps } from "./icons";
 
 export type ChipTone = "ok" | "warn" | "danger" | "neutral" | "new";
@@ -90,6 +90,15 @@ export const ORGANISATION_STATES: Record<OrganisationStatus, Preset> = {
   suspended: { tone: "danger", icon: Ban, label: "Suspended" },
 };
 
+// Scout registration (docs/build/design/C02.md, Surface 6). "Not approved" reads less
+// harshly to the scout than "Rejected"; the tone stays danger, as for organisations.
+export const SCOUT_STATES: Record<ScoutStatus, Preset> = {
+  pending: { tone: "warn", icon: Clock, label: "Awaiting approval" },
+  approved: { tone: "ok", icon: Check, label: "Approved" },
+  suspended: { tone: "danger", icon: Ban, label: "Suspended" },
+  rejected: { tone: "danger", icon: X, label: "Not approved" },
+};
+
 export function EventStatusChip({ state }: { state: EventReviewState }) {
   return <StatusChip {...EVENT_STATES[state]} />;
 }
@@ -104,4 +113,8 @@ export function InvitationStatusChip({ state }: { state: InvitationState }) {
 
 export function OrganisationStatusChip({ status }: { status: OrganisationStatus }) {
   return <StatusChip {...ORGANISATION_STATES[status]} />;
+}
+
+export function ScoutStatusChip({ status }: { status: ScoutStatus }) {
+  return <StatusChip {...SCOUT_STATES[status]} />;
 }

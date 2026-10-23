@@ -70,6 +70,13 @@ export async function acceptInvitationAction(
       });
     }
   } catch (err) {
+    if (err instanceof InvitationError && err.code === "email_unconfirmed") {
+      return {
+        ok: false,
+        formError:
+          "Confirm your email before you accept. Open the link we sent you, then open this invitation again.",
+      };
+    }
     if (err instanceof InvitationError) return { ok: false, refresh: true };
     log.error({ err }, "accept invitation failed");
     return { ok: false, formError: UNEXPECTED_ERROR };

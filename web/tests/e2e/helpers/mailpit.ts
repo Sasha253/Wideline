@@ -41,3 +41,35 @@ export async function findInviteEmail(
     await page.close();
   }
 }
+
+/**
+ * Waits for the newest email to `to` with this subject and returns the first
+ * link matching `link` (C02: the email confirmation link).
+ */
+export async function findEmailLink(
+  context: BrowserContext,
+  to: string,
+  subject: string,
+  link: RegExp,
+  { timeout = 20_000 }: { timeout?: number } = {},
+): Promise<{ text: string; url: string }> {
+  const page = await context.newPage();
+  try {
+    const deadline = Date.now() + timeout;
+    const query = encodeURIComponent(`to:"${to}" subject:"${subject}"`);
+    while (Date.now() < deadline) {
+      const search = await page.goto(`${mailpitUrl}/api/v1/search?query=${query}&limit=1`);
+      const { messages } = (await search!.json()) as { messages: { ID: string }[] };
+      if (messages.length) {
+        const res = await page.goto(`${mailpitUrl}/api/v1/message/${messages[0]!.ID}`);
+        const msg = (await res!.json()) as { Text: string };
+        const url = msg.Text.match(link)?.[0];
+        if (url) return { text: msg.Text, url };
+      }
+      await page.waitForTimeout(500);
+    }
+    throw new Error(`No "${subject}" email to ${to} within ${timeout}ms`);
+  } finally {
+    await page.close();
+  }
+}

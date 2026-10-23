@@ -30,3 +30,16 @@ export function fieldErrorsFrom(issues: { path: PropertyKey[]; message: string }
   }
   return out;
 }
+
+/**
+ * Like fieldErrorsFrom, keyed by the whole path ("clubName.2"), for forms with
+ * repeated rows (docs/build/design/C02.md, registration step 3).
+ */
+export function fieldErrorsByPath(issues: { path: PropertyKey[]; message: string }[]) {
+  const out: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path.map(String).join(".");
+    if (key && !(key in out)) out[key] = issue.message;
+  }
+  return out;
+}

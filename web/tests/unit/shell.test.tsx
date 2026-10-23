@@ -105,9 +105,9 @@ describe("AppShell", () => {
     }
   });
 
-  it("shows a scout only the review queue and shortlists", () => {
+  it("shows a scout only the review queue, shortlists and their scout profile", () => {
     const html = shell(context(["scout"]));
-    expect(navLabels(sidebarNav(html))).toEqual(["Review queue", "Shortlists"]);
+    expect(navLabels(sidebarNav(html))).toEqual(["Review queue", "Shortlists", "Scout profile"]);
   });
 
   it("starts with a skip link to #main, and main can take focus", () => {

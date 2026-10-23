@@ -1,12 +1,13 @@
 import { z } from "zod";
+import { EMAIL_ERROR, NAME_TOO_LONG } from "@/lib/form-copy";
 import { COUNTRY_CODES } from "@/lib/labels";
+
+export { EMAIL_ERROR, NAME_TOO_LONG };
 
 // Form fields shared by the invite, application and settings forms. The error
 // messages are the copy shown to people (docs/build/design/C01.md).
 
-export const EMAIL_ERROR = "Enter an email address, for example name@club.co.za.";
 export const ORG_NAME_REQUIRED = "Enter the organisation name.";
-export const NAME_TOO_LONG = "Use 120 characters or fewer.";
 
 /** Trimmed and lowercased. */
 export const emailField = z

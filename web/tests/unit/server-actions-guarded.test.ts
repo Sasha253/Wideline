@@ -11,6 +11,9 @@ const PUBLIC_ACTIONS = new Set([
   "acceptInvitationAction",
   // The public "Join the pilot" form, with a honeypot.
   "applyForOrganisation",
+  // Public scout registration (C02): a new account, or the signed-in user registering
+  // themselves; never another user. A honeypot catches simple bots.
+  "registerScoutAction",
 ]);
 
 const appDir = join(import.meta.dirname, "../../src/app");
@@ -44,8 +47,20 @@ describe("server actions", () => {
     for (const { name, body } of exportedActions(src)) {
       if (PUBLIC_ACTIONS.has(name)) continue;
       expect(body, `${name} must call requireRole`).toMatch(
-        /\b(requireRole|requirePageRole|withRole)\(/,
+        /\b(requireRole|requirePageRole|withRole|requireReviewer)\(/,
       );
+    }
+  });
+
+  it("finds and guards the C02 scout and admin action files", () => {
+    const rel = actionFiles.map((f) => f.slice(appDir.length + 1));
+    expect(rel).toContain("(app)/scout/actions.ts");
+    expect(rel).toContain("(app)/admin/scouts/actions.ts");
+    expect(rel).toContain("register/actions.ts");
+    for (const file of actionFiles.filter((f) => /\/(scout|admin\/scouts)\/actions\.ts$/.test(f))) {
+      for (const { name } of exportedActions(readFileSync(file, "utf8"))) {
+        expect(PUBLIC_ACTIONS.has(name), name).toBe(false);
+      }
     }
   });
 

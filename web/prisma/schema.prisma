@@ -1,14 +1,22 @@
 // Wideline data model. Field names follow the PRD's Data model section.
 //
-// Tenancy (NFR-16): every model except the global ones (Organisation, User and
-// the Better Auth tables) carries organisationId, Invitation included. Application code reaches the
-// database only through the scoped client in src/server/db/scoped.ts, which
-// injects organisationId into every query. See TENANT_SCOPED in that file and
+// Tenancy (NFR-16): every model except the global ones (Organisation, User, the
+// Better Auth tables and the scout tables) carries organisationId, Invitation
+// included. Application code reaches the database only through the scoped
+// client in src/server/db/scoped.ts, which injects organisationId into every
+// query. See TENANT_SCOPED in that file and
 // keep it in step with this schema.
 //
 // References between tenant tables are composite foreign keys on
 // (organisationId, id), so the database itself refuses a row that points at
 // another organisation's row.
+//
+// Scouts (AUTH08 to AUTH10): ScoutProfile and ScoutAffiliation are global and
+// scout-owned, like User. They carry no organisationId and are never reachable
+// from a scoped client (FORBIDDEN in scoped.ts). Only src/server/scouts/ (the
+// caller's own userId) and src/server/platform/scouts.ts (platform_admin) touch
+// them. An independent scout's role comes from a scout Membership in the one
+// scout_network organisation, "Wideline scouts".
 //
 // Organisations start pending (ADMIN01): a platform admin approves or rejects
 // them. The active organisation of a signed-in user is stored per session in
@@ -33,6 +41,9 @@ enum OrganisationType {
   club
   agency
   platform
+  // AUTH08: the one shared organisation that holds independent scouts' scout
+  // memberships (src/server/scouts/network.ts). No owners or admins.
+  scout_network
 }
 
 enum OrganisationStatus {
@@ -81,6 +92,10 @@ model Organisation {
   lineups     Lineup[]
   auditLogs   AuditLog[]
   invitations Invitation[]
+
+  // Refused by the scoped client: it would reveal which scouts declared a
+  // conflict with this organisation.
+  scoutAffiliations ScoutAffiliation[]
 }
 
 // Global. Columns match what Better Auth expects for its user model.
@@ -99,6 +114,8 @@ model User {
   invitations         Membership[] @relation("MembershipInvitedBy")
   invitationsSent     Invitation[] @relation("InvitationInvitedBy")
   invitationsAccepted Invitation[] @relation("InvitationAcceptedBy")
+  // Refused by the scoped client (USER_PRIVATE_RELATIONS).
+  scoutProfile        ScoutProfile?
 }
 
 // Better Auth: database sessions, so a session can be revoked server-side.
@@ -194,6 +211,88 @@ model Invitation {
   @@unique([organisationId, id])
   @@index([organisationId, email])
   @@index([organisationId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Scouts (AUTH08, AUTH09, AUTH10, ADMIN01, ADMIN06)
+// ---------------------------------------------------------------------------
+
+// rejected is kept alongside the PRD's pending, approved and suspended, so a
+// decision stays on record, as for organisations.
+enum ScoutStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum IdDocumentType {
+  sa_id
+  passport
+}
+
+enum ScoutAffiliationType {
+  club
+  player
+}
+
+// Global and scout-owned (see the header). The ID or passport number is never
+// stored: only an HMAC-SHA256 of it (src/server/scouts/identity.ts), unique so
+// one identity registers once.
+model ScoutProfile {
+  id               String         @id @default(cuid())
+  userId           String         @unique
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           ScoutStatus    @default(pending)
+  idDocumentType   IdDocumentType
+  // ISO 3166-1 alpha-2; ZA for a South African ID.
+  idCountry        String
+  idNumberHash     String         @unique
+  // E.164.
+  phone            String
+  termsAcceptedAt  DateTime
+  // REVIEWER_TERMS_VERSION at acceptance. Review access needs the current one.
+  termsVersion     String
+  // Set when a platform admin approves.
+  verifiedAt       DateTime?
+  reviewedAt       DateTime?
+  reviewedById     String?
+  rejectionReason  String?
+  suspendedAt      DateTime?
+  suspensionReason String?
+  // Written by spot-checks (C18).
+  accuracyScore    Float?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  affiliations ScoutAffiliation[]
+
+  @@index([status, createdAt])
+}
+
+// AUTH10: a club the scout works for or with, or a player they represent, as
+// declared (free text). A platform admin links it to a Wideline organisation;
+// only linked rows block review claims (scoutConflicts, C10). Removal is soft
+// (removedAt), so the history stays.
+model ScoutAffiliation {
+  id             String               @id @default(cuid())
+  scoutUserId    String
+  scout          ScoutProfile         @relation(fields: [scoutUserId], references: [userId], onDelete: Cascade)
+  type           ScoutAffiliationType
+  // The club name, or the player name, as declared.
+  name           String
+  // Player rows only: the player's club, as declared.
+  clubName       String?
+  // The linked Wideline club, or the represented player's club.
+  organisationId String?
+  organisation   Organisation?        @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  linkedAt       DateTime?
+  linkedById     String?
+  declaredAt     DateTime             @default(now())
+  removedAt      DateTime?
+
+  @@index([scoutUserId])
+  @@index([organisationId])
 }
 
 // ---------------------------------------------------------------------------

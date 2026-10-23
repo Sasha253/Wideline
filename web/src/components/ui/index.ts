@@ -15,6 +15,7 @@ export {
   InvitationStatusChip,
   MatchStatusChip,
   OrganisationStatusChip,
+  ScoutStatusChip,
   StatusChip,
   type ChipTone,
   type EventReviewState,

@@ -2,7 +2,8 @@
  * Local seed: the Wideline Lab platform organisation, one platform admin with a
  * password, two teams of 11 placeholder players, and one match with both
  * lineups. A second active demo club, with the admin as owner, lets the
- * organisation switch (AUTH05) work locally and in e2e. Safe to re-run.
+ * organisation switch (AUTH05) work locally and in e2e. The scout network
+ * organisation ("Wideline scouts", AUTH08) is created too. Safe to re-run.
  *
  * Players are shirt-number placeholders, not named people, so the Lab never
  * derives per-player data about a named, non-consented child (NFR-08).
@@ -11,6 +12,7 @@ import "dotenv/config";
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { rawDb as db } from "../src/server/db/raw";
+import { ensureScoutNetwork, SCOUT_NETWORK_NAME } from "../src/server/scouts/network";
 
 const ORG_NAME = "Wideline Lab";
 const DEMO_ORG_NAME = "Wideline Demo FC";
@@ -46,6 +48,9 @@ async function main() {
         status: "active",
       },
     }));
+
+  // Independent scouts get their scout membership here (src/server/scouts/network.ts).
+  await ensureScoutNetwork(db);
 
   // Better Auth users and credential accounts, written directly because
   // sign-up is disabled. The password hash uses Better Auth's own hasher.
@@ -156,7 +161,9 @@ async function main() {
   }
 
   console.log("\nSeed complete.");
-  console.log(`  Organisations: ${org.name} (platform admin), ${demo.name} (owner)`);
+  console.log(
+    `  Organisations: ${org.name} (platform admin), ${demo.name} (owner), ${SCOUT_NETWORK_NAME} (scouts)`,
+  );
   console.log(`  Sign in at:   ${process.env.APP_URL ?? "http://wideline.localhost"}/login`);
   console.log(`  Email:        ${email}`);
   console.log(`  Password:     ${password}`);

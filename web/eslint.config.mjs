@@ -11,6 +11,10 @@ const RAW_DB_ALLOWED = [
   // Platform operations across tenants (ADMIN01). Every export takes a
   // platform_admin AuthContext and checks it.
   "src/server/platform/**",
+  // Scout registration and profiles (AUTH08 to AUTH10): global, scout-owned
+  // tables. Every export is either the public registration or takes the
+  // caller's own session userId.
+  "src/server/scouts/**",
   "src/worker/**",
   "src/app/api/jobs/*/callback/**",
   "prisma/seed.ts",

@@ -189,8 +189,10 @@ test("each role sees only its nav items, and the server still guards the pages",
     (await findInviteEmail(page.context(), scoutEmail)).path,
     "Shell Scout",
   );
-  await expect(scout).toHaveURL(/\/review$/);
-  expect(await navLabels(scout)).toEqual(["Review queue", "Shortlists"]);
+  // C02: a club-invited scout has no scout profile, so /review sends them to /scout.
+  await expect(scout).toHaveURL(/\/scout\?from=review$/);
+  await expect(scout.getByRole("heading", { name: "No scout profile yet" })).toBeVisible();
+  expect(await navLabels(scout)).toEqual(["Review queue", "Shortlists", "Scout profile"]);
   await scout.goto("/dashboard");
   await expect(scout).toHaveURL(/\/forbidden$/);
   await expect(scout.getByRole("heading", { level: 1, name: "No access" })).toBeVisible();

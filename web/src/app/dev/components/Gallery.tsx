@@ -17,6 +17,7 @@ import {
   MATCH_STATES,
   MatchStatusChip,
   OrganisationStatusChip,
+  ScoutStatusChip,
   StatusChip,
   type EventReviewState,
 } from "@/components/ui/StatusChip";
@@ -32,6 +33,7 @@ import {
   leboStats,
   now,
   ORGANISATION_STATE_FIXTURES,
+  SCOUT_STATE_FIXTURES,
   siphoStats,
   thaboStats,
   warningExpiry,
@@ -211,6 +213,13 @@ export function Gallery({ theme }: { theme: Theme }) {
               <div className="wl-row">
                 {ORGANISATION_STATE_FIXTURES.map((s) => (
                   <OrganisationStatusChip key={s} status={s} />
+                ))}
+              </div>
+            </Group>
+            <Group label="Scout states">
+              <div className="wl-row">
+                {SCOUT_STATE_FIXTURES.map((s) => (
+                  <ScoutStatusChip key={s} status={s} />
                 ))}
               </div>
             </Group>

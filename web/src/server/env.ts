@@ -33,6 +33,24 @@ const schema = z.object({
   CV_CALLBACK_SECRET: z.string().min(8),
   CV_DISPATCH: z.enum(["docker", "subprocess"]).default("docker"),
   SENTRY_DSN: optional,
+  // AUTH09: the HMAC key for scout ID and passport numbers
+  // (src/server/scouts/identity.ts). Required in production; elsewhere it falls
+  // back to a key derived from BETTER_AUTH_SECRET.
+  ID_HASH_SECRET: z
+    .string()
+    .min(32)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+});
+
+const checked = schema.superRefine((e, ctx) => {
+  if (e.NODE_ENV === "production" && !e.ID_HASH_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["ID_HASH_SECRET"],
+      message: "ID_HASH_SECRET is required in production",
+    });
+  }
 });
 
 export type Env = z.infer<typeof schema>;
@@ -41,6 +59,6 @@ let cached: Env | undefined;
 
 // Parsed on first use, not at import, so `next build` does not need secrets.
 export function env(): Env {
-  cached ??= schema.parse(process.env);
+  cached ??= checked.parse(process.env);
   return cached;
 }

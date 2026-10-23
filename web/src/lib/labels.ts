@@ -1,4 +1,10 @@
-import type { OrganisationType, Role } from "@/generated/prisma/enums";
+import type {
+  IdDocumentType,
+  OrganisationType,
+  Role,
+  ScoutAffiliationType,
+  ScoutStatus,
+} from "@/generated/prisma/enums";
 
 // Display copy shared by server pages, emails and client components
 // (docs/build/design/C01.md, "Rules for the whole chunk").
@@ -25,9 +31,28 @@ export const ORG_TYPE_LABELS: Record<OrganisationType, string> = {
   club: "Club",
   agency: "Agency",
   platform: "Wideline platform",
+  scout_network: "Scout network",
 };
 
-/** The types an organisation can choose. platform is display only. */
+// Scouts (docs/build/design/C02.md, "Labels").
+export const SCOUT_STATUS_LABELS: Record<ScoutStatus, string> = {
+  pending: "Awaiting approval",
+  approved: "Approved",
+  suspended: "Suspended",
+  rejected: "Not approved",
+};
+
+export const ID_DOCUMENT_LABELS: Record<IdDocumentType, string> = {
+  sa_id: "South African ID",
+  passport: "Passport",
+};
+
+export const AFFILIATION_TYPE_LABELS: Record<ScoutAffiliationType, string> = {
+  club: "Club",
+  player: "Player",
+};
+
+/** The types an organisation can choose. platform and scout_network are display only. */
 export const SELECTABLE_ORG_TYPES = ["academy", "club", "agency"] as const;
 
 const dateFormat = new Intl.DateTimeFormat("en-ZA", {
@@ -64,6 +89,12 @@ export function countryName(code: string): string {
   } catch {
     return code;
   }
+}
+
+/** "South African ID", or "Passport · United Kingdom" (`joiner` "issued by" reads "Passport · issued by …"). */
+export function identityText(type: IdDocumentType, country: string, joiner = ""): string {
+  if (type === "sa_id") return ID_DOCUMENT_LABELS.sa_id;
+  return `${ID_DOCUMENT_LABELS.passport} · ${joiner ? `${joiner} ` : ""}${countryName(country)}`;
 }
 
 /** "Gauteng, South Africa", or the country alone when there is no region. */

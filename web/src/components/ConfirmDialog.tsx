@@ -31,7 +31,8 @@ export function ConfirmDialog({
   form: SectionForm;
   hidden: Record<string, string>;
   submit: { label: string; pendingLabel: string; variant: "primary" | "danger" };
-  children?: ReactNode;
+  /** Fields. A function gets the result on screen, for field errors (C02 reason fields). */
+  children?: ReactNode | ((visible: ActionResult) => ReactNode);
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -84,11 +85,12 @@ export function ConfirmDialog({
         <div id={bodyId} className="body mt-2 text-ink-muted">
           {body}
         </div>
-        <form key={formKey} {...formProps} className="mt-4 flex flex-col gap-4">
+        {/* noValidate: required fields get the server's copy (C02 suspension reason), not a browser tooltip. */}
+        <form key={formKey} {...formProps} noValidate className="mt-4 flex flex-col gap-4">
           {Object.entries(hidden).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}
-          {children}
+          {typeof children === "function" ? children(visible) : children}
           <FormErrorBanner result={visible} />
           <div className="wl-dialog__actions">
             <Button ref={cancelRef} variant="secondary" onClick={() => dialogRef.current?.close()}>

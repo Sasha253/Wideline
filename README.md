@@ -58,7 +58,8 @@ docs/                PRD
   and the organisation approval queue (`/admin/organisations`). A unit test
   (`tests/unit/server-actions-guarded.test.ts`) checks every `actions.ts`;
   the only public actions are accepting an invitation (the token is the
-  capability) and the "Join the pilot" form at `/apply`.
+  capability), the "Join the pilot" form at `/apply` and scout registration
+  at `/register`.
 - **App shell and navigation** (D02): every signed-in page renders inside
   `src/components/shell/AppShell.tsx` (sidebar from 992px, rail from 768px, top
   bar and bottom tab bar on phones). The nav comes from `src/lib/nav.ts` by the
@@ -78,6 +79,29 @@ docs/                PRD
   the account or links an existing one in one transaction. `platform_admin` is
   never assignable, only an owner grants owner, and the last owner cannot be
   removed. Membership and invitation changes are written to `AuditLog`.
+- **Scouts** (AUTH-08 to AUTH-10, ADMIN-06): independent scouts register at
+  `/register` (one topic per step). Each gets a pending `ScoutProfile` and an
+  accepted `scout` membership in one shared organisation, "Wideline scouts"
+  (type `scout_network`, id `scout-network`), so `requireRole()`, the nav and
+  the switcher work unchanged. The ID or passport number is stored only as an
+  HMAC-SHA256 with `ID_HASH_SECRET` (unique, so one identity registers once).
+  A signed-out registration creates the user with no password and no session:
+  the emailed confirmation link signs the mailbox owner in, and they set a
+  password on `/scout` (`src/server/auth/password.ts`). Password sign-in needs
+  a verified email, and the first confirmation revokes any account link or
+  session an unverified user had, so nobody can plant access on someone
+  else's email. Declared clubs and players are `ScoutAffiliation` rows; scouts
+  edit them at `/scout`, and `scoutConflicts()` returns the organisations they
+  may not review (for C10): linked rows, unlinked rows whose club name equals
+  an active academy, club or agency (case-insensitive), and accepted
+  memberships. Platform admins approve, reject, suspend and reinstate at
+  `/admin/scouts`; approval needs a confirmed email and links exact name
+  matches, and a filter shows scouts with clubs or players nobody has checked. Review pages and routes
+  use `requireReviewer()` / `requireReviewerPage()` / `withReviewer()` from
+  `src/server/auth/reviewer.ts`: scout role, approved profile and the current
+  terms version, read on every request, so a suspension applies at once (a
+  unit test checks every page under `/review` and `/api/review`). Both scout
+  tables are global and refused by the scoped client.
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and
@@ -90,7 +114,9 @@ docs/                PRD
   membership. The unscoped client (`src/server/db/raw.ts`) is limited by an
   ESLint rule to auth (including the invitation accept path), platform
   operations (`src/server/platform/`, which take a `platform_admin` context),
-  the seed, the worker and the worker callback.
+  scout registration and profiles (`src/server/scouts/`, the public
+  registration or the caller's own userId), the seed, the worker and the
+  worker callback.
 - **Queue**: pg-boss in the `pgboss` schema of the same Postgres. Three attempts
   per job, then the dead-letter queue (CV-10, NFR-30).
 - **Object storage**: S3 API only. Locally RustFS (MinIO no longer publishes
@@ -152,6 +178,9 @@ join:
 ## Security notes
 
 - `.env` is git-ignored; `.env.example` holds only local defaults.
+- `ID_HASH_SECRET` keys the scout ID hash and is required in production
+  (`make env` generates one). Outside production it falls back to a key derived
+  from `BETTER_AUTH_SECRET`. Changing it makes every stored ID hash unmatchable.
 - Postgres is not published to the host.
 - The CV dispatcher's Docker mode (Phase 4) mounts the Docker socket into the
   worker container. That is root-equivalent on the host and is for local

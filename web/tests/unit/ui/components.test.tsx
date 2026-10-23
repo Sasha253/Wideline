@@ -20,11 +20,13 @@ import {
   MatchStatusChip,
   ORGANISATION_STATES,
   OrganisationStatusChip,
+  SCOUT_STATES,
+  ScoutStatusChip,
   type EventReviewState,
   type InvitationState,
 } from "@/components/ui/StatusChip";
 import { TeamMarker } from "@/components/ui/TeamMarker";
-import type { MatchStatus, OrganisationStatus } from "@/generated/prisma/enums";
+import type { MatchStatus, OrganisationStatus, ScoutStatus } from "@/generated/prisma/enums";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const count = (s: string, needle: string | RegExp) =>
@@ -397,7 +399,30 @@ describe("InvitationStatusChip and OrganisationStatusChip", () => {
       rejected: "Rejected",
       suspended: "Suspended",
     },
+    scout: {
+      pending: "Awaiting approval",
+      approved: "Approved",
+      suspended: "Suspended",
+      rejected: "Not approved",
+    },
   };
+
+  it.each(Object.keys(SCOUT_STATES) as ScoutStatus[])(
+    "scout %s has a word and an icon",
+    (status) => {
+      const out = html(<ScoutStatusChip status={status} />);
+      expect(out).toContain(expected.scout[status]);
+      expect(out).toContain(`wl-chip--${SCOUT_STATES[status].tone}`);
+      expect(out).toMatch(/<svg[^>]*aria-hidden="true"/);
+    },
+  );
+
+  it("uses the C02 tones for scout states", () => {
+    expect(SCOUT_STATES.pending.tone).toBe("warn");
+    expect(SCOUT_STATES.approved.tone).toBe("ok");
+    expect(SCOUT_STATES.suspended.tone).toBe("danger");
+    expect(SCOUT_STATES.rejected.tone).toBe("danger");
+  });
 
   it.each(Object.keys(INVITATION_STATES) as InvitationState[])(
     "invitation %s has a word and an icon",

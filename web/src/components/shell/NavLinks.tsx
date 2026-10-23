@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BadgeCheck,
   Bookmark,
   Ellipsis,
   FlaskConical,
@@ -26,6 +27,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   Settings,
   ListChecks,
   Bookmark,
+  BadgeCheck,
   Wrench,
   FlaskConical,
 };

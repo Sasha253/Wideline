@@ -11,7 +11,7 @@ import { rawDb } from "./raw";
  *    organisation anywhere in a write, including nested writes;
  *  - exposes global models only in a narrowed form (User: read-only and only
  *    members of this organisation; Organisation: only this one);
- *  - refuses the Better Auth tables entirely.
+ *  - refuses the Better Auth tables and the scout tables entirely.
  *
  * Cross-tenant foreign keys are blocked in the database too: references between
  * tenant tables are composite (organisationId, id) foreign keys, so a row can
@@ -32,7 +32,20 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Invitation",
 ]);
 
-const FORBIDDEN = new Set<Prisma.ModelName>(["Session", "Account", "Verification"]);
+// Global tables no organisation may reach: the Better Auth tables, and the
+// scout tables (AUTH08 to AUTH10), which belong to the scout, not to any
+// organisation. Scout code uses src/server/scouts/ and src/server/platform/.
+const FORBIDDEN = new Set<Prisma.ModelName>([
+  "Session",
+  "Account",
+  "Verification",
+  "ScoutProfile",
+  "ScoutAffiliation",
+]);
+const FORBIDDEN_REASON: Partial<Record<Prisma.ModelName, string>> = {
+  ScoutProfile: "scout data is global and scout-owned; use src/server/scouts/",
+  ScoutAffiliation: "scout data is global and scout-owned; use src/server/scouts/",
+};
 
 const UNIQUE_WHERE_OPS = new Set(["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"]);
 const WHERE_OPS = new Set([
@@ -98,6 +111,7 @@ const USER_PRIVATE_RELATIONS = new Set([
   "invitations",
   "invitationsSent",
   "invitationsAccepted",
+  "scoutProfile",
 ]);
 const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy"]);
 
@@ -108,6 +122,10 @@ const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy"]);
 // another organisation's rows (NFR16).
 const SCOPED_ORG_FIELDS = new Set(["name", "type", "country", "region", "settings"]);
 
+// Relations on Organisation that would reveal scout data: which scouts declared
+// a conflict with this organisation.
+const ORG_PRIVATE_RELATIONS = new Set(["scoutAffiliations"]);
+
 function assertOrgUpdateAllowed(data: unknown): void {
   const d = (data ?? {}) as Record<string, unknown>;
   for (const key of Object.keys(d)) {
@@ -116,8 +134,8 @@ function assertOrgUpdateAllowed(data: unknown): void {
     }
   }
   const type = d.type && typeof d.type === "object" ? (d.type as { set?: unknown }).set : d.type;
-  if (type === "platform") {
-    throw new TenantScopeError("Organisation.type cannot be set to platform");
+  if (type === "platform" || type === "scout_network") {
+    throw new TenantScopeError(`Organisation.type cannot be set to ${type}`);
   }
 }
 
@@ -133,6 +151,39 @@ function assertNoUserPrivateRelations(tree: unknown, atUser: boolean): void {
       assertNoUserPrivateRelations(nested.include, intoUser);
       assertNoUserPrivateRelations(nested.select, intoUser);
     }
+  }
+}
+
+/** Throws if an include or select names Organisation.scoutAffiliations, at any depth. */
+function assertNoOrgPrivateRelations(tree: unknown): void {
+  if (tree === null || typeof tree !== "object") return;
+  for (const [key, v] of Object.entries(tree)) {
+    if (ORG_PRIVATE_RELATIONS.has(key)) {
+      throw new TenantScopeError(`Organisation.${key} is not readable from a scoped client`);
+    }
+    if (v && typeof v === "object") {
+      const nested = v as { include?: unknown; select?: unknown };
+      assertNoOrgPrivateRelations(nested.include);
+      assertNoOrgPrivateRelations(nested.select);
+    }
+  }
+}
+
+// Relation filters that would let a scoped query test scout data ("clubs some
+// scout declared"), so they are refused anywhere in a where clause.
+const SCOUT_RELATION_FILTERS = new Set(["scoutAffiliations", "scoutProfile"]);
+
+function assertNoScoutFilters(where: unknown, path = "where"): void {
+  if (Array.isArray(where)) {
+    where.forEach((w, i) => assertNoScoutFilters(w, `${path}[${i}]`));
+    return;
+  }
+  if (where === null || typeof where !== "object" || where instanceof Date) return;
+  for (const [key, v] of Object.entries(where)) {
+    if (SCOUT_RELATION_FILTERS.has(key)) {
+      throw new TenantScopeError(`${path}.${key}: scout data cannot be filtered on when scoped`);
+    }
+    assertNoScoutFilters(v, `${path}.${key}`);
   }
 }
 
@@ -153,9 +204,15 @@ export function scopedDb(organisationId: string) {
           const a = { ...(args as Args) };
           assertNoUserPrivateRelations(a.include, model === "User");
           assertNoUserPrivateRelations(a.select, model === "User");
+          assertNoOrgPrivateRelations(a.include);
+          assertNoOrgPrivateRelations(a.select);
+          assertNoScoutFilters(a.where);
 
           if (FORBIDDEN.has(model)) {
-            throw new TenantScopeError(`${model} is not reachable from a scoped client`);
+            const reason = FORBIDDEN_REASON[model];
+            throw new TenantScopeError(
+              `${model} is not reachable from a scoped client${reason ? `: ${reason}` : ""}`,
+            );
           }
 
           if (model === "Organisation") {

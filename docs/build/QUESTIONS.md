@@ -26,3 +26,27 @@ These questions do not block the build. Each one has a default that the build is
 - **Recommended:** keep this default. It lives in one function, `homeFor()` in `web/src/lib/nav.ts`.
 - **Impact:** a different landing page changes only `homeFor()` and the redirect expectations in the e2e specs.
 - **Answer:**
+
+## Q-004 · C02 · Reviewer confidentiality terms wording
+
+- **Question:** What should the reviewer confidentiality terms say? This includes the PRD open question of whether a scout who reviewed a match may contact a non-consented player's club about that player.
+- **Default taken:** draft wording in `web/src/server/scouts/terms.ts`, version `2026-10-draft-1`, marked "Draft for legal review". It forbids downloading or recording footage, and forbids contacting players or clubs seen in review outside Wideline. It requires declaring conflicts and confirming 18 or over.
+- **Recommended:** keep the draft for the build and have the privacy lawyer approve the final wording as part of the v0 gate (NFR15).
+- **Impact:** new wording means a new `REVIEWER_TERMS_VERSION`. Every scout is then blocked from review until they re-accept on `/scout`. That flow is built in, so nothing changes beyond the text and the version.
+- **Answer:**
+
+## Q-005 · C02 · Scout identity verification beyond a manual check
+
+- **Question:** How should scout identity be verified beyond a platform admin's manual check? Options are a paid ID-verification provider or an SMS one-time code to the phone.
+- **Default taken:** manual. The admin approves on name, phone, confirmed email and affiliations. The ID is used only as a hashed uniqueness check. No third-party service and no SMS.
+- **Recommended:** manual for the pilot (10 reviewers). Revisit before v1, when there are 40 or more reviewers.
+- **Impact:** a provider adds an identity-check step and a stored verification reference. SMS adds an OTP step and a cost per message. `ScoutProfile.verifiedAt` already exists for either.
+- **Answer:**
+
+## Q-006 · C02 · Cooling-off after removing a declared conflict
+
+- **Question:** Should removing a declared club affiliation keep blocking that club for a cooling-off period, so a scout cannot remove a conflict and then claim the match?
+- **Default taken:** no cooling-off. Removals are soft (`removedAt` kept) and audited, so platform admins can see the history.
+- **Recommended:** add a 90-day cooling-off in `scoutConflicts()` once C10 is in place. It is a one-line filter change.
+- **Impact:** only `scoutConflicts()` changes, to count rows removed within the period. No schema change.
+- **Answer:**

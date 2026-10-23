@@ -11,6 +11,7 @@ env: ## Create .env from .env.example with fresh secrets
 	@test -f .env && echo ".env already exists" || ( \
 	  sed -e "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$$(openssl rand -base64 32)|" \
 	      -e "s|^CV_CALLBACK_SECRET=.*|CV_CALLBACK_SECRET=$$(openssl rand -hex 32)|" \
+	      -e "s|^ID_HASH_SECRET=.*|ID_HASH_SECRET=$$(openssl rand -hex 32)|" \
 	      .env.example > .env && echo "Wrote .env" )
 
 up: env ## Build and start the stack

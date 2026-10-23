@@ -196,7 +196,8 @@ export async function requireRole(roles: readonly Role[]): Promise<AuthContext> 
   return ctx;
 }
 
-async function loginRedirect(): Promise<never> {
+/** Redirects to /login, with next= the requested path when the proxy passed it on. */
+export async function loginRedirect(): Promise<never> {
   const path = safeNextPath((await headers()).get(PATH_HEADER), "");
   redirect(path ? `/login?next=${encodeURIComponent(path)}` : "/login");
 }
@@ -254,10 +255,13 @@ export const ORG_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
 /** Club staff: the dashboard, squad and matches (D02 nav; C04, C06, C14 pages). */
 export const CLUB_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 
-/** Scouts: the review queue and shortlists (D02 nav; C10, C15 pages). */
+/**
+ * Scouts: the review queue, shortlists and the scout profile (D02 nav; C02,
+ * C10, C15 pages). Review pages also need requireReviewer() (auth/reviewer.ts).
+ */
 export const SCOUT_ROLES: readonly Role[] = ["scout"];
 
-/** Wideline staff: the organisation approval queue (ADMIN01). */
+/** Wideline staff: the organisation and scout approval queues (ADMIN01). */
 export const PLATFORM_ROLES: readonly Role[] = ["platform_admin"];
 
 /** Roles allowed into the CV Lab. Only platform admins in V0. */

@@ -5,5 +5,13 @@ export const log = pino({
   level: process.env.LOG_LEVEL ?? "info",
   base: { service: process.env.WIDELINE_SERVICE ?? "web" },
   timestamp: pino.stdTimeFunctions.isoTime,
-  redact: ["password", "*.password", "headers.cookie", "headers.authorization"],
+  // idNumber: a scout's ID or passport number must never reach a log (AUTH09).
+  redact: [
+    "password",
+    "*.password",
+    "idNumber",
+    "*.idNumber",
+    "headers.cookie",
+    "headers.authorization",
+  ],
 });

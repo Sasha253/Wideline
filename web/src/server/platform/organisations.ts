@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { OrganisationStatus, OrganisationType } from "@/generated/prisma/enums";
 import { SELECTABLE_ORG_TYPES } from "@/lib/labels";
-import { AuthzError, type AuthContext } from "../auth/session";
+import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
 import { rawDb } from "../db/raw";
 import {
@@ -21,6 +21,7 @@ import {
   regionField,
 } from "../organisations/fields";
 import { invitationExpiry, newInvitationToken } from "../organisations/tokens";
+import { assertPlatformAdmin } from "./assert";
 
 /**
  * Platform operations on organisations (ADMIN01). These read and write across
@@ -28,12 +29,6 @@ import { invitationExpiry, newInvitationToken } from "../organisations/tokens";
  * application takes a platform_admin AuthContext and checks it again here, so a
  * caller that forgot requireRole(PLATFORM_ROLES) still cannot use them.
  */
-
-function assertPlatformAdmin(ctx: AuthContext): void {
-  if (!ctx.roles.includes("platform_admin") || ctx.organisationType !== "platform") {
-    throw new AuthzError(403, "Requires platform_admin");
-  }
-}
 
 export class ApplicationError extends Error {
   constructor(
