@@ -156,7 +156,7 @@ function LimitCard({ organisationId, item }: { organisationId: string; item: Lim
               ) : item.overrideText === "invalid" ? (
                 <span className="body text-ink-muted">Not valid</span>
               ) : (
-                <span className="data">{item.overrideText}</span>
+                <span className="data block">{item.overrideText}</span>
               )}
             </dd>
           </div>
