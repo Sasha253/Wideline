@@ -23,6 +23,7 @@ This partly covers AUTH01, AUTH02, AUTH06, AUTH07, NFR16, NFR19, NFR21, NFR30 an
 - **Schema changes.** Make them with `make migrate-new name=<chunk>_<thing>`. Never edit a migration that has already been applied.
 - **UI.** Use only the tokens and `wl-` components from the design system. Write copy in sentence case, British and South African spelling, and football-native words (*match*, *pitch*, *squad*). Check every screen at 375, 768 and 1280 px. Never use colour alone to carry meaning (NFR23, NFR24, NFR27).
 - **Tests.** Write Vitest unit and integration tests for server logic. Add a tenant-isolation test for every new tenant table. Add a Playwright test for the main path of every new screen.
+- **Running e2e.** Use `make test-e2e E2E_PASSWORD=$(grep ^SEED_ADMIN_PASSWORD= .env | cut -d= -f2)`; add `E2E_DATABASE_URL=postgresql://<user>:<pass>@postgres:5432/<db>` from `.env` for tests that need the database. The first run after `make up` compiles routes cold and may time out; re-run with `ARGS=--last-failed` before reporting a failure. Never write the password into the repo.
 - **Done.** A chunk is done when `make lint` and `make test-web` pass, the acceptance checks below hold, and `STATUS.md` is updated.
 
 ## Release v0: Pilot (free, invite-only)
