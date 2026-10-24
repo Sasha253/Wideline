@@ -99,7 +99,7 @@ These questions do not block the build. Each one has a default that the build is
 - **Recommended:** keep the default for v0. The PRD gives "adds the squad" and "marks players who leave" to the club admin.
 - **Impact:** one constant in `session.ts` and the read-only branches on two pages. No schema change.
 - **Answer:** Coaches too: owners, admins and coaches may change the squad. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
-- **Resolved:** differs from the default (owners and admins only). **Not done yet:** the session's permission check blocked adding `coach` to `SQUAD_ADMIN_ROLES` as a security-weakening change, so it waits for the user's explicit go-ahead.
+- **Resolved:** differs from the default (owners and admins only). The session's permission check first blocked it; the user then confirmed it explicitly in chat on 2026-10-24. Done: `SQUAD_ADMIN_ROLES` is owners, admins and coaches.
 
 ## Q-012 · C04 · Undoing a departure
 

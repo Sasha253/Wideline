@@ -19,7 +19,7 @@ export function AdminOnlyNotice({ organisationName }: { organisationName: string
       <EmptyState
         art={false}
         headingLevel={2}
-        title="Only owners and admins can do this"
+        title="Only owners, admins and coaches can do this"
         body={`Ask an owner or admin of ${organisationName} to add teams and players.`}
         action={
           <ButtonLink variant="secondary" href="/squad">

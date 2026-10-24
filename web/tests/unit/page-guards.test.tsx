@@ -169,7 +169,7 @@ describe("role constants", () => {
     expect(session.SCOUT_ROLES).toEqual(["scout"]);
   });
 
-  it("SQUAD_ADMIN_ROLES is owners and admins: coaches read the squad only (C04)", () => {
-    expect(session.SQUAD_ADMIN_ROLES).toEqual(["owner", "admin"]);
+  it("SQUAD_ADMIN_ROLES is owners, admins and coaches (C04, Q-011)", () => {
+    expect(session.SQUAD_ADMIN_ROLES).toEqual(["owner", "admin", "coach"]);
   });
 });

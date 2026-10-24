@@ -264,7 +264,7 @@ test("squad list, import and player form pass axe at 375, 768 and 1280", async (
   }
 });
 
-test("a coach reads the squad only; a scout is refused", async ({ page, browser }) => {
+test("a coach can change the squad; a scout is refused", async ({ page, browser }) => {
   test.setTimeout(120_000);
   await page.goto("/settings/members");
   const coachEmail = mail(`squad-coach-${tag}`);
@@ -279,18 +279,20 @@ test("a coach reads the squad only; a scout is refused", async ({ page, browser 
   );
   await coach.goto(`/squad?team=${teamId}`);
   await expect(coach.getByRole("link", { name: "Teams" })).toBeVisible();
-  await expect(coach.getByRole("link", { name: "Add player" })).toHaveCount(0);
-  await expect(coach.getByRole("link", { name: "Import from CSV" })).toHaveCount(0);
+  await expect(coach.getByRole("link", { name: "Add player" })).toBeVisible();
+  await expect(coach.getByRole("link", { name: "Import from CSV" })).toBeVisible();
   await coach.getByRole("link", { name: "Sipho Dlamini" }).click();
   await expect(coach.getByRole("heading", { level: 1, name: "Sipho Dlamini" })).toBeVisible();
-  await expect(coach.getByRole("button", { name: "Save changes" })).toHaveCount(0);
-  await expect(coach.getByRole("button", { name: "Mark as departed" })).toHaveCount(0);
-  await expect(coach.getByText("Squad number", { exact: true })).toBeVisible();
+  await expect(coach.getByRole("button", { name: "Save changes" })).toBeVisible();
+  await expect(coach.getByRole("button", { name: "Mark as departed" })).toBeVisible();
+  // The coach gets the edit form, not the read-only facts.
+  await expect(coach.getByLabel(/Squad number/)).toBeEditable();
   for (const path of ["/squad/players/new", "/squad/import", "/squad/teams/new"]) {
     await coach.goto(path);
+    await expect(coach.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(
-      coach.getByRole("heading", { level: 2, name: "Only owners and admins can do this" }),
-    ).toBeVisible();
+      coach.getByRole("heading", { level: 2, name: "Only owners, admins and coaches can do this" }),
+    ).toHaveCount(0);
   }
   await expectNoAxeViolations(coach);
 

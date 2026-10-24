@@ -256,11 +256,11 @@ export const ORG_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
 export const CLUB_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 
 /**
- * Squad writes (C04): teams, players, the CSV import and departures. The PRD
- * gives "adds the squad" and "marks players who leave" to the club admin, so
- * owners and admins only; coaches read the squad with CLUB_ROLES.
+ * Squad writes (C04): teams, players, the CSV import, departures and undoing
+ * them. Owners, admins and coaches: the user chose to let coaches keep the
+ * squad up to date (QUESTIONS.md Q-011). Every write is audited.
  */
-export const SQUAD_ADMIN_ROLES: readonly Role[] = ORG_ADMIN_ROLES;
+export const SQUAD_ADMIN_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 
 /**
  * Scouts: the review queue, shortlists and the scout profile (D02 nav; C02,
