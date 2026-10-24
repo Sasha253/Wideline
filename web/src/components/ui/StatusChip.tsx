@@ -20,6 +20,7 @@ import type {
   MatchStatus,
   OrganisationStatus,
   ScoutStatus,
+  VideoStatus,
 } from "@/generated/prisma/enums";
 import { iconProps } from "./icons";
 
@@ -120,6 +121,19 @@ export const CLUB_STATES: Record<ClubStatus, Preset | null> = {
   departed: { tone: "neutral", icon: UserMinus, label: "Departed" },
 };
 
+/** A video's state, with accepted split by whether the footage check warned (C06). */
+export type FootageState = VideoStatus | "accepted_with_warnings";
+
+// Footage of a match (docs/build/design/C06.md, "Chip preset"). LoaderCircle is static.
+export const FOOTAGE_STATES: Record<FootageState, Preset> = {
+  uploading: { tone: "neutral", icon: Upload, label: "Uploading" },
+  probing: { tone: "neutral", icon: LoaderCircle, label: "Checking footage" },
+  accepted: { tone: "ok", icon: Check, label: "Accepted" },
+  accepted_with_warnings: { tone: "warn", icon: TriangleAlert, label: "With warnings" },
+  rejected: { tone: "danger", icon: X, label: "Rejected" },
+  cancelled: { tone: "neutral", icon: CircleOff, label: "Cancelled" },
+};
+
 export function EventStatusChip({ state }: { state: EventReviewState }) {
   return <StatusChip {...EVENT_STATES[state]} />;
 }
@@ -142,6 +156,10 @@ export function ScoutStatusChip({ status }: { status: ScoutStatus }) {
 
 export function FlagStateChip({ on }: { on: boolean }) {
   return <StatusChip {...FLAG_STATES[on ? "on" : "off"]} />;
+}
+
+export function FootageChip({ state }: { state: FootageState }) {
+  return <StatusChip {...FOOTAGE_STATES[state]} />;
 }
 
 /** Departed players only; renders nothing for a current player. */

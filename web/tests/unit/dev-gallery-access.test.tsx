@@ -31,7 +31,8 @@ describe("/dev/components access", () => {
     expect(out).toContain("<h1");
     expect(out).toContain('data-gallery-theme="light"');
     expect(out).toContain('data-gallery-theme="dark"');
-    expect(out.match(/data-component="/g)).toHaveLength(24);
+    // 13 blocks per theme, with C06's Progress.
+    expect(out.match(/data-component="/g)).toHaveLength(26);
   });
 });
 

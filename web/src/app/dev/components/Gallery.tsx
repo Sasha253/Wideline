@@ -1,5 +1,5 @@
-import { Check, CircleDot, Pencil, Plus, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, CircleDot, Pencil, Plus, WifiOff, X } from "lucide-react";
+import type { CSSProperties, ReactNode } from "react";
 import { Button, ButtonLink, IconButton } from "@/components/ui/Button";
 import { ConfidenceMeter } from "@/components/ui/ConfidenceMeter";
 import { ConsentBadge } from "@/components/ui/ConsentBadge";
@@ -14,6 +14,8 @@ import {
   ClubStatusChip,
   EVENT_STATES,
   EventStatusChip,
+  FOOTAGE_STATES,
+  FootageChip,
   InvitationStatusChip,
   MATCH_STATES,
   MatchStatusChip,
@@ -21,7 +23,9 @@ import {
   ScoutStatusChip,
   StatusChip,
   type EventReviewState,
+  type FootageState,
 } from "@/components/ui/StatusChip";
+import { iconProps } from "@/components/ui/icons";
 import { TeamMarker } from "@/components/ui/TeamMarker";
 import type { ConsentState, MatchStatus } from "@/generated/prisma/enums";
 import {
@@ -42,6 +46,42 @@ import {
 } from "./fixtures";
 
 type Theme = "light" | "dark";
+
+// Upload progress fixtures (docs/build/design/C06.md, Surface 7).
+const PROGRESS_FIXTURES = [
+  {
+    key: "start",
+    title: "Uploading",
+    head: "0%",
+    percent: 0,
+    caption: "0 MB of 4.8 GB · Working out time left…",
+    paused: false,
+  },
+  {
+    key: "half",
+    title: "Uploading",
+    head: "52%",
+    percent: 52,
+    caption: "2.51 GB of 4.8 GB · 3.4 MB/s · about 12 min left",
+    paused: false,
+  },
+  {
+    key: "paused",
+    title: "Paused",
+    head: "Paused at 52%",
+    percent: 52,
+    caption: "2.51 GB of 4.8 GB",
+    paused: true,
+  },
+  {
+    key: "finishing",
+    title: "Finishing",
+    head: "100%",
+    percent: 100,
+    caption: "Finishing upload…",
+    paused: false,
+  },
+];
 
 const CONSENT_STATES: ConsentState[] = [
   "scout_visible",
@@ -201,6 +241,13 @@ export function Gallery({ theme }: { theme: Theme }) {
               <div className="wl-row">
                 {(Object.keys(MATCH_STATES) as MatchStatus[]).map((s) => (
                   <MatchStatusChip key={s} status={s} />
+                ))}
+              </div>
+            </Group>
+            <Group label="Footage states (C06)">
+              <div className="wl-row">
+                {(Object.keys(FOOTAGE_STATES) as FootageState[]).map((s) => (
+                  <FootageChip key={s} state={s} />
                 ))}
               </div>
             </Group>
@@ -449,6 +496,50 @@ export function Gallery({ theme }: { theme: Theme }) {
               away={AWAY_TEAM}
               label="Average positions: home players highest in the attacking half, away players spread across midfield"
             />
+          </div>
+        </Block>
+
+        <Block
+          theme={theme}
+          name="Progress"
+          title="Progress (C06)"
+          rule="Upload progress. Always with the percent and words; paused and offline use warning."
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            {PROGRESS_FIXTURES.map((p) => (
+              <div key={p.key} className="wl-card">
+                <p id={id(`progress-${p.key}`)} className="body-strong">
+                  {p.title}
+                </p>
+                <div className="wl-progress__head mt-2">
+                  <span className="body-strong min-w-0 break-all">match-final.mp4</span>
+                  <span className="data">{p.head}</span>
+                </div>
+                <div
+                  className={p.paused ? "wl-progress wl-progress--paused" : "wl-progress"}
+                  role="progressbar"
+                  aria-labelledby={id(`progress-${p.key}`)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={p.percent}
+                  aria-valuetext={`${p.percent}%`}
+                >
+                  <span
+                    className="wl-progress__fill"
+                    style={{ "--wl-progress": `${p.percent}%` } as CSSProperties}
+                  />
+                </div>
+                <p className="caption data mt-2">{p.caption}</p>
+                {p.paused && (
+                  <div className="wl-banner mt-4" role="status">
+                    <WifiOff {...iconProps} />
+                    <p className="body">
+                      Paused: you are offline. The upload carries on when you reconnect.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </Block>
 

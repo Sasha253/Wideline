@@ -271,6 +271,20 @@ export const SQUAD_ADMIN_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 export const CONSENT_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
 
 /**
+ * Match work (C06): create and edit matches, upload footage, lineups,
+ * substitutions and kickoff and half-time markers. Everyone on club staff:
+ * coaches upload after the match (docs/build/design/C06.md).
+ */
+export const MATCH_ROLES: readonly Role[] = CLUB_ROLES;
+
+/**
+ * Deleting a match (C06, MATCH08): owners and admins only. It removes the
+ * footage, lineups, markers and everything derived from them. An open C06
+ * question (docs/build/QUESTIONS.md, Q-026).
+ */
+export const MATCH_DELETE_ROLES: readonly Role[] = ORG_ADMIN_ROLES;
+
+/**
  * Scouts: the review queue, shortlists and the scout profile (D02 nav; C02,
  * C10, C15 pages). Review pages also need requireReviewer() (auth/reviewer.ts).
  */

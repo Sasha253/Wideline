@@ -1,0 +1,447 @@
+"use client";
+
+import { Pause, Play } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  Banner,
+  Field,
+  fieldError,
+  FormBusy,
+  FormErrorBanner,
+  SubmitButton,
+  SuccessBanner,
+  useFocusFirstInvalid,
+  useFormAction,
+} from "@/components/forms";
+import { Skeleton } from "@/components/states/Skeleton";
+import { Workspace } from "@/components/templates/Workspace";
+import { Button, Kbd } from "@/components/ui/Button";
+import type { ActionResult } from "@/lib/action-result";
+import { formatVideoTime } from "@/lib/labels";
+import {
+  halfDuration,
+  MARKER_KEYS,
+  MARKER_LABELS,
+  parseClock,
+  PHASE_LABELS,
+  validateMarkers,
+  videoMsToMatchClock,
+  type MarkerKey,
+  type Markers,
+} from "@/lib/match-clock";
+import { saveMarkersAction } from "./actions";
+
+const HINTS: Record<MarkerKey, string> = {
+  kickoffMs: "The first whistle.",
+  halfTimeMs: "The whistle that ends the first half.",
+  secondHalfKickoffMs: "The whistle that starts the second half.",
+  fullTimeMs: "The final whistle.",
+};
+
+const SET_LABELS: Record<MarkerKey, string> = {
+  kickoffMs: "Set kickoff here",
+  halfTimeMs: "Set half-time here",
+  secondHalfKickoffMs: "Set second-half kickoff here",
+  fullTimeMs: "Set full time here",
+};
+
+const KEYS: Record<string, MarkerKey> = {
+  "1": "kickoffMs",
+  "2": "halfTimeMs",
+  "3": "secondHalfKickoffMs",
+  "4": "fullTimeMs",
+};
+
+type Playback = "loading" | "ready" | "cannot_play" | "failed";
+
+const toText = (m: Markers): Record<MarkerKey, string> =>
+  Object.fromEntries(
+    MARKER_KEYS.map((k) => [k, m[k] === null ? "" : formatVideoTime(m[k]!)]),
+  ) as Record<MarkerKey, string>;
+
+function parsed(values: Record<MarkerKey, string>): Partial<Markers> {
+  return Object.fromEntries(
+    MARKER_KEYS.map((k) => [k, values[k].trim() ? parseClock(values[k]) : null]),
+  ) as Partial<Markers>;
+}
+
+/**
+ * The kickoff and half-time marker tool (MATCH05; docs/build/design/C06.md,
+ * Surface 5): a native player on a 15-minute signed URL, four markers set from
+ * the current time or typed, and keyboard shortcuts with visible buttons.
+ * Typed entry is the fallback when the browser cannot play the file. C07
+ * swaps the player for HLS.
+ */
+export function MarkerTool({
+  matchId,
+  contentType,
+  halfLengthMinutes,
+  initial,
+  locked,
+}: {
+  matchId: string;
+  contentType: string;
+  halfLengthMinutes: number;
+  initial: Markers;
+  locked: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [playback, setPlayback] = useState<Playback>("loading");
+  const [refetched, setRefetched] = useState(false);
+  const [currentMs, setCurrentMs] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [values, setValues] = useState(() => toText(initial));
+  const [announce, setAnnounce] = useState("");
+  const { state, formProps } = useFormAction(saveMarkersAction, null as ActionResult);
+  useFocusFirstInvalid(formRef, state);
+  // Compared as times, not text ("0:05" is "0:05.0"). The server re-renders the
+  // page with the saved times after a save, so `initial` is always the saved state.
+  const dirty = MARKER_KEYS.some((k) => {
+    const typed = values[k].trim();
+    return (typed ? parseClock(typed) : null) !== initial[k];
+  });
+
+  const fetchUrl = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/matches/${matchId}/video-url`, { cache: "no-store" });
+      if (!res.ok) return null;
+      return ((await res.json()) as { url: string }).url;
+    } catch {
+      return null;
+    }
+  }, [matchId]);
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const probe = document.createElement("video");
+      if (!probe.canPlayType(contentType)) {
+        if (live) setPlayback("cannot_play");
+        return;
+      }
+      const u = await fetchUrl();
+      if (!live) return;
+      if (u) setUrl(u);
+      else setPlayback("failed");
+    })();
+    return () => {
+      live = false;
+    };
+  }, [contentType, fetchUrl]);
+
+  const okKey = state?.ok ? state.key : undefined;
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  async function onVideoError() {
+    const v = videoRef.current;
+    const code = v?.error?.code;
+    if (code === 3 || code === 4) {
+      setPlayback("cannot_play");
+      return;
+    }
+    // Most likely the signed URL expired: sign again once, and carry on where it was.
+    if (refetched) {
+      setPlayback("failed");
+      return;
+    }
+    setRefetched(true);
+    const at = v?.currentTime ?? 0;
+    const wasPaused = v?.paused ?? true;
+    const fresh = await fetchUrl();
+    if (!fresh || !v) {
+      setPlayback("failed");
+      return;
+    }
+    setUrl(fresh);
+    v.addEventListener(
+      "loadedmetadata",
+      () => {
+        v.currentTime = at;
+        if (!wasPaused) void v.play();
+      },
+      { once: true },
+    );
+  }
+
+  const canPlay = playback === "ready" || playback === "loading";
+  const usable = playback === "ready";
+
+  function seekBy(deltaMs: number) {
+    const v = videoRef.current;
+    if (!v || !usable) return;
+    v.currentTime = Math.max(0, v.currentTime + deltaMs / 1000);
+    setCurrentMs(Math.round(v.currentTime * 1000));
+  }
+
+  function togglePlay() {
+    const v = videoRef.current;
+    if (!v || !usable) return;
+    if (v.paused) void v.play();
+    else v.pause();
+  }
+
+  function setMarker(key: MarkerKey) {
+    const text = formatVideoTime(currentMs);
+    setValues((s) => ({ ...s, [key]: text }));
+    setAnnounce(`${MARKER_LABELS[key]} set to ${text}.`);
+  }
+
+  function goTo(key: MarkerKey) {
+    const ms = parseClock(values[key]);
+    const v = videoRef.current;
+    if (ms === null || !v || !usable) return;
+    v.currentTime = ms / 1000;
+    setCurrentMs(ms);
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+    if (!usable || e.metaKey || e.ctrlKey || e.altKey) return;
+    const actions: Record<string, () => void> = {
+      k: togglePlay,
+      K: togglePlay,
+      ArrowLeft: () => seekBy(-1000),
+      ArrowRight: () => seekBy(1000),
+      ",": () => seekBy(-100),
+      ".": () => seekBy(100),
+    };
+    const marker = KEYS[e.key];
+    const run = actions[e.key] ?? (marker && !locked ? () => setMarker(marker) : undefined);
+    if (!run) return;
+    e.preventDefault();
+    run();
+  }
+
+  const markers = parsed(values);
+  const clock = videoMsToMatchClock(currentMs, markers, halfLengthMinutes);
+  const order = validateMarkers(markers);
+
+  const derived = (key: MarkerKey): string | null => {
+    const m = markers;
+    if (key === "halfTimeMs" && m.kickoffMs != null && m.halfTimeMs != null && !order.halfTimeMs) {
+      const d = halfDuration(m.kickoffMs, m.halfTimeMs, halfLengthMinutes, 0);
+      return `First half: ${d.minutes} min (${d.clock}).`;
+    }
+    if (
+      key === "fullTimeMs" &&
+      m.secondHalfKickoffMs != null &&
+      m.fullTimeMs != null &&
+      !order.fullTimeMs
+    ) {
+      const d = halfDuration(
+        m.secondHalfKickoffMs,
+        m.fullTimeMs,
+        halfLengthMinutes,
+        halfLengthMinutes,
+      );
+      return `Second half: ${d.minutes} min (${d.clock}).`;
+    }
+    return null;
+  };
+
+  const videoPane = (
+    <>
+      {canPlay && url ? (
+        <div className="wl-video">
+          {playback === "loading" && <Skeleton shape="video" className="w-full" />}
+          <video
+            ref={videoRef}
+            src={url}
+            controls
+            preload="metadata"
+            playsInline
+            aria-label="Match video"
+            hidden={playback === "loading"}
+            onLoadedMetadata={() => setPlayback("ready")}
+            onTimeUpdate={(e) => setCurrentMs(Math.round(e.currentTarget.currentTime * 1000))}
+            onSeeked={(e) => setCurrentMs(Math.round(e.currentTarget.currentTime * 1000))}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onError={() => void onVideoError()}
+          />
+        </div>
+      ) : canPlay ? (
+        <Skeleton shape="video" className="w-full" />
+      ) : playback === "cannot_play" ? (
+        <Banner tone="warn">
+          This browser cannot play your video file. Type the times instead: play the file on your
+          computer or camera, and note the time at each whistle.
+        </Banner>
+      ) : (
+        <Banner tone="danger">
+          The video stopped loading. Reload the page to carry on. Unsaved times are kept until you
+          leave.
+        </Banner>
+      )}
+      {usable && (
+        <>
+          <dl className="wl-row mt-3">
+            <dt className="label">Video time</dt>
+            <dd className="data">{formatVideoTime(currentMs)}</dd>
+            {clock && (
+              <>
+                <dt className="label ml-4">Match clock</dt>
+                <dd className="data">
+                  {clock.label
+                    ? `${clock.label} · ${PHASE_LABELS[clock.phase]}`
+                    : PHASE_LABELS[clock.phase]}
+                </dd>
+              </>
+            )}
+          </dl>
+          <div className="wl-row mt-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={playing ? Pause : Play}
+              kbd="K"
+              onClick={togglePlay}
+            >
+              {playing ? "Pause" : "Play"}
+            </Button>
+            <Button variant="secondary" size="sm" kbd="←" onClick={() => seekBy(-1000)}>
+              Back 1 s
+            </Button>
+            <Button variant="secondary" size="sm" kbd="," onClick={() => seekBy(-100)}>
+              Back 0.1 s
+            </Button>
+            <Button variant="secondary" size="sm" kbd="." onClick={() => seekBy(100)}>
+              Forward 0.1 s
+            </Button>
+            <Button variant="secondary" size="sm" kbd="→" onClick={() => seekBy(1000)}>
+              Forward 1 s
+            </Button>
+          </div>
+          <details className="mt-3">
+            <summary className="label">Keyboard shortcuts</summary>
+            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              <dt>
+                <Kbd>K</Kbd>
+              </dt>
+              <dd className="body">Play or pause</dd>
+              <dt>
+                <Kbd>←</Kbd> <Kbd>→</Kbd>
+              </dt>
+              <dd className="body">Move 1 s</dd>
+              <dt>
+                <Kbd>,</Kbd> <Kbd>.</Kbd>
+              </dt>
+              <dd className="body">Move 0.1 s</dd>
+              {!locked && (
+                <>
+                  <dt>
+                    <Kbd>1</Kbd> <Kbd>2</Kbd> <Kbd>3</Kbd> <Kbd>4</Kbd>
+                  </dt>
+                  <dd className="body">
+                    Set kickoff, half-time, second-half kickoff and full time to the current time
+                  </dd>
+                </>
+              )}
+            </dl>
+          </details>
+        </>
+      )}
+    </>
+  );
+
+  const markerPane = locked ? (
+    <dl className="wl-facts">
+      {MARKER_KEYS.map((k) => (
+        <div key={k} className="contents">
+          <dt className="label">{MARKER_LABELS[k]}</dt>
+          <dd className="data">
+            {values[k] || <span className="body text-ink-muted">Not set</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  ) : (
+    <form ref={formRef} {...formProps} noValidate>
+      <FormBusy formRef={formRef} />
+      <input type="hidden" name="matchId" value={matchId} />
+      <ul role="list">
+        {MARKER_KEYS.map((k, i) => {
+          const note = derived(k);
+          return (
+            <li key={k} className="wl-marker">
+              <Field
+                label={MARKER_LABELS[k]}
+                hint={`${HINTS[k]} For example 2:31.`}
+                error={fieldError(state, k)}
+              >
+                {(p) => (
+                  <input
+                    {...p}
+                    name={k}
+                    className="wl-input"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={values[k]}
+                    onChange={(e) => setValues((s) => ({ ...s, [k]: e.target.value }))}
+                  />
+                )}
+              </Field>
+              {usable && (
+                <div className="wl-marker__actions wl-row">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    kbd={String(i + 1)}
+                    onClick={() => setMarker(k)}
+                  >
+                    {SET_LABELS[k]}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Go to ${MARKER_LABELS[k].toLowerCase()} in the video`}
+                    disabled={parseClock(values[k]) === null}
+                    onClick={() => goTo(k)}
+                  >
+                    Go to
+                  </Button>
+                </div>
+              )}
+              {note && <p className="caption text-ink-muted">{note}</p>}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-4 flex flex-col gap-3">
+        <FormErrorBanner result={state} />
+        {dirty && <p className="caption text-ink-muted">Unsaved changes</p>}
+        <div>
+          <SubmitButton block pendingLabel="Saving…" className="justify-center">
+            Save markers
+          </SubmitButton>
+        </div>
+      </div>
+    </form>
+  );
+
+  return (
+    <div onKeyDown={onKeyDown}>
+      <div aria-live="polite" className="mt-6 empty:mt-0">
+        <SuccessBanner key={okKey} result={state} />
+      </div>
+      <span className="sr-only" aria-live="polite">
+        {announce}
+      </span>
+      <div className="mt-6">
+        <Workspace
+          primary={{ title: "Video", content: videoPane }}
+          side={{ title: "Markers", content: markerPane }}
+        />
+      </div>
+    </div>
+  );
+}

@@ -18,7 +18,29 @@ export const QUEUES = {
   // ConsentWithdrawnJob. The handler is a stub until C12, C13 and C17 have
   // derived artefacts to purge (src/worker/index.ts).
   consentWithdrawn: "consent-withdrawn",
+  // C06: deletes object storage after a match is deleted (RetentionJob). C17
+  // adds its daily raw-footage and clip sweep to the same queue, so one
+  // process deletes footage (NFR32).
+  retention: "retention",
 } as const;
+
+/** The probe payload (C06): ids only. The handler re-reads the Video row. */
+export type ProbeJob = {
+  organisationId: string;
+  videoId: string;
+};
+
+/**
+ * The retention payload. Ids and object keys only, never names. match_deleted
+ * (C06): the match rows are gone; purge everything under its storage prefix
+ * and abort the open multipart uploads listed.
+ */
+export type RetentionJob = {
+  kind: "match_deleted";
+  organisationId: string;
+  matchId: string;
+  uploads: { key: string; uploadId: string }[];
+};
 
 /** The consent-withdrawn payload: ids only, never names (children's data). */
 export type ConsentWithdrawnJob = {

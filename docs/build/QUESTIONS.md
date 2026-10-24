@@ -199,3 +199,43 @@ These questions do not block the build. Each one has a default that the build is
 - **Impact:** an upload step, an S3 prefix, and a signed-URL route for owners and admins. No schema change.
 - **Answer:** Later, in V104. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
 - **Resolved:** matches the default; no rework.
+
+## Q-023 · C06 · Lineups and markers before processing
+
+- **Question:** Must a club enter the lineups and set the kickoff and half-time markers before a match goes on to processing? The pipeline links tracks to lineup players (CV06) and maps video time to match minutes with the markers (MATCH05).
+- **Default taken:** no. Accepted footage moves the match to Processing straight away. The match page shows the missing step as its main button ("Enter lineups", then "Set kickoff and half-time"), and lineups and markers stay editable until the match is in review.
+- **Recommended:** keep the default for C06, and decide in C08 whether the CV job waits for the lineup and markers (or the reviewer fills them in during review).
+- **Impact:** a hold would add a "Needs lineup" step between Uploading and Processing, a check in `onFootageAccepted()`, and one more line in the match status panel. No schema change.
+- **Answer:**
+
+## Q-024 · C06 · Adding an opposition team while creating a match
+
+- **Question:** When the opposition is not in the list, should the coach type its name inside the create-match form, or go to the team form and come back?
+- **Default taken:** a link under the team selects, "Add an opposition team", opens the C04 team form with `next=/matches/new`. After saving, the coach returns to the create-match form with the new team chosen as away. Anything already typed in the match form is lost.
+- **Recommended:** keep the default for the pilot. If coaches create matches on a phone after the final whistle, add an inline "New opposition team" option that creates the team in the same step.
+- **Impact:** the inline option needs a name and season field in the match form and a team insert in `createMatch`'s transaction. No schema change.
+- **Answer:**
+
+## Q-025 · C06 · Deleting a match before its footage is 7 days old
+
+- **Question:** May an owner or admin who deletes a match (MATCH08) remove its raw footage at once, even though NFR32 says raw footage is never deleted before 7 days or by any process other than the retention job?
+- **Default taken:** yes. Deleting a match removes the database rows at once and enqueues a purge on the `retention` queue. The retention worker deletes the raw file, and later HLS and clips, straight away. The deletion is audited (`match.deleted`).
+- **Recommended:** keep the default. MATCH08 is an explicit request from the club, and NFR32 protects the review window from accidental or automatic deletion. Routing the purge through the retention worker keeps one deleting process.
+- **Impact:** if footage must stay for the full 7 days, the purge job is sent with `startAfter` at `rawExpiresAt`, and the match stays hidden from the club until then. No schema change.
+- **Answer:**
+
+## Q-026 · C06 · Who may delete a match
+
+- **Question:** Who may delete a match: owners and admins only, or coaches too? Coaches create matches, upload, and enter lineups and markers.
+- **Default taken:** owners and admins only (`MATCH_DELETE_ROLES` = `ORG_ADMIN_ROLES` in `src/server/auth/session.ts`). Coaches do everything else on a match and see "Only owners and admins can delete a match."
+- **Recommended:** owners and admins. A deletion removes footage, lineups and every stat and clip from the match.
+- **Impact:** one constant, the Delete section's branch on the match page, and the role expectations in `page-guards.test.tsx`, `matches.test.ts` and `matches.spec.ts`.
+- **Answer:**
+
+## Q-027 · C06 · Footage rules and re-film guidance
+
+- **Question:** Are the draft footage rules and re-film guidance right for the pilot clubs' cameras? Reject: under 5 minutes, under 1080p on the short side, portrait, under 20 fps. Warn: 20 to 25 fps, narrower than 1.7:1 ("may not be wide-angle"), or a length that does not fit the half length (more than 10 minutes short of 2 × half, or over 150 minutes).
+- **Default taken:** these values are in `FOOTAGE_RULES` (`web/src/lib/footage-rules.ts`), and the guidance copy is marked "Draft for review" in the code. Wide-angle is judged from the display aspect ratio only, until CV can check the field of view.
+- **Recommended:** keep them, and check them against a sample export from each pilot club's camera (Veo, Pixellot, a phone on a tripod) before the first upload.
+- **Impact:** a threshold or copy change is a one-line constant change plus its unit test (`tests/unit/footage-rules.test.ts`). No schema change.
+- **Answer:**

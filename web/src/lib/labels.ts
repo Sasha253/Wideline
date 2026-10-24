@@ -250,3 +250,106 @@ export function playerName(p: NamedPlayer): string {
 export function teamLabel(t: { name: string; season: string }): string {
   return `${t.name} (${t.season})`;
 }
+
+// Matches and upload (docs/build/design/C06.md, "Dates and times"). Africa/Johannesburg.
+
+/** "Home v Away": a fixture in titles, intros and dialogs. Team names as in Squad, no season. */
+export function fixtureText(m: { homeTeam: { name: string }; awayTeam: { name: string } }): string {
+  return `${m.homeTeam.name} v ${m.awayTeam.name}`;
+}
+
+const sastParts = (date: Date, options: Intl.DateTimeFormatOptions) => {
+  const parts = new Intl.DateTimeFormat("en-ZA", {
+    ...options,
+    timeZone: "Africa/Johannesburg",
+  }).formatToParts(date);
+  return (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+};
+
+/** "Sat 18 Oct 2026": weekday plus date, for the match hero. Built from parts (no comma). */
+export function formatMatchDate(date: Date): string {
+  const part = sastParts(date, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return `${part("weekday")} ${part("day")} ${part("month")} ${part("year")}`;
+}
+
+const sastDayKey = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Africa/Johannesburg",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** "15:40" today, "09:10 tomorrow", later "Mon 27 Oct, 09:10" (South African time). */
+export function formatReadyBy(date: Date, now = new Date()): string {
+  const part = sastParts(date, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const time = `${part("hour")}:${part("minute")}`;
+  const day = sastDayKey.format(date);
+  if (day === sastDayKey.format(now)) return time;
+  if (day === sastDayKey.format(new Date(now.getTime() + DAY))) return `${time} tomorrow`;
+  return `${part("weekday")} ${part("day")} ${part("month")}, ${time}`;
+}
+
+/** "450 MB" under 1 GB (whole MB, 10^6 bytes), else formatGB: "4.8 GB". */
+export function formatSize(bytes: number): string {
+  if (bytes < 1_000_000_000) return `${countFormat.format(Math.floor(bytes / 1_000_000))} MB`;
+  return formatGB(bytes);
+}
+
+const speedFormat = new Intl.NumberFormat("en-GB", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/** "3.4 MB/s"; below 0.1 MB/s "under 0.1 MB/s". */
+export function formatSpeed(bytesPerSec: number): string {
+  const mb = bytesPerSec / 1_000_000;
+  if (mb < 0.1) return "under 0.1 MB/s";
+  return `${speedFormat.format(mb)} MB/s`;
+}
+
+/** Time left: "under 1 min", "12 min", "1 h 20 min", "2 h". Rounds up, so it never understates. */
+export function formatEta(sec: number): string {
+  if (sec < 60) return "under 1 min";
+  const minutes = Math.ceil(sec / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+/** A recording's length in whole minutes: "92 min". */
+export function formatFootageLength(sec: number): string {
+  return `${Math.round(sec / 60)} min`;
+}
+
+/**
+ * A video position: "47:12.4" with one decimal, or "47:12" with none. Minutes
+ * are not capped at 59 ("112:31.0").
+ */
+export function formatVideoTime(ms: number, decimals: 0 | 1 = 1): string {
+  const unit = decimals ? 100 : 1000;
+  const units = Math.floor(Math.max(0, ms) / unit);
+  const perMinute = 60_000 / unit;
+  const minutes = Math.floor(units / perMinute);
+  const rest = units - minutes * perMinute;
+  const seconds = decimals ? Math.floor(rest / 10) : rest;
+  const ss = String(seconds).padStart(2, "0");
+  return decimals ? `${minutes}:${ss}.${rest % 10}` : `${minutes}:${ss}`;
+}
+
+/** "24" for 23.976, "30" for 29.97, "12.5": up to one decimal, trailing zero dropped. */
+export function formatFps(fps: number): string {
+  return new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(fps);
+}

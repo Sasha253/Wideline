@@ -11,14 +11,19 @@ export const metadata = { title: "Add team" };
 export default async function NewTeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string }>;
+  searchParams: Promise<{ kind?: string; next?: string }>;
 }) {
   const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
-  const opposition = (await searchParams).kind === "opposition";
+  const params = await searchParams;
+  const opposition = params.kind === "opposition";
+  // C06: back to the create-match form after adding its opposition (the action allows only that path).
+  const next = params.next === "/matches/new" ? params.next : undefined;
   return (
     <>
       <PageHeader
-        back={{ href: "/squad/teams", label: "Teams" }}
+        back={
+          next ? { href: next, label: "Create match" } : { href: "/squad/teams", label: "Teams" }
+        }
         title={opposition ? "Add opposition team" : "Add team"}
         intro="Add one team for one season. You can add players to it next."
       />
@@ -28,6 +33,7 @@ export default async function NewTeamPage({
             mode="create"
             defaultKind={opposition ? "opposition" : "own"}
             defaultSeason={todayIso().slice(0, 4)}
+            next={next}
           />
         </section>
       ) : (

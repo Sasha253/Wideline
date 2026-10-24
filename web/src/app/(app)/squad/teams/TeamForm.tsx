@@ -23,7 +23,13 @@ type TeamValues = { name: string; ageGroup: string | null; gender: string | null
  */
 export function TeamForm(
   props:
-    | { mode: "create"; defaultKind: "own" | "opposition"; defaultSeason: string }
+    | {
+        mode: "create";
+        defaultKind: "own" | "opposition";
+        defaultSeason: string;
+        /** Where to go back to after creating (C06: /matches/new). */
+        next?: string;
+      }
     | { mode: "edit"; teamId: string; initial: TeamValues; isOpposition: boolean },
 ) {
   const action = props.mode === "create" ? createTeamAction : updateTeamAction;
@@ -45,6 +51,9 @@ export function TeamForm(
             <SuccessBanner result={state} />
           </div>
         </>
+      )}
+      {props.mode === "create" && props.next && (
+        <input type="hidden" name="next" value={props.next} />
       )}
       {props.mode === "create" && (
         <fieldset className="wl-field">

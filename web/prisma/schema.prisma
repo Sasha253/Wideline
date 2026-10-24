@@ -31,11 +31,17 @@
 // src/server/platform/entitlements.ts touch them, always for one explicit
 // organisation. Every limit is read through entitlement() / hasCapacity(),
 // never from a constant.
+//
+// Matches and footage (C06): Video is a tenant table like Match and Lineup, in
+// TENANT_SCOPED. Its raw file lives in object storage under
+// orgs/{organisationId}/matches/{matchId}/; only the retention worker
+// (src/worker/retention.ts) deletes it (NFR32).
 
 generator client {
   provider        = "prisma-client"
   output          = "../src/generated/prisma"
-  // C04: the partial unique index on Player squad numbers (see Player).
+  // C04: the partial unique index on Player squad numbers (see Player); C06:
+  // one live Video per match (see Video).
   previewFeatures = ["partialIndexes"]
 }
 
@@ -105,6 +111,8 @@ model Organisation {
   // C05: consent records and guardian links (CONS01 to CONS04).
   consents        Consent[]
   consentRequests ConsentRequest[]
+  // C06: match footage (MATCH02 to MATCH05).
+  videos          Video[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -554,47 +562,141 @@ enum MatchStatus {
 }
 
 model Match {
-  id             String       @id @default(cuid())
-  organisationId String
-  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  homeTeamId     String
-  homeTeam       Team         @relation("HomeTeam", fields: [organisationId, homeTeamId], references: [organisationId, id])
-  awayTeamId     String
-  awayTeam       Team         @relation("AwayTeam", fields: [organisationId, awayTeamId], references: [organisationId, id])
-  playedAt       DateTime
-  venue          String?
-  competition    String?
-  status         MatchStatus  @default(draft)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                String       @id @default(cuid())
+  organisationId    String
+  organisation      Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  homeTeamId        String
+  homeTeam          Team         @relation("HomeTeam", fields: [organisationId, homeTeamId], references: [organisationId, id])
+  awayTeamId        String
+  awayTeam          Team         @relation("AwayTeam", fields: [organisationId, awayTeamId], references: [organisationId, id])
+  playedAt          DateTime
+  venue             String?
+  competition       String?
+  status            MatchStatus  @default(draft)
+  // C06: minutes in each half; the match is 2 x this long. Youth age groups
+  // play shorter halves. CHECK "Match_halfLength_range" (10 to 60) and
+  // "Match_home_ne_away" live in raw SQL (migration c06_matches_rules).
+  halfLengthMinutes Int          @default(45)
+  // A plain column, no relation: the match outlives the user.
+  createdByUserId   String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   lineups Lineup[]
+  videos  Video[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playedAt])
 }
 
 model Lineup {
-  id             String       @id @default(cuid())
-  organisationId String
-  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  matchId        String
-  match          Match        @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
-  teamId         String
-  team           Team         @relation(fields: [organisationId, teamId], references: [organisationId, id])
-  playerId       String
-  player         Player       @relation(fields: [organisationId, playerId], references: [organisationId, id])
-  shirtNumber    Int
-  position       String?
-  isStarter      Boolean      @default(true)
+  id               String       @id @default(cuid())
+  organisationId   String
+  organisation     Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId          String
+  match            Match        @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  teamId           String
+  team             Team         @relation(fields: [organisationId, teamId], references: [organisationId, id])
+  playerId         String
+  player           Player       @relation(fields: [organisationId, playerId], references: [organisationId, id])
+  // SQUAD04: may differ from Player.squadNumber; it is what the player wore in
+  // this match.
+  shirtNumber      Int
+  position         String?
+  isStarter        Boolean      @default(true)
   // Match seconds the player came on and went off (SQUAD-06). startedAt is 0
-  // for starters; endedAt is null if they finished the match.
-  startedAt      Int?
-  endedAt        Int?
+  // for starters and null for a substitute who never came on; endedAt is null
+  // if they finished the match. CHECK "Lineup_times_valid" in raw SQL.
+  startedAt        Int?
+  endedAt          Int?
+  // C06 (SQUAD06): the row this substitute replaced. A composite self-relation,
+  // so it can only point inside the organisation. NoAction: lineups.ts clears
+  // links before deleting a row; a match deletion removes both in one statement.
+  replacesLineupId String?
+  replacesLineup   Lineup?      @relation("LineupReplaces", fields: [organisationId, replacesLineupId], references: [organisationId, id], onDelete: NoAction, onUpdate: NoAction)
+  replacedBy       Lineup[]     @relation("LineupReplaces")
 
+  @@unique([organisationId, id])
   @@unique([matchId, playerId])
   @@unique([matchId, teamId, shirtNumber])
   @@index([organisationId])
+}
+
+// C06 (MATCH02, MATCH03, MATCH07): one upload of a match recording.
+enum VideoStatus {
+  // The browser is sending parts (S3 multipart upload s3UploadId is open).
+  uploading
+  // Uploaded; the worker's ffprobe check is running.
+  probing
+  accepted
+  // Failed the footage rules. The file stays until rawExpiresAt (NFR32).
+  rejected
+  // The club cancelled the upload; the multipart upload was aborted.
+  cancelled
+}
+
+// One match recording. A match has at most one live video (uploading, probing
+// or accepted: the partial unique index "Video_match_live_key"); rejected and
+// cancelled attempts stay as rows for history. The record survives deletion of
+// the file (deletedAt), so its metadata stays (PRD data model).
+//
+// Raw SQL (migration c06_matches_rules): CHECK "Video_size_positive" and
+// "Video_markers_ordered" (kickoff < half-time <= second-half kickoff < full
+// time, among those set, all >= 0).
+model Video {
+  id                  String       @id @default(cuid())
+  organisationId      String
+  organisation        Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId             String
+  match               Match        @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  status              VideoStatus  @default(uploading)
+  // Object key of the raw file: orgs/{organisationId}/matches/{matchId}/raw/{id}.{ext}.
+  blobPath            String
+  // As chosen in the browser. Shown to the club; never in logs or audit rows.
+  fileName            String
+  contentType         String
+  sizeBytes           BigInt
+  // Bytes per multipart part (src/lib/upload/part-plan.ts); the last part is shorter.
+  partSize            Int
+  // The open S3 multipart upload, while uploading.
+  s3UploadId          String?
+  // sha256 of name|size|lastModified, so the same file resumes (NFR26).
+  fingerprint         String
+  // A plain column, no relation.
+  uploadedByUserId    String?
+  uploadStartedAt     DateTime     @default(now())
+  uploadedAt          DateTime?
+  // uploadedAt + 7 days (MATCH07). C17's retention job deletes the raw file then.
+  rawExpiresAt        DateTime?
+  // From ffprobe (src/server/matches/probe.ts). width and height are the
+  // display size, after rotation.
+  probedAt            DateTime?
+  durationSec         Float?
+  width               Int?
+  height              Int?
+  fps                 Float?
+  codec               String?
+  rotation            Int?
+  // evaluateFootage() result: { verdict, issues[] } (src/lib/footage-rules.ts).
+  validation          Json         @default("{}")
+  // MATCH05, the four half-time offsets: video milliseconds of kickoff,
+  // half-time, second-half kickoff and full time.
+  kickoffMs           Int?
+  halfTimeMs          Int?
+  secondHalfKickoffMs Int?
+  fullTimeMs          Int?
+  // C07.
+  hlsManifestPath     String?
+  // Set when the raw file is deleted (C17).
+  deletedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([organisationId, id])
+  // Written as Postgres stores it (IN becomes = ANY), so migrate diff stays empty.
+  @@unique([matchId], map: "Video_match_live_key", where: raw("status = ANY (ARRAY['uploading'::\"VideoStatus\", 'probing'::\"VideoStatus\", 'accepted'::\"VideoStatus\"])"))
+  @@index([organisationId])
+  @@index([matchId])
 }
 
 // ---------------------------------------------------------------------------

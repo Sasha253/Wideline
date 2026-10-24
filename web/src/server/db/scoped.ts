@@ -35,6 +35,8 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Invitation",
   "Consent",
   "ConsentRequest",
+  // C06: match footage.
+  "Video",
 ]);
 
 // Tables no organisation may reach: the Better Auth tables, the scout tables

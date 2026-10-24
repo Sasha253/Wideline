@@ -135,6 +135,29 @@ docs/                PRD
   and a sha256 digest, and the commit re-checks every row and writes in one
   transaction, or returns a fresh preview when anything changed. Audit rows
   carry ids and field names, never names or dates of birth.
+- **Matches and upload** (MATCH01 to MATCH05, MATCH07, MATCH08, SQUAD05,
+  SQUAD06, NFR26; C06): `src/server/matches/`. Pages under `/matches` read with
+  `CLUB_ROLES`; actions and the upload route handlers (`/api/matches/[matchId]/
+  upload`, `/parts`, `/complete`, `/video-url`) use `MATCH_ROLES`, and deleting
+  a match `MATCH_DELETE_ROLES` (owners and admins). Footage goes straight from
+  the browser to object storage as an S3 multipart upload with presigned part
+  URLs (`src/lib/upload/multipart-client.ts`: 8 MiB parts, 3 at a time, retry
+  with backoff, pause while offline, resume from the server's ListParts after a
+  reload or on another device). `Video` holds one live upload per match
+  (partial unique index), its probe metadata, the four half-time offsets and
+  `rawExpiresAt` (upload plus 7 days). Completing records `storage_bytes` and
+  enqueues `probe`; the worker runs ffprobe and the footage rules in
+  `src/lib/footage-rules.ts` (draft thresholds), then moves the match to
+  Processing or back to Draft, recording `video_seconds` once. Lineup writes
+  re-read every player on the server (`ACTIVE_PLAYER`, the side's team, this
+  organisation); substitutions live on Lineup (`endedAt`, `startedAt`,
+  `replacesLineupId`) and minutes played come from `minutesPlayed()` in
+  `src/lib/match-clock.ts`. Deleting a match removes its rows at once and
+  enqueues `retention`, whose worker aborts open uploads, deletes everything
+  under `orgs/{org}/matches/{match}/` and nets the storage off the meter: the
+  only process that deletes footage (NFR32). The S3 clients compute checksums
+  only when required, or presigned part URLs carry a checksum of an empty body.
+  Production bucket CORS must allow PUT from the app origin and expose ETag.
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and
@@ -165,6 +188,7 @@ docs/                PRD
 
 ```sh
 make migrate-new name=add_something   # create a migration from schema changes
+make fixtures                         # C06 test footage (ffmpeg; test-web and test-e2e run it)
 make test-web                         # Vitest inside the web container
 make test-e2e E2E_PASSWORD=…          # Playwright against the running stack
 # add E2E_DATABASE_URL=postgresql://…@postgres:5432/… for the e2e checks that
@@ -229,7 +253,9 @@ join:
   `attributablePlayerIds()` in `src/server/consent/visibility.ts`; C08 must call
   it before linking tracks or attributing events. Until then V0 Lab lineups use
   shirt-number placeholders only.
-- **Retention cleanup job** and bucket lifecycle rules (CONS-09, NFR-13).
+- **Retention cleanup job** and bucket lifecycle rules (CONS-09, NFR-13). C06
+  added the `retention` queue (match deletions); C17 adds the daily sweep and an
+  AbortIncompleteMultipartUpload lifecycle rule for abandoned uploads.
 - The legal gates in NFR-14 and NFR-15.
 
 ## Security notes

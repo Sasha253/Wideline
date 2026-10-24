@@ -26,6 +26,12 @@ vi.mock("@/server/squad/teams", async (importOriginal) => ({
   listTeams: vi.fn(async () => ({ own: [], opposition: [] })),
 }));
 
+// The match list reads its matches once the role check passes (C06).
+vi.mock("@/server/matches/matches", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/matches/matches")>()),
+  listMatchesByStatus: vi.fn(async () => []),
+}));
+
 const session =
   await vi.importActual<typeof import("@/server/auth/session")>("@/server/auth/session");
 
@@ -62,6 +68,30 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
     session.CLUB_ROLES,
   ],
   ["/matches", () => import("@/app/(app)/matches/page"), session.CLUB_ROLES],
+  // C06: every match page reads with CLUB_ROLES; the actions and route handlers
+  // check MATCH_ROLES and MATCH_DELETE_ROLES (match-guards.test.ts).
+  ["/matches/new", () => import("@/app/(app)/matches/new/page"), session.CLUB_ROLES],
+  ["/matches/[matchId]", () => import("@/app/(app)/matches/[matchId]/page"), session.CLUB_ROLES],
+  [
+    "/matches/[matchId]/edit",
+    () => import("@/app/(app)/matches/[matchId]/edit/page"),
+    session.CLUB_ROLES,
+  ],
+  [
+    "/matches/[matchId]/upload",
+    () => import("@/app/(app)/matches/[matchId]/upload/page"),
+    session.CLUB_ROLES,
+  ],
+  [
+    "/matches/[matchId]/lineup",
+    () => import("@/app/(app)/matches/[matchId]/lineup/page"),
+    session.CLUB_ROLES,
+  ],
+  [
+    "/matches/[matchId]/markers",
+    () => import("@/app/(app)/matches/[matchId]/markers/page"),
+    session.CLUB_ROLES,
+  ],
   ["/scout", () => import("@/app/(app)/scout/page"), session.SCOUT_ROLES],
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
   ["/admin", () => import("@/app/(app)/admin/page"), session.PLATFORM_ROLES],
@@ -112,7 +142,12 @@ describe.each(PAGES)("%s", (_name, load, roles) => {
       page({
         children: null,
         searchParams: Promise.resolve({}),
-        params: Promise.resolve({ organisationId: "org-1", teamId: "t-1", playerId: "p-1" }),
+        params: Promise.resolve({
+          organisationId: "org-1",
+          teamId: "t-1",
+          playerId: "p-1",
+          matchId: "m-1",
+        }),
       } as never),
     ).rejects.toThrow("NEXT_REDIRECT");
     expect(requirePageRole).toHaveBeenCalledTimes(1);
@@ -124,7 +159,8 @@ describe("placeholder pages for an allowed role", () => {
   it.each([
     ["/dashboard", () => import("@/app/(app)/dashboard/page"), "Nothing to show yet"],
     ["/squad", () => import("@/app/(app)/squad/page"), "No teams yet"],
-    ["/matches", () => import("@/app/(app)/matches/page"), "No matches yet"],
+    // C06: with no teams, the match list asks for a team first.
+    ["/matches", () => import("@/app/(app)/matches/page"), "Add a team first"],
   ])("%s renders one h1 and its empty state", async (_name, load, empty) => {
     requirePageRole.mockResolvedValue({
       organisationName: "Wideline Demo FC",
@@ -183,6 +219,12 @@ describe("role constants", () => {
 
   it("SQUAD_ADMIN_ROLES is owners, admins and coaches (C04, Q-011)", () => {
     expect(session.SQUAD_ADMIN_ROLES).toEqual(["owner", "admin", "coach"]);
+  });
+
+  it("MATCH_ROLES is club staff and MATCH_DELETE_ROLES owners and admins (C06)", () => {
+    expect(session.MATCH_ROLES).toEqual(["owner", "admin", "coach"]);
+    expect(session.MATCH_DELETE_ROLES).toEqual(["owner", "admin"]);
+    expect(session.MATCH_DELETE_ROLES).not.toContain("coach");
   });
 
   it("CONSENT_ADMIN_ROLES is owners and admins: coaches read consent only (C05)", () => {

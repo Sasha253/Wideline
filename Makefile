@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 WEB := $(COMPOSE) exec web
 
-.PHONY: help env up down logs ps migrate migrate-new seed test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run reset
+.PHONY: help env up down logs ps migrate migrate-new seed fixtures test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run reset
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -41,7 +41,10 @@ seed: ## Seed the organisation, admin user, teams and a match
 
 test: test-web test-cv ## Run all tests
 
-test-web: ## Web unit and integration tests (needs the stack running)
+fixtures: ## Generate the C06 test footage (ffmpeg in the web container; kept if present)
+	$(WEB) sh tests/fixtures/make-footage.sh
+
+test-web: fixtures ## Web unit and integration tests (needs the stack running)
 	$(WEB) pnpm test
 
 # Playwright runs in its official image (same version as @playwright/test) on the
@@ -56,10 +59,10 @@ PLAYWRIGHT_RUN = docker run --rm --ipc=host --network wideline_default \
 	  $(PLAYWRIGHT_IMAGE) sh -c 'node -e '"'"'$(LOOPBACK_TO_CADDY)'"'"' & sleep 1; \
 	    node node_modules/@playwright/test/cli.js test $(1) $(ARGS)'
 
-test-e2e: ## Playwright against the running stack, in the Linux image: make test-e2e E2E_PASSWORD=…
+test-e2e: fixtures ## Playwright against the running stack, in the Linux image: make test-e2e E2E_PASSWORD=…
 	$(call PLAYWRIGHT_RUN,)
 
-test-e2e-update: ## Regenerate the Linux screenshot baselines: make test-e2e-update E2E_PASSWORD=…
+test-e2e-update: fixtures ## Regenerate the Linux screenshot baselines: make test-e2e-update E2E_PASSWORD=…
 	$(call PLAYWRIGHT_RUN,--update-snapshots=all)
 
 test-cv: ## CV worker tests

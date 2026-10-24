@@ -1,4 +1,6 @@
-import "server-only";
+// No "server-only" marker: the worker (plain Node, src/worker/) records usage
+// too, and that package throws outside a React server build. The raw client
+// import keeps this module out of browser bundles all the same.
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { UsageMetric } from "@/generated/prisma/enums";
@@ -13,9 +15,12 @@ import { rawDb } from "../db/raw";
  * sourceType, sourceId) key is unique, so a retried job counts once (NFR06).
  * Storage deletions are negative deltas; current storage is the sum.
  *
- * Planned call sites (none exist yet in C03):
- * - C06: `matches` +1 when a match is created (sourceType "Match"); `storage_bytes`
- *   and `video_seconds` when its upload completes and is probed.
+ * Call sites:
+ * - C06: `matches` +1 when a match is created (sourceType "Match");
+ *   `storage_bytes` when its upload completes and `video_seconds` when the
+ *   probe accepts it (sourceType "Video", metadata.matchId); a negative
+ *   `storage_bytes` when a deleted match's storage is purged (sourceType
+ *   "MatchDeletion", sourceId the match id; src/worker/retention.ts).
  * - C07: `storage_bytes` for the HLS renditions (sourceType "Rendition").
  * - C08: `gpu_cost_cents` per cv_job, with the provider's currency (NFR04).
  * - C09: `storage_bytes` for each cut clip.
@@ -129,4 +134,23 @@ export async function usageTotals(
     }
   }
   return totals;
+}
+
+/**
+ * Net storage_bytes recorded for one match: every row whose metadata.matchId
+ * is this match, deletions included. The retention worker records the
+ * negative of this when it purges a deleted match (C06). Raw SQL, filtered by
+ * organisationId by hand.
+ */
+export async function storageBytesForMatch(
+  organisationId: string,
+  matchId: string,
+): Promise<bigint> {
+  const rows = await rawDb.$queryRaw<{ total: bigint | null }[]>`
+    SELECT SUM("quantity")::bigint AS total
+    FROM "UsageEvent"
+    WHERE "organisationId" = ${organisationId}
+      AND "metric" = 'storage_bytes'
+      AND "metadata"->>'matchId' = ${matchId}`;
+  return rows[0]?.total ?? BigInt(0);
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 import { fieldErrorsFrom, UNEXPECTED_ERROR, type ActionResult } from "@/lib/action-result";
+import { safeNextPath } from "@/lib/safe-next";
 import { requireRole, SQUAD_ADMIN_ROLES } from "@/server/auth/session";
 import { log } from "@/server/log";
 import { requireSquadOrg } from "@/server/squad/access";
@@ -20,6 +21,10 @@ import { createTeam, deleteTeam, inUseMessage, TeamError, updateTeam } from "@/s
 // Surfaces 3 and 4). Owners and admins only.
 
 const TEAM_GONE = "This team no longer exists. Go back to Teams.";
+
+// C06 (Q-024): the create-match form links here to add an opposition team and
+// comes back with it chosen as away. Only this path is allowed as next.
+const RETURN_PATHS = new Set(["/matches/new"]);
 
 function teamInput(formData: FormData) {
   return {
@@ -59,6 +64,8 @@ export async function createTeamAction(
     return teamError(err, input);
   }
   revalidatePath("/squad", "layout");
+  const next = safeNextPath(String(formData.get("next") ?? ""), "");
+  if (RETURN_PATHS.has(next)) redirect(`${next}?away=${id}`);
   redirect(`/squad/teams/${id}?done=created`);
 }
 

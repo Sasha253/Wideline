@@ -18,6 +18,11 @@ function client(endpoint: string): S3Client {
       accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "",
       secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "",
     },
+    // C06: checksums only where the API requires them. The SDK default signs a
+    // CRC32 of the (empty) body into presigned UploadPart URLs, so every browser
+    // PUT fails with BadDigest; S3-compatible stores also differ in support.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 

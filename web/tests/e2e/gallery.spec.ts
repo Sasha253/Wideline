@@ -6,7 +6,8 @@ import { requireAdminPassword, signInAsAdmin } from "./helpers/auth";
 // required widths (NFR24), with screenshot baselines and no axe violations
 // (NFR23, NFR27).
 
-const COMPONENTS = 12;
+// 13 since C06 added the Progress block.
+const COMPONENTS = 13;
 // Hides the Next.js dev-tools badge, which only exists on the dev server.
 const SCREENSHOT_CSS = new URL("./helpers/screenshot.css", import.meta.url).pathname;
 const WIDTHS = [375, 768, 1280];

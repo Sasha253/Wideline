@@ -14,6 +14,7 @@ export {
   ClubStatusChip,
   EventStatusChip,
   FlagStateChip,
+  FootageChip,
   InvitationStatusChip,
   MatchStatusChip,
   OrganisationStatusChip,
@@ -21,6 +22,7 @@ export {
   StatusChip,
   type ChipTone,
   type EventReviewState,
+  type FootageState,
   type InvitationState,
 } from "./StatusChip";
 export { TeamMarker, type Side } from "./TeamMarker";

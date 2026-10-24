@@ -71,6 +71,8 @@ describe("player queries", () => {
         "server/consent/guardian.ts",
         "server/consent/visibility.ts",
         "server/scouts/visible-players.ts",
+        // C06: lineup writes re-read every chosen player.
+        "server/matches/lineups.ts",
       ]),
     );
   });
