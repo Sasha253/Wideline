@@ -33,8 +33,10 @@
 // never from a constant.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  // C04: the partial unique index on Player squad numbers (see Player).
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -314,6 +316,8 @@ model ScoutAffiliation {
 // Squads
 // ---------------------------------------------------------------------------
 
+// One team in one season (SQUAD01). Names are unique per organisation and
+// season, so "U15 Boys (2026)" names one team.
 model Team {
   id             String       @id @default(cuid())
   organisationId String
@@ -323,6 +327,10 @@ model Team {
   // A label only; no behaviour depends on it (SQUAD-01).
   gender         String?
   season         String
+  // SQUAD07: a team the club plays against. It holds only unnamed placeholder
+  // players (a shirt number, optionally a position), never named children from
+  // another club. Set at creation and never changed (src/server/squad/teams.ts).
+  isOpposition   Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -332,6 +340,7 @@ model Team {
   lineups     Lineup[]
 
   @@unique([organisationId, id])
+  @@unique([organisationId, name, season])
   @@index([organisationId])
 }
 
@@ -373,6 +382,10 @@ model Player {
   squadNumber    Int?
   // Cached current state; the Consent table (later) is the source of truth.
   consentState   ConsentState   @default(none)
+  // SQUAD09: departing sets clubStatus and departedAt only (markDeparted in
+  // src/server/squad/players.ts). Nothing cascades: lineups, matches and stats
+  // stay, and so does teamId, for history. A departed player is read-only to
+  // the club and left out of ACTIVE_PLAYER (pickers and dashboards).
   clubStatus     ClubStatus     @default(active)
   departedAt     DateTime?
   createdAt      DateTime       @default(now())
@@ -381,6 +394,10 @@ model Player {
   lineups Lineup[]
 
   @@unique([organisationId, id])
+  // SQUAD04: a squad number is used once per team among active players. A Team
+  // row is one season, so this is "per team per season"; a departed player
+  // frees their number. Partial, so blank numbers and departed players are free.
+  @@unique([organisationId, teamId, squadNumber], map: "Player_team_squadNumber_active_key", where: raw("\"squadNumber\" IS NOT NULL AND \"clubStatus\" = 'active'"))
   @@index([organisationId])
   @@index([teamId])
 }

@@ -256,6 +256,13 @@ export const ORG_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
 export const CLUB_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 
 /**
+ * Squad writes (C04): teams, players, the CSV import and departures. The PRD
+ * gives "adds the squad" and "marks players who leave" to the club admin, so
+ * owners and admins only; coaches read the squad with CLUB_ROLES.
+ */
+export const SQUAD_ADMIN_ROLES: readonly Role[] = ORG_ADMIN_ROLES;
+
+/**
  * Scouts: the review queue, shortlists and the scout profile (D02 nav; C02,
  * C10, C15 pages). Review pages also need requireReviewer() (auth/reviewer.ts).
  */

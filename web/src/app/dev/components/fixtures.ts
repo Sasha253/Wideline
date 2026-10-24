@@ -1,7 +1,7 @@
 import type { PlayerPosition } from "@/components/ui/PitchHeatmap";
 import type { PlayerStat } from "@/components/ui/PlayerCard";
 import type { InvitationState } from "@/components/ui/StatusChip";
-import type { OrganisationStatus, ScoutStatus } from "@/generated/prisma/enums";
+import type { ClubStatus, OrganisationStatus, ScoutStatus } from "@/generated/prisma/enums";
 
 // Deterministic sample data for the component gallery. Copy comes from the
 // design-system README and component previews. Nothing here is tenant data.
@@ -73,3 +73,5 @@ export const ORGANISATION_STATE_FIXTURES: OrganisationStatus[] = [
   "suspended",
 ];
 export const SCOUT_STATE_FIXTURES: ScoutStatus[] = ["pending", "approved", "suspended", "rejected"];
+// C04: current players carry no chip, so only Departed shows (docs/build/design/C04.md).
+export const CLUB_STATE_FIXTURES: ClubStatus[] = ["departed"];

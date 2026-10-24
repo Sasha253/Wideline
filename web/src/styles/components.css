@@ -405,3 +405,24 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
 @media (min-width: 1280px) {
   .wl-setting { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-6); align-items: start; }
 }
+
+/* Squad for C04 (docs/build/design/C04.md). Not in the design system; built from tokens. */
+/* Joins the C02 ok, warn and muted set: per-row import errors. Text-safe on surface and surface-raised. */
+.wl-inline-status--danger { color: var(--danger); }
+/* The file input, added to .wl-input. The selector button takes the secondary button look. */
+.wl-file { height: auto; min-height: 44px; padding: var(--space-1); color: var(--ink-muted); }
+.wl-file::file-selector-button { height: 32px; margin-right: var(--space-3); padding: 0 var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface-raised); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; transition: background-color 150ms ease-out; }
+.wl-file::file-selector-button:hover { background: var(--surface); }
+/* A read-only fact list (dl), shared by the player and team pages: label over value on phones,
+   label beside value from 768px. Type comes from .label on dt and .body on dd in the markup. */
+.wl-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1) var(--space-6); }
+.wl-facts dt { color: var(--ink-muted); }
+.wl-facts dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
+/* The player form: one column on phones, two from 768px; banners and buttons span the row. */
+.wl-form-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.wl-form-grid > .wl-form-grid__full { grid-column: 1 / -1; }
+@media (min-width: 768px) {
+  .wl-facts { grid-template-columns: max-content minmax(0, 1fr); row-gap: var(--space-3); }
+  .wl-facts dd { margin-bottom: 0; }
+  .wl-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-6); }
+}

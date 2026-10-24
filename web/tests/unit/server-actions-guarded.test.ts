@@ -80,6 +80,24 @@ describe("server actions", () => {
     for (const name of names) expect(PUBLIC_ACTIONS.has(name), name).toBe(false);
   });
 
+  it("finds and guards the C04 squad action files, none of it public", () => {
+    const rel = actionFiles.map((f) => f.slice(appDir.length + 1));
+    for (const file of [
+      "(app)/squad/teams/actions.ts",
+      "(app)/squad/players/actions.ts",
+      "(app)/squad/import/actions.ts",
+    ]) {
+      expect(rel).toContain(file);
+      const src = readFileSync(join(appDir, file), "utf8");
+      for (const { name, body } of exportedActions(src)) {
+        expect(PUBLIC_ACTIONS.has(name), name).toBe(false);
+        expect(body, `${name} must write with SQUAD_ADMIN_ROLES`).toMatch(
+          /requireRole\(SQUAD_ADMIN_ROLES\)/,
+        );
+      }
+    }
+  });
+
   it("keeps the public allowlist to actions that exist", () => {
     const names = actionFiles
       .flatMap((f) => exportedActions(readFileSync(f, "utf8")))

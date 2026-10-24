@@ -87,3 +87,35 @@ These questions do not block the build. Each one has a default that the build is
 - **Recommended:** keep the provider's currency, and add ZAR conversion in the C18 usage report once the GPU provider (a PRD open question) is chosen.
 - **Impact:** if everything must be stored in ZAR, C08 converts at record time with a stored rate. The meter already has the currency column, so nothing in C03 changes.
 - **Answer:**
+
+## Q-011 · C04 · Can coaches change the squad
+
+- **Question:** Should coaches be able to add and edit teams and players, import CSVs, or mark players departed?
+- **Default taken:** owners and admins only (`SQUAD_ADMIN_ROLES` = `ORG_ADMIN_ROLES`). Coaches see the squad read-only.
+- **Recommended:** keep the default for v0. The PRD gives "adds the squad" and "marks players who leave" to the club admin.
+- **Impact:** one constant in `session.ts` and the read-only branches on two pages. No schema change.
+- **Answer:**
+
+## Q-012 · C04 · Undoing a departure
+
+- **Question:** Can a club undo a departure it made by mistake?
+- **Default taken:** no. Once departed, the player is read-only to the club (SQUAD09), and the confirm dialog says so. A platform admin can fix a mistake later (C18).
+- **Recommended:** allow an owner or admin an "Undo departure" action for 7 days, audited. This is cheap and still keeps SQUAD09's intent.
+- **Impact:** one audited server action and a button on the departed player page. No schema change.
+- **Answer:**
+
+## Q-013 · C04 · Importing valid rows when some rows have errors
+
+- **Question:** When the import preview has rows with errors, may the user import the valid rows and skip the rest?
+- **Default taken:** yes. The confirm button says "Import 18 players, skip 2 rows with errors". Nothing commits until it is pressed.
+- **Recommended:** keep the default. The alternative is to block the commit until the file has no errors.
+- **Impact:** one branch in `commitImport` and the button copy.
+- **Answer:**
+
+## Q-014 · C04 · Named opposition players
+
+- **Question:** May opposition players be named, or only unnamed placeholders?
+- **Default taken:** only placeholders (shirt number and optional position) on opposition teams.
+- **Recommended:** keep placeholders only. Named opposition minors would have no guardian consent recorded by their own club.
+- **Impact:** lifting it means relaxing one validator and showing the name fields on opposition teams. No schema change.
+- **Answer:**

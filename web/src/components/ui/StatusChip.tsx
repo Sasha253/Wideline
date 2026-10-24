@@ -11,10 +11,16 @@ import {
   Plus,
   TriangleAlert,
   Upload,
+  UserMinus,
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { MatchStatus, OrganisationStatus, ScoutStatus } from "@/generated/prisma/enums";
+import type {
+  ClubStatus,
+  MatchStatus,
+  OrganisationStatus,
+  ScoutStatus,
+} from "@/generated/prisma/enums";
 import { iconProps } from "./icons";
 
 export type ChipTone = "ok" | "warn" | "danger" | "neutral" | "new";
@@ -107,6 +113,13 @@ export const FLAG_STATES: Record<"on" | "off", Preset> = {
   off: { tone: "neutral", icon: CircleOff, label: "Off" },
 };
 
+// A player's club status (docs/build/design/C04.md). Current is the normal state, so it
+// carries no chip; neutral is the README's tone for "inactive".
+export const CLUB_STATES: Record<ClubStatus, Preset | null> = {
+  active: null,
+  departed: { tone: "neutral", icon: UserMinus, label: "Departed" },
+};
+
 export function EventStatusChip({ state }: { state: EventReviewState }) {
   return <StatusChip {...EVENT_STATES[state]} />;
 }
@@ -129,4 +142,10 @@ export function ScoutStatusChip({ status }: { status: ScoutStatus }) {
 
 export function FlagStateChip({ on }: { on: boolean }) {
   return <StatusChip {...FLAG_STATES[on ? "on" : "off"]} />;
+}
+
+/** Departed players only; renders nothing for a current player. */
+export function ClubStatusChip({ status }: { status: ClubStatus }) {
+  const preset = CLUB_STATES[status];
+  return preset ? <StatusChip {...preset} /> : null;
 }

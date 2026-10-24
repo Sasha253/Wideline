@@ -15,6 +15,7 @@ export function DetailPage({
   badges,
   actions,
   media,
+  notice,
   sections,
 }: {
   back?: BackLink;
@@ -27,6 +28,8 @@ export function DetailPage({
   actions?: ReactNode;
   /** An initials avatar or a mini pitch. */
   media?: ReactNode;
+  /** Between the hero and the sections: a result banner slot or a state note (C04). */
+  notice?: ReactNode;
   sections: DetailSection[];
 }) {
   const titleId = useId();
@@ -53,6 +56,7 @@ export function DetailPage({
           </div>
         </div>
       </section>
+      {notice}
       {sections.map((s) => (
         <section key={s.id} aria-labelledby={`${titleId}-${s.id}`} className="mt-8">
           <h2 id={`${titleId}-${s.id}`} className="heading-2">

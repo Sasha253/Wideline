@@ -120,6 +120,20 @@ docs/                PRD
   source, so a retried job counts once (NFR06). `Plan`, `Subscription`,
   `Entitlement` and `UsageEvent` are refused by the scoped client, and so are
   the matching Organisation relations.
+- **Squad** (SQUAD01 to SQUAD04, SQUAD07, SQUAD09): `src/server/squad/`. Pages
+  under `/squad` read with `CLUB_ROLES`; every squad action writes with
+  `SQUAD_ADMIN_ROLES` (owners and admins), so coaches read only. A Team row is
+  one team in one season, its name unique per season. Squad numbers are unique
+  per team among active players through a partial unique index
+  (`Player_team_squadNumber_active_key`, Prisma's `partialIndexes` preview), so
+  a departed player frees their number. Opposition teams (`isOpposition`) hold
+  unnamed placeholders only. Departing sets `clubStatus` and `departedAt` and
+  nothing else, audited in the same transaction; the club cannot edit a
+  departed player. Pickers and dashboards read `ACTIVE_PLAYER` or
+  `activePlayers()`. The CSV import is stateless: the preview returns the text
+  and a sha256 digest, and the commit re-checks every row and writes in one
+  transaction, or returns a fresh preview when anything changed. Audit rows
+  carry ids and field names, never names or dates of birth.
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and

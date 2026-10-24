@@ -11,6 +11,7 @@ import { PlayerCard } from "@/components/ui/PlayerCard";
 import { ReviewEventRow } from "@/components/ui/ReviewEventRow";
 import { StatTile } from "@/components/ui/StatTile";
 import {
+  ClubStatusChip,
   EVENT_STATES,
   EventStatusChip,
   InvitationStatusChip,
@@ -26,6 +27,7 @@ import type { ConsentState, MatchStatus } from "@/generated/prisma/enums";
 import {
   averagePositions,
   AWAY_TEAM,
+  CLUB_STATE_FIXTURES,
   dangerExpiry,
   heatmapZones,
   HOME_TEAM,
@@ -220,6 +222,13 @@ export function Gallery({ theme }: { theme: Theme }) {
               <div className="wl-row">
                 {SCOUT_STATE_FIXTURES.map((s) => (
                   <ScoutStatusChip key={s} status={s} />
+                ))}
+              </div>
+            </Group>
+            <Group label="Club status">
+              <div className="wl-row">
+                {CLUB_STATE_FIXTURES.map((s) => (
+                  <ClubStatusChip key={s} status={s} />
                 ))}
               </div>
             </Group>

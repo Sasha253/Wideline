@@ -1,12 +1,15 @@
 import type {
+  ClubStatus,
   IdDocumentType,
   OrganisationType,
+  PreferredFoot,
   Role,
   ScoutAffiliationType,
   ScoutStatus,
   SubscriptionStatus,
 } from "@/generated/prisma/enums";
 import { LIMIT_KEYS, type EntitlementSource, type LimitKey } from "./entitlement-keys";
+import { ageOn } from "./squad-fields";
 
 // Display copy shared by server pages, emails and client components
 // (docs/build/design/C01.md, "Rules for the whole chunk").
@@ -175,4 +178,47 @@ export function countryOptions(): { code: string; name: string }[] {
     .map((code) => ({ code, name: countryName(code) }))
     .sort((a, b) => collator.compare(a.name, b.name));
   return [{ code: "ZA", name: countryName("ZA") }, ...rest];
+}
+
+// Squad (docs/build/design/C04.md, "Labels").
+export const FOOT_LABELS: Record<PreferredFoot, string> = {
+  left: "Left",
+  right: "Right",
+  both: "Both",
+};
+
+/** The PlayerCard words, for card meta and the player hero. */
+export const FOOT_PHRASES: Record<PreferredFoot, string> = {
+  left: "Left foot",
+  right: "Right foot",
+  both: "Both feet",
+};
+
+export const CLUB_STATUS_LABELS: Record<ClubStatus, string> = {
+  active: "Current",
+  departed: "Departed",
+};
+
+/** Whole years, as a number: "14" in tables, "Age 14" elsewhere. Null without a date of birth. */
+export function formatAge(dob: Date | null | undefined, now = new Date()): number | null {
+  return dob ? ageOn(dob, now) : null;
+}
+
+type NamedPlayer = {
+  firstName: string | null;
+  lastName: string | null;
+  isPlaceholder?: boolean;
+  squadNumber?: number | null;
+};
+
+/** "Thabo Nkosi"; a placeholder is "Unnamed #7", or "Unnamed player" without a number. */
+export function playerName(p: NamedPlayer): string {
+  const name = [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
+  if (name && !p.isPlaceholder) return name;
+  return p.squadNumber != null ? `Unnamed #${p.squadNumber}` : "Unnamed player";
+}
+
+/** "U15 Boys (2026)": a team in selects, captions, banners and errors. */
+export function teamLabel(t: { name: string; season: string }): string {
+  return `${t.name} (${t.season})`;
 }

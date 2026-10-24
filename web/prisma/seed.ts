@@ -8,6 +8,7 @@
  *
  * Players are shirt-number placeholders, not named people, so the Lab never
  * derives per-player data about a named, non-consented child (NFR-08).
+ * "Opposition U17" is an opposition team (Team.isOpposition, SQUAD07).
  */
 import "dotenv/config";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -115,7 +116,13 @@ async function main() {
     const [home, away] = await Promise.all(
       ["Lab Academy U17", "Opposition U17"].map((name) =>
         db.team.create({
-          data: { organisationId: org.id, name, ageGroup: "U17", season },
+          data: {
+            organisationId: org.id,
+            name,
+            ageGroup: "U17",
+            season,
+            isOpposition: name === "Opposition U17",
+          },
         }),
       ),
     );
@@ -166,6 +173,13 @@ async function main() {
       })),
     });
   }
+
+  // Opposition teams hold unnamed placeholders only (SQUAD07). Marks the Lab's
+  // opposition on databases seeded before C04 too.
+  await db.team.updateMany({
+    where: { organisationId: org.id, name: "Opposition U17", isOpposition: false },
+    data: { isOpposition: true },
+  });
 
   console.log("\nSeed complete.");
   console.log(

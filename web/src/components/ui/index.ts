@@ -11,6 +11,7 @@ export { PlayerCardMenu } from "./PlayerCardMenu";
 export { ReviewEventRow, type EventWho } from "./ReviewEventRow";
 export { StatTile } from "./StatTile";
 export {
+  ClubStatusChip,
   EventStatusChip,
   FlagStateChip,
   InvitationStatusChip,

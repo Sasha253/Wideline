@@ -20,6 +20,12 @@ vi.mock("@/server/auth/reviewer", async (importOriginal) => ({
   requireReviewerPage,
 }));
 
+// The squad list reads teams once the role check passes (C04).
+vi.mock("@/server/squad/teams", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/squad/teams")>()),
+  listTeams: vi.fn(async () => ({ own: [], opposition: [] })),
+}));
+
 const session =
   await vi.importActual<typeof import("@/server/auth/session")>("@/server/auth/session");
 
@@ -28,6 +34,21 @@ type Page = (props: { children?: ReactNode }) => Promise<ReactNode>;
 const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = [
   ["/dashboard", () => import("@/app/(app)/dashboard/page"), session.CLUB_ROLES],
   ["/squad", () => import("@/app/(app)/squad/page"), session.CLUB_ROLES],
+  // C04: every squad page reads with CLUB_ROLES; writes are checked in the actions.
+  ["/squad/teams", () => import("@/app/(app)/squad/teams/page"), session.CLUB_ROLES],
+  ["/squad/teams/new", () => import("@/app/(app)/squad/teams/new/page"), session.CLUB_ROLES],
+  [
+    "/squad/teams/[teamId]",
+    () => import("@/app/(app)/squad/teams/[teamId]/page"),
+    session.CLUB_ROLES,
+  ],
+  ["/squad/players/new", () => import("@/app/(app)/squad/players/new/page"), session.CLUB_ROLES],
+  [
+    "/squad/players/[playerId]",
+    () => import("@/app/(app)/squad/players/[playerId]/page"),
+    session.CLUB_ROLES,
+  ],
+  ["/squad/import", () => import("@/app/(app)/squad/import/page"), session.CLUB_ROLES],
   ["/matches", () => import("@/app/(app)/matches/page"), session.CLUB_ROLES],
   ["/scout", () => import("@/app/(app)/scout/page"), session.SCOUT_ROLES],
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
@@ -79,7 +100,7 @@ describe.each(PAGES)("%s", (_name, load, roles) => {
       page({
         children: null,
         searchParams: Promise.resolve({}),
-        params: Promise.resolve({ organisationId: "org-1" }),
+        params: Promise.resolve({ organisationId: "org-1", teamId: "t-1", playerId: "p-1" }),
       } as never),
     ).rejects.toThrow("NEXT_REDIRECT");
     expect(requirePageRole).toHaveBeenCalledTimes(1);
@@ -90,12 +111,12 @@ describe.each(PAGES)("%s", (_name, load, roles) => {
 describe("placeholder pages for an allowed role", () => {
   it.each([
     ["/dashboard", () => import("@/app/(app)/dashboard/page"), "Nothing to show yet"],
-    ["/squad", () => import("@/app/(app)/squad/page"), "No players yet"],
+    ["/squad", () => import("@/app/(app)/squad/page"), "No teams yet"],
     ["/matches", () => import("@/app/(app)/matches/page"), "No matches yet"],
   ])("%s renders one h1 and its empty state", async (_name, load, empty) => {
-    requirePageRole.mockResolvedValue({ organisationName: "Wideline Demo FC" });
+    requirePageRole.mockResolvedValue({ organisationName: "Wideline Demo FC", roles: ["coach"] });
     const page = (await load()).default as Page;
-    const html = renderToStaticMarkup(await page({}));
+    const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) } as never));
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(html).toContain(empty);
     expect(html).not.toContain("undefined");
@@ -142,5 +163,9 @@ describe("role constants", () => {
   it("CLUB_ROLES and SCOUT_ROLES are the D02 sets", () => {
     expect(session.CLUB_ROLES).toEqual(["owner", "admin", "coach"]);
     expect(session.SCOUT_ROLES).toEqual(["scout"]);
+  });
+
+  it("SQUAD_ADMIN_ROLES is owners and admins: coaches read the squad only (C04)", () => {
+    expect(session.SQUAD_ADMIN_ROLES).toEqual(["owner", "admin"]);
   });
 });

@@ -10,6 +10,8 @@ export type ActionResult =
       tone?: "ok" | "warn";
       /** Changes on every success, so a form can reset itself. */
       key?: string;
+      /** A page about what the action made, linked after the message ("View player", C04). */
+      href?: string;
     }
   | {
       ok: false;
