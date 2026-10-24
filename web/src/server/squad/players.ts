@@ -2,18 +2,23 @@ import "server-only";
 import type { ClubStatus, PreferredFoot } from "@/generated/prisma/enums";
 import type { PlayerWhereInput } from "@/generated/prisma/models";
 import { playerName, teamLabel } from "@/lib/labels";
+import { canUndoDeparture } from "@/lib/squad-fields";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { requireSquadOrg } from "./access";
 import {
   findNumberHolder,
   isSquadNumberViolation,
   PlayerError,
   squadNumberTakenMessage,
+  undoNumberTakenMessage,
 } from "./errors";
 import {
+  departureUndoExpired,
   OPPOSITION_TEAM_CHOSEN,
   placeholderSchema,
   playerDeparted,
+  playerNotDeparted,
   playerSchema,
   shirtNumbersTaken,
   type PlayerInput,
@@ -91,6 +96,7 @@ export async function activePlayers(
   ctx: AuthContext,
   { teamId }: { teamId: string },
 ): Promise<PlayerRow[]> {
+  requireSquadOrg(ctx);
   const rows = await ctx.db.player.findMany({
     where: { teamId, ...ACTIVE_PLAYER },
     select: PLAYER_SELECT,
@@ -107,6 +113,7 @@ export async function listPlayers(
   ctx: AuthContext,
   { teamId, status }: { teamId?: string | null; status: "current" | "departed" },
 ): Promise<PlayerRow[]> {
+  requireSquadOrg(ctx);
   const rows = await ctx.db.player.findMany({
     where: {
       clubStatus: status === "departed" ? "departed" : "active",
@@ -134,6 +141,7 @@ export async function countPlayers(
   ctx: AuthContext,
   { teamId }: { teamId?: string | null },
 ): Promise<{ current: number; departed: number }> {
+  requireSquadOrg(ctx);
   const where = teamId
     ? { teamId, team: { isOpposition: false } }
     : { OR: [{ teamId: null }, { team: { isOpposition: false } }] };
@@ -144,6 +152,7 @@ export async function countPlayers(
 
 /** One player. Throws PlayerError("not_found") for an unknown or foreign id. */
 export async function getPlayer(ctx: AuthContext, playerId: string): Promise<PlayerRow> {
+  requireSquadOrg(ctx);
   const player = await ctx.db.player.findFirst({ where: { id: playerId }, select: PLAYER_SELECT });
   if (!player) throw new PlayerError("not_found");
   return player;
@@ -206,6 +215,7 @@ export async function createPlayer(
   name: string;
   team: { id: string; name: string; season: string } | null;
 }> {
+  requireSquadOrg(ctx);
   const data = playerSchema.parse(input);
   const team = data.teamId ? await ownTeam(ctx, data.teamId) : null;
   if (team) await assertNumberFree(ctx, team, data.squadNumber);
@@ -250,6 +260,7 @@ export async function updatePlayer(
   playerId: string,
   input: PlayerInput,
 ): Promise<{ changed: string[]; name: string }> {
+  requireSquadOrg(ctx);
   const current = await getPlayer(ctx, playerId);
   if (current.team?.isOpposition || current.isPlaceholder)
     throw new PlayerError("placeholder_only");
@@ -299,6 +310,7 @@ export async function addPlaceholders(
   teamId: string,
   numbers: number[],
 ): Promise<{ added: number }> {
+  requireSquadOrg(ctx);
   const team = await ctx.db.team.findFirst({
     where: { id: teamId },
     select: { id: true, isOpposition: true },
@@ -366,6 +378,7 @@ export async function markDeparted(
   playerId: string,
   now = new Date(),
 ): Promise<{ name: string; firstName: string }> {
+  requireSquadOrg(ctx);
   const player = await getPlayer(ctx, playerId);
   if (player.team?.isOpposition || player.isPlaceholder) throw new PlayerError("placeholder_only");
   const name = playerName(player);
@@ -389,6 +402,78 @@ export async function markDeparted(
     );
   });
   return { name, firstName: player.firstName ?? name };
+}
+
+/**
+ * Undoes a departure within DEPARTURE_UNDO_DAYS (SQUAD09, Q-012): clubStatus
+ * back to active and departedAt cleared, matched on the departure being undone,
+ * and the player.depart_undone audit row (the departure time only, no names),
+ * in one transaction. The player's squad number must be free on their team:
+ * when an active teammate wears it now, a squadNumber field error asks for
+ * that number to change first. After the window the player stays read-only.
+ */
+export async function undoDeparture(
+  ctx: AuthContext,
+  playerId: string,
+  now = new Date(),
+): Promise<{ name: string }> {
+  requireSquadOrg(ctx);
+  const player = await getPlayer(ctx, playerId);
+  if (player.team?.isOpposition || player.isPlaceholder) throw new PlayerError("placeholder_only");
+  const name = playerName(player);
+  const departedAt = player.departedAt;
+  if (player.clubStatus !== "departed" || !departedAt) {
+    throw new PlayerError("not_departed", playerNotDeparted(name));
+  }
+  if (!canUndoDeparture(departedAt, now)) {
+    throw new PlayerError("undo_expired", departureUndoExpired(player.firstName ?? name));
+  }
+  const { team, squadNumber } = player;
+  if (team && squadNumber !== null) {
+    const holder = await findNumberHolder(ctx.db, {
+      teamId: team.id,
+      squadNumber,
+      exceptPlayerId: playerId,
+    });
+    if (holder) {
+      throw new PlayerError(
+        "squad_number_taken",
+        undoNumberTakenMessage(squadNumber, team, holder.name),
+        "squadNumber",
+      );
+    }
+  }
+  try {
+    await ctx.db.$transaction(async (tx) => {
+      const res = await tx.player.updateMany({
+        where: { id: playerId, clubStatus: "departed", departedAt },
+        data: { clubStatus: "active", departedAt: null },
+      });
+      if (res.count === 0) throw new PlayerError("not_departed", playerNotDeparted(name));
+      await audit(
+        {
+          organisationId: ctx.organisationId,
+          actorUserId: ctx.user.id,
+          action: "player.depart_undone",
+          targetType: "Player",
+          targetId: playerId,
+          metadata: { departedAt: departedAt.toISOString() },
+        },
+        asTransactionClient(tx),
+      );
+    });
+  } catch (err) {
+    // A teammate took the number between the check and the update.
+    if (team && squadNumber !== null && isSquadNumberViolation(err)) {
+      throw new PlayerError(
+        "squad_number_taken",
+        undoNumberTakenMessage(squadNumber, team),
+        "squadNumber",
+      );
+    }
+    throw err;
+  }
+  return { name };
 }
 
 /** "U15 Boys (2026)", or null for a player with no team. */

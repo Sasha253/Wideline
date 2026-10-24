@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { teamLabel } from "@/lib/labels";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { requireSquadOrg } from "./access";
 import { mapHeader, parseCsv, rowValues } from "./csv";
 import { isSquadNumberViolation, squadNumberTakenMessage } from "./errors";
 import {
@@ -232,6 +233,7 @@ export async function previewImport(
   rawText: string,
   now = new Date(),
 ): Promise<ImportPreview> {
+  requireSquadOrg(ctx);
   return publicPreview(await checkImport(ctx, teamId, rawText, now));
 }
 
@@ -248,6 +250,7 @@ export async function commitImport(
   digest: string,
   expectedValid: number,
 ): Promise<CommitResult> {
+  requireSquadOrg(ctx);
   const preview = await checkImport(ctx, teamId, rawText);
   if (preview.digest !== digest || preview.validCount !== expectedValid || expectedValid === 0) {
     return { status: "stale", preview: publicPreview(preview) };

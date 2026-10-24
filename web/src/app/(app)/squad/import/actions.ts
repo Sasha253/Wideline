@@ -5,6 +5,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { teamLabel } from "@/lib/labels";
 import { AuthzError, requireRole, SQUAD_ADMIN_ROLES } from "@/server/auth/session";
 import { log } from "@/server/log";
+import { requireSquadOrg } from "@/server/squad/access";
 import {
   commitImport,
   CSV_MAX_BYTES,
@@ -80,7 +81,7 @@ export async function previewImportAction(
   _prev: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
-  const ctx = await requireRole(SQUAD_ADMIN_ROLES).catch(forbidden);
+  const ctx = await requireRole(SQUAD_ADMIN_ROLES).then(requireSquadOrg).catch(forbidden);
   if (ctx === true) return upload({ ok: false, formError: NO_PERMISSION });
   const teamId = String(formData.get("teamId") ?? "");
   const file = formData.get("file");
@@ -113,7 +114,7 @@ export async function commitImportAction(
   prev: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
-  const ctx = await requireRole(SQUAD_ADMIN_ROLES).catch(forbidden);
+  const ctx = await requireRole(SQUAD_ADMIN_ROLES).then(requireSquadOrg).catch(forbidden);
   const back = (result: ActionResult): ImportState =>
     prev?.step === "preview" ? { ...prev, stale: false, result } : upload(result);
   if (ctx === true) return back({ ok: false, formError: NO_PERMISSION });

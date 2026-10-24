@@ -36,6 +36,7 @@ import {
   wholeNumber,
   type PositionCode,
 } from "@/lib/squad-fields";
+export { departureUndoExpired, playerNotDeparted } from "@/lib/squad-fields";
 
 export * from "@/lib/squad-fields";
 

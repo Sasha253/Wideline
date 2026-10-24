@@ -102,6 +102,9 @@ export const OPPOSITION_TEAM_CHOSEN =
   "Choose one of your club's teams. Opposition teams hold unnamed players only.";
 export const playerDeparted = (name: string) =>
   `${name} has left the club, so their details can no longer be changed.`;
+export const playerNotDeparted = (name: string) => `${name} is already in the squad.`;
+export const departureUndoExpired = (firstName: string) =>
+  `${firstName} left more than ${DEPARTURE_UNDO_DAYS} days ago, so the departure can no longer be undone.`;
 
 // Placeholder players (C04 design, Surface 4).
 export const SHIRT_NUMBERS_REQUIRED = "Enter at least one shirt number.";
@@ -211,4 +214,20 @@ export function ageOn(dob: Date, now = new Date()): number {
     (today.getUTCMonth() === dob.getUTCMonth() && today.getUTCDate() < dob.getUTCDate());
   if (beforeBirthday) age -= 1;
   return age;
+}
+
+/**
+ * Days after a departure during which the club can undo it (SQUAD09, Q-012).
+ * A product rule, not a plan limit: it is the same for every organisation.
+ */
+export const DEPARTURE_UNDO_DAYS = 7;
+
+/** The last moment a departure can be undone: departedAt plus DEPARTURE_UNDO_DAYS. */
+export function departureUndoDeadline(departedAt: Date): Date {
+  return new Date(departedAt.getTime() + DEPARTURE_UNDO_DAYS * 24 * 60 * 60 * 1000);
+}
+
+/** True while a departure can still be undone. */
+export function canUndoDeparture(departedAt: Date | null, now = new Date()): boolean {
+  return departedAt !== null && now.getTime() <= departureUndoDeadline(departedAt).getTime();
 }

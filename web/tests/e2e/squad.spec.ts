@@ -97,12 +97,13 @@ test("add a team and players; a duplicate number is refused; mark a player depar
   await expect(table.getByRole("row").nth(1)).toContainText("7Thabo Nkosi");
   await expect(
     page.getByRole("navigation", { name: "Player status" }).getByRole("link", { name: /Current/ }),
-  ).toHaveText("Current2players");
+  ).toHaveText("Current 2 players");
 
   // Mark Thabo departed: read-only page, records kept.
   await table.getByRole("link", { name: "Thabo Nkosi" }).click();
-  thaboPath = new URL(page.url()).pathname;
   await expect(page.getByRole("heading", { level: 1, name: "Thabo Nkosi" })).toBeVisible();
+  // Read the path once the player page is showing, not while the click navigates.
+  thaboPath = new URL(page.url()).pathname;
   await page.getByRole("button", { name: "Mark as departed" }).click();
   const dialog = page.getByRole("dialog", { name: "Mark Thabo Nkosi as departed?" });
   await expect(dialog).toContainText("No data is deleted");
@@ -129,6 +130,20 @@ test("add a team and players; a duplicate number is refused; mark a player depar
   });
   await expect(departed.getByRole("row").nth(1)).toContainText("Thabo Nkosi");
   await expect(departed.locator(".wl-chip")).toHaveText("Departed");
+
+  // Undo within 7 days (Q-012): back in the squad, then depart again for the later tests.
+  await page.goto(thaboPath);
+  await expect(page.getByText(/^You can undo this until \d{1,2} \w{3} \d{4}\.$/)).toBeVisible();
+  await page.getByRole("button", { name: "Undo departure" }).click();
+  await expect(page).toHaveURL(/\?done=restored/);
+  await expect(page.getByRole("status")).toHaveText("Thabo Nkosi is back in the squad.");
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveCount(0);
+  await page.getByRole("button", { name: "Mark as departed" }).click();
+  await page
+    .getByRole("dialog", { name: "Mark Thabo Nkosi as departed?" })
+    .getByRole("button", { name: "Mark as departed" })
+    .click();
+  await expect(page).toHaveURL(/\?done=departed/);
 });
 
 test("import a CSV: the preview shows row errors and commits nothing until confirmed", async ({

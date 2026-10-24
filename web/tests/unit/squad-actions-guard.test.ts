@@ -60,6 +60,7 @@ describe("squad actions for a coach", () => {
     ["createPlayerAction", players.createPlayerAction],
     ["updatePlayerAction", players.updatePlayerAction],
     ["markDepartedAction", players.markDepartedAction],
+    ["undoDepartureAction", players.undoDepartureAction],
   ])("%s refuses with 403 before touching the squad", async (_name, action) => {
     const err = await action(null, form()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AuthzError);
@@ -78,6 +79,44 @@ describe("squad actions for a coach", () => {
       result: { ok: false, formError: "You do not have permission to import players." },
     });
     expect(requireRole).toHaveBeenCalledWith(SQUAD_ADMIN_ROLES);
+    expect(touched).not.toHaveBeenCalled();
+  });
+});
+
+describe("squad actions in an organisation that is not an academy or a club", () => {
+  beforeEach(() => {
+    requireRole.mockImplementation(async () => ({
+      organisationId: "agency-1",
+      organisationType: "agency",
+      roles: ["owner"],
+    }));
+  });
+
+  it.each([
+    ["createTeamAction", teams.createTeamAction],
+    ["updateTeamAction", teams.updateTeamAction],
+    ["deleteTeamAction", teams.deleteTeamAction],
+    ["addPlaceholdersAction", teams.addPlaceholdersAction],
+    ["createPlayerAction", players.createPlayerAction],
+    ["updatePlayerAction", players.updatePlayerAction],
+    ["markDepartedAction", players.markDepartedAction],
+    ["undoDepartureAction", players.undoDepartureAction],
+  ])("%s refuses an agency owner with 403 before touching the squad", async (_name, action) => {
+    const err = await action(null, form()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AuthzError);
+    expect((err as InstanceType<typeof AuthzError>).status).toBe(403);
+    expect(touched).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["previewImportAction", importActions.previewImportAction],
+    ["commitImportAction", importActions.commitImportAction],
+  ])("%s answers an agency owner with the permission error", async (_name, action) => {
+    const res = await action(null, form());
+    expect(res).toEqual({
+      step: "upload",
+      result: { ok: false, formError: "You do not have permission to import players." },
+    });
     expect(touched).not.toHaveBeenCalled();
   });
 });

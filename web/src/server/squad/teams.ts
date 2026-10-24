@@ -1,6 +1,7 @@
 import "server-only";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { requireSquadOrg } from "./access";
 import { isTeamNameViolation, prismaErrorCode, TeamError, type TeamUsage } from "./errors";
 import { joinAnd, teamKindField, teamSchema, type TeamInput } from "./fields";
 import { asTransactionClient } from "./tx";
@@ -50,6 +51,7 @@ export function compareTeams(a: { season: string; name: string }, b: typeof a): 
 export async function listTeams(
   ctx: AuthContext,
 ): Promise<{ own: TeamSummary[]; opposition: TeamSummary[] }> {
+  requireSquadOrg(ctx);
   const rows = await ctx.db.team.findMany({ select: SUMMARY_SELECT });
   const teams = rows.map(toSummary).sort(compareTeams);
   return {
@@ -68,6 +70,7 @@ export type TeamDetail = TeamSummary & {
 
 /** One team with its counts. Throws TeamError("not_found") for an unknown or foreign id. */
 export async function getTeam(ctx: AuthContext, teamId: string): Promise<TeamDetail> {
+  requireSquadOrg(ctx);
   const team = await ctx.db.team.findFirst({
     where: { id: teamId },
     select: {
@@ -115,7 +118,8 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 
 /**
  * "You cannot delete this team because it has 18 players and 2 matches. …"
- * Only non-zero counts are listed. Opposition players are placeholders.
+ * Only non-zero counts are listed. Opposition players are placeholders, which
+ * never depart, so their message leaves out the departed-players clause.
  */
 export function inUseMessage(usage: TeamUsage, isOpposition: boolean): string {
   const parts = [
@@ -126,7 +130,10 @@ export function inUseMessage(usage: TeamUsage, isOpposition: boolean): string {
     usage.matches && count(usage.matches, "match", "matches"),
     usage.lineups && count(usage.lineups, "lineup", "lineups"),
   ].filter((p): p is string => Boolean(p));
-  return `You cannot delete this team because it has ${joinAnd(parts)}. Departed players count too, because their history stays with the team.`;
+  const reason = `You cannot delete this team because it has ${joinAnd(parts)}.`;
+  return isOpposition
+    ? reason
+    : `${reason} Departed players count too, because their history stays with the team.`;
 }
 
 async function assertNameFree(
@@ -152,6 +159,7 @@ export async function createTeam(
   input: TeamInput,
   kind: "own" | "opposition" = "own",
 ): Promise<TeamSummary> {
+  requireSquadOrg(ctx);
   const data = teamSchema.parse(input);
   const isOpposition = teamKindField.parse(kind) === "opposition";
   await assertNameFree(ctx, data.name, data.season);
@@ -182,6 +190,7 @@ export async function updateTeam(
   teamId: string,
   input: TeamInput,
 ): Promise<{ changed: string[] }> {
+  requireSquadOrg(ctx);
   const data = teamSchema.parse(input);
   const team = await ctx.db.team.findFirst({
     where: { id: teamId },
@@ -219,6 +228,7 @@ export async function updateTeam(
  * added meanwhile either blocks the delete or is refused by the foreign key.
  */
 export async function deleteTeam(ctx: AuthContext, teamId: string): Promise<{ name: string }> {
+  requireSquadOrg(ctx);
   try {
     return await deleteTeamOnce(ctx, teamId);
   } catch (err) {

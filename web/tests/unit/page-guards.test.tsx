@@ -114,7 +114,11 @@ describe("placeholder pages for an allowed role", () => {
     ["/squad", () => import("@/app/(app)/squad/page"), "No teams yet"],
     ["/matches", () => import("@/app/(app)/matches/page"), "No matches yet"],
   ])("%s renders one h1 and its empty state", async (_name, load, empty) => {
-    requirePageRole.mockResolvedValue({ organisationName: "Wideline Demo FC", roles: ["coach"] });
+    requirePageRole.mockResolvedValue({
+      organisationName: "Wideline Demo FC",
+      organisationType: "club",
+      roles: ["coach"],
+    });
     const page = (await load()).default as Page;
     const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) } as never));
     expect(html.match(/<h1/g)).toHaveLength(1);

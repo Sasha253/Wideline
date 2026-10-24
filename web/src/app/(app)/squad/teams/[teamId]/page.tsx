@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/templates/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { teamLabel } from "@/lib/labels";
 import { CLUB_ROLES, requirePageRole, type AuthContext } from "@/server/auth/session";
+import { requireSquadOrgPage } from "@/server/squad/access";
 import { getTeam, inUseMessage, TeamError, teamUsage, type TeamDetail } from "@/server/squad/teams";
 import { canEditSquad, Facts } from "../../shared";
 import { TeamForm } from "../TeamForm";
@@ -27,7 +28,7 @@ const loadTeam = cache(async (ctx: AuthContext, teamId: string): Promise<TeamDet
 });
 
 export async function generateMetadata({ params }: Props) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const team = await loadTeam(ctx, (await params).teamId);
   return { title: team ? teamLabel(team) : "Team" };
 }
@@ -40,7 +41,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * organisation's team is not found.
  */
 export default async function TeamPage({ params, searchParams }: Props) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const team = await loadTeam(ctx, (await params).teamId);
   if (!team) notFound();
   const done = (await searchParams)?.done;

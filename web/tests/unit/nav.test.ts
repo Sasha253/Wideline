@@ -8,6 +8,7 @@ import {
   NAV_ORG_ADMIN_ROLES,
   NAV_PLATFORM_ROLES,
   NAV_SCOUT_ROLES,
+  NAV_SQUAD_ORG_TYPES,
   navForRoles,
 } from "@/lib/nav";
 import {
@@ -17,6 +18,7 @@ import {
   PLATFORM_ROLES,
   SCOUT_ROLES,
 } from "@/server/auth/session";
+import { SQUAD_ORG_TYPES } from "@/server/squad/access";
 
 // D02 main nav: each role sees only its items. The nav is a convenience; the pages
 // call requirePageRole() themselves (tests/unit/page-guards.test.tsx).
@@ -71,6 +73,16 @@ describe("navForRoles", () => {
 
   it.each<Role[]>([["agent"], ["player"], ["guardian"], []])("gives %j nothing", (...roles) => {
     expect(navForRoles(roles)).toEqual([]);
+  });
+
+  it("shows Squad to academies and clubs only (C04)", () => {
+    const of = (type: Parameters<typeof navForRoles>[1]) =>
+      navForRoles(["owner"], type).map((i) => i.label);
+    expect(of("club")).toContain("Squad");
+    expect(of("academy")).toContain("Squad");
+    for (const type of ["agency", "scout_network", "platform"] as const) {
+      expect(of(type)).toEqual(["Dashboard", "Matches", "Settings"]);
+    }
   });
 
   it("never uses the icons the design system reserves", () => {
@@ -132,6 +144,7 @@ describe("nav role sets", () => {
     expect(NAV_SCOUT_ROLES).toEqual(SCOUT_ROLES);
     expect(NAV_PLATFORM_ROLES).toEqual(PLATFORM_ROLES);
     expect(NAV_PLATFORM_ROLES).toEqual(LAB_ROLES);
+    expect(NAV_SQUAD_ORG_TYPES).toEqual(SQUAD_ORG_TYPES);
   });
 
   it("are the role sets the destination pages check", () => {

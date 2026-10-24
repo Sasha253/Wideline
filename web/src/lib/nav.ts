@@ -1,4 +1,4 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { OrganisationType, Role } from "@/generated/prisma/enums";
 
 // The main nav and the role home pages (docs/build/design/D02.md, Surface 2).
 // Client-safe: it imports only the Role type. The nav is a convenience; every
@@ -26,6 +26,8 @@ export type NavItem = {
   match: string;
   /** Roles that see the item. Mirrors the session.ts constants (tests/unit/nav.test.ts). */
   roles: readonly Role[];
+  /** Organisation types that see the item; every type when absent. */
+  orgTypes?: readonly OrganisationType[];
 };
 
 // Mirrors of CLUB_ROLES, ORG_ADMIN_ROLES, SCOUT_ROLES and PLATFORM_ROLES / LAB_ROLES
@@ -34,6 +36,8 @@ export const NAV_CLUB_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 export const NAV_ORG_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
 export const NAV_SCOUT_ROLES: readonly Role[] = ["scout"];
 export const NAV_PLATFORM_ROLES: readonly Role[] = ["platform_admin"];
+/** Mirror of SQUAD_ORG_TYPES in src/server/squad/access.ts: only academies and clubs hold a squad. */
+export const NAV_SQUAD_ORG_TYPES: readonly OrganisationType[] = ["academy", "club"];
 
 /** Every nav item, in display order. */
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -52,6 +56,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: "Users",
     match: "/squad",
     roles: NAV_CLUB_ROLES,
+    orgTypes: NAV_SQUAD_ORG_TYPES,
   },
   {
     id: "matches",
@@ -111,9 +116,19 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
 ];
 
-/** The items the roles can use: the deduplicated union, in NAV_ITEMS order. */
-export function navForRoles(roles: readonly Role[]): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.roles.some((r) => roles.includes(r)));
+/**
+ * The items the roles can use: the deduplicated union, in NAV_ITEMS order.
+ * With the active organisation's type, items limited to other types are left out.
+ */
+export function navForRoles(
+  roles: readonly Role[],
+  organisationType?: OrganisationType | null,
+): NavItem[] {
+  return NAV_ITEMS.filter(
+    (item) =>
+      item.roles.some((r) => roles.includes(r)) &&
+      (!item.orgTypes || !organisationType || item.orgTypes.includes(organisationType)),
+  );
 }
 
 /**

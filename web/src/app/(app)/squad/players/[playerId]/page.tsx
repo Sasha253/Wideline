@@ -12,14 +12,21 @@ import {
   playerName,
   teamLabel,
 } from "@/lib/labels";
-import { positionLabel, todayIso } from "@/lib/squad-fields";
+import {
+  canUndoDeparture,
+  departureUndoDeadline,
+  positionLabel,
+  todayIso,
+} from "@/lib/squad-fields";
 import { CLUB_ROLES, requirePageRole, type AuthContext } from "@/server/auth/session";
+import { requireSquadOrgPage } from "@/server/squad/access";
 import { getPlayer, PlayerError, type PlayerRow } from "@/server/squad/players";
 import { listTeams } from "@/server/squad/teams";
 import { FocusHeadingOnMount } from "../../FocusOnMount";
 import { canEditSquad, Facts, metaText } from "../../shared";
 import { PlayerForm } from "../PlayerForm";
 import { DepartPlayer } from "./DepartPlayer";
+import { UndoDeparture } from "./UndoDeparture";
 
 type Props = {
   params: Promise<{ playerId: string }>;
@@ -39,7 +46,7 @@ const loadPlayer = cache(async (ctx: AuthContext, playerId: string): Promise<Pla
 });
 
 export async function generateMetadata({ params }: Props) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const player = await loadPlayer(ctx, (await params).playerId);
   return { title: player ? playerName(player) : "Player" };
 }
@@ -48,11 +55,12 @@ const isoDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
 /**
  * One player (SQUAD02, SQUAD09; docs/build/design/C04.md, Surface 5). Owners
- * and admins edit a current player and can mark them departed. Coaches, and
- * everyone for a departed player or a placeholder, see the facts only.
+ * and admins edit a current player and can mark them departed, and undo a
+ * departure for DEPARTURE_UNDO_DAYS. Coaches, and everyone for a departed
+ * player or a placeholder, see the facts only.
  */
 export default async function PlayerPage({ params, searchParams }: Props) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const player = await loadPlayer(ctx, (await params).playerId);
   if (!player) notFound();
   const done = (await searchParams)?.done;
@@ -107,7 +115,8 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       ),
     });
   } else if (departed) {
-    note = `${firstName} left the club on ${player.departedAt ? formatDate(player.departedAt) : "an unknown date"}. Their matches, stats and consent records are kept. The club can no longer edit their details.`;
+    const undoOpen = admin && canUndoDeparture(player.departedAt);
+    note = `${firstName} left the club on ${player.departedAt ? formatDate(player.departedAt) : "an unknown date"}. Their matches, stats and consent records are kept. ${undoOpen ? "To change their details, undo the departure first." : "The club can no longer edit their details."}`;
     sections.push({
       id: "details",
       title: "Details",
@@ -127,6 +136,26 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         </div>
       ),
     });
+    if (undoOpen && player.departedAt) {
+      sections.push({
+        id: "undo",
+        title: "Undo departure",
+        content: (
+          <>
+            <p className="body max-w-prose text-ink-muted">
+              Marked as departed by mistake? Undo it to put {firstName} back in the squad with the
+              same details.
+            </p>
+            <div className="mt-4">
+              <UndoDeparture
+                playerId={player.id}
+                until={formatDate(departureUndoDeadline(player.departedAt))}
+              />
+            </div>
+          </>
+        ),
+      });
+    }
   } else if (admin) {
     const { own } = await listTeams(ctx);
     sections.push(
@@ -192,10 +221,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   }
 
   const justDeparted = done === "departed" && departed;
+  const justRestored = done === "restored" && !departed;
 
   return (
     <>
-      {justDeparted && <FocusHeadingOnMount />}
+      {(justDeparted || justRestored) && <FocusHeadingOnMount />}
       <DetailPage
         back={{ href: back, label: "Squad" }}
         media={
@@ -213,6 +243,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
               {justDeparted && (
                 <Banner tone="ok">{name} is marked as departed. Their records are kept.</Banner>
               )}
+              {justRestored && <Banner tone="ok">{name} is back in the squad.</Banner>}
             </div>
             {note && <p className="body mt-6 max-w-prose text-ink-muted">{note}</p>}
           </>

@@ -5,6 +5,7 @@ import { DataTable } from "@/components/templates/DataTable";
 import { PageHeader } from "@/components/templates/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { CLUB_ROLES, requirePageRole } from "@/server/auth/session";
+import { requireSquadOrgPage } from "@/server/squad/access";
 import { listTeams, type TeamSummary } from "@/server/squad/teams";
 import { canEditSquad, metaText } from "../shared";
 
@@ -85,7 +86,7 @@ export default async function TeamsPage({
 }: {
   searchParams: Promise<{ done?: string }>;
 }) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const { done } = await searchParams;
   const admin = canEditSquad(ctx.roles);
   const { own, opposition } = await listTeams(ctx);

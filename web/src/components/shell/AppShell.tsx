@@ -16,7 +16,7 @@ import { OrgSwitcher, type SwitcherOrganisation } from "./OrgSwitcher";
  */
 export function AppShell({ ctx, children }: { ctx: UserContext; children: ReactNode }) {
   const hasOrg = ctx.organisationId !== null;
-  const items = hasOrg ? navForRoles(ctx.roles) : [];
+  const items = hasOrg ? navForRoles(ctx.roles, ctx.organisationType) : [];
   const hasTabBar = items.length > 0;
   const user = { name: ctx.user.name, email: ctx.user.email };
   const organisations: SwitcherOrganisation[] = ctx.organisations.map((o) => ({

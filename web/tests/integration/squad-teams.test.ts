@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { rawDb } from "@/server/db/raw";
 import type { AuthContext } from "@/server/auth/session";
+import { isTeamNameViolation, prismaErrorCode, TEAM_NAME_INDEX } from "@/server/squad/errors";
 import {
   createTeam,
   deleteTeam,
@@ -85,6 +86,19 @@ describe("teams", () => {
     );
   });
 
+  it("has the database refuse the same name in another case in the same season", async () => {
+    await createTeam(ctx, { name: "U11 Mixed", season: "2026" });
+    // Past the app check: the unique index on lower(name) refuses it.
+    const err = await rawDb.team
+      .create({ data: { organisationId: orgId, name: "u11 MIXED", season: "2026" } })
+      .catch((e: unknown) => e);
+    expect(prismaErrorCode(err)).toBe("P2002");
+    expect(JSON.stringify((err as { meta?: unknown }).meta)).toContain(TEAM_NAME_INDEX);
+    expect(isTeamNameViolation(err)).toBe(true);
+    // Another season is still free.
+    await rawDb.team.create({ data: { organisationId: orgId, name: "u11 MIXED", season: "2027" } });
+  });
+
   it("refuses to delete a team with players, departed players or matches, naming the counts", async () => {
     const team = await createTeam(ctx, { name: "U17 Busy", season: "2026" });
     const player = await rawDb.player.create({
@@ -147,8 +161,12 @@ describe("teams", () => {
     expect(inUseMessage({ players: 18, matches: 2, lineups: 0 }, false)).toContain(
       "because it has 18 players and 2 matches.",
     );
-    expect(inUseMessage({ players: 11, matches: 0, lineups: 0 }, true)).toContain(
-      "because it has 11 placeholder players.",
+    // Placeholders never depart, so an opposition team's message leaves that clause out.
+    expect(inUseMessage({ players: 11, matches: 0, lineups: 0 }, true)).toBe(
+      "You cannot delete this team because it has 11 placeholder players.",
+    );
+    expect(inUseMessage({ players: 18, matches: 2, lineups: 0 }, false)).toContain(
+      "Departed players count too",
     );
     expect(inUseMessage({ players: 1, matches: 1, lineups: 3 }, false)).toContain(
       "1 player, 1 match and 3 lineups.",

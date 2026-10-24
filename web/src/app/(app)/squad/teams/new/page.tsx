@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/templates/PageHeader";
 import { todayIso } from "@/lib/squad-fields";
 import { CLUB_ROLES, requirePageRole } from "@/server/auth/session";
+import { requireSquadOrgPage } from "@/server/squad/access";
 import { AdminOnlyNotice, canEditSquad } from "../../shared";
 import { TeamForm } from "../TeamForm";
 
@@ -12,7 +13,7 @@ export default async function NewTeamPage({
 }: {
   searchParams: Promise<{ kind?: string }>;
 }) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const opposition = (await searchParams).kind === "opposition";
   return (
     <>

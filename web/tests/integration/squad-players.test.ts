@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { rawDb } from "@/server/db/raw";
 import type { AuthContext } from "@/server/auth/session";
-import { isSquadNumberViolation, squadNumberTakenMessage } from "@/server/squad/errors";
+import {
+  isSquadNumberViolation,
+  prismaErrorCode,
+  squadNumberTakenMessage,
+} from "@/server/squad/errors";
+import { commitImport, ImportError, previewImport } from "@/server/squad/import";
 import {
   ACTIVE_PLAYER,
   activePlayers,
@@ -11,9 +16,17 @@ import {
   listPlayers,
   markDeparted,
   PlayerError,
+  undoDeparture,
   updatePlayer,
 } from "@/server/squad/players";
-import { createTeam, getTeam, listTeams, TeamError, updateTeam } from "@/server/squad/teams";
+import {
+  createTeam,
+  deleteTeam,
+  getTeam,
+  listTeams,
+  TeamError,
+  updateTeam,
+} from "@/server/squad/teams";
 import { fixtures } from "./helpers/fixtures";
 
 // SQUAD02, SQUAD04, SQUAD07, SQUAD09 and NFR16 for players
@@ -97,6 +110,21 @@ describe("squad numbers (SQUAD04)", () => {
     expect(squadNumberTakenMessage(7, u15)).toBe(
       "Number 7 is already taken in U15 Boys (2026). Choose another number.",
     );
+  });
+
+  it("has the database refuse a squad number on a player with no team", async () => {
+    const err = await rawDb.player
+      .create({
+        data: { organisationId: orgId, firstName: "No", lastName: "Team", squadNumber: 5 },
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(JSON.stringify(err) + String(err)).toContain("Player_squadNumber_needs_team");
+    expect(await rawDb.player.count({ where: { organisationId: orgId, teamId: null } })).toBe(0);
+    // A player with no team and no number is fine.
+    await rawDb.player.create({
+      data: { organisationId: orgId, firstName: "No", lastName: "Number" },
+    });
   });
 
   it("frees a departed player's number, and updates refuse a taken number", async () => {
@@ -189,6 +217,78 @@ describe("departure (SQUAD09)", () => {
   });
 });
 
+describe("undoing a departure (SQUAD09, Q-012)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("restores the player within 7 days and audits the departure time only", async () => {
+    const p = await createPlayer(ctx, thabo({ squadNumber: "31", firstName: "Sizwe" }));
+    const left = new Date(Date.now() - 6 * DAY);
+    await markDeparted(ctx, p.id, left);
+    expect(await undoDeparture(ctx, p.id)).toEqual({ name: "Sizwe Nkosi" });
+
+    const row = await rawDb.player.findUniqueOrThrow({ where: { id: p.id } });
+    expect(row.clubStatus).toBe("active");
+    expect(row.departedAt).toBeNull();
+    expect(row.squadNumber).toBe(31);
+    expect((await activePlayers(ctx, { teamId: u15.id })).map((r) => r.id)).toContain(p.id);
+    const audits = await rawDb.auditLog.findMany({
+      where: { organisationId: orgId, action: "player.depart_undone", targetId: p.id },
+    });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]!.metadata).toEqual({ departedAt: left.toISOString() });
+    expect(JSON.stringify(audits[0]!.metadata)).not.toMatch(/Sizwe|Nkosi|2011/);
+    // Active again: a second undo is refused and changes nothing.
+    expect((await errorOf(undoDeparture(ctx, p.id)))!.code).toBe("not_departed");
+  });
+
+  it("refuses after 7 days and leaves the player departed and read-only", async () => {
+    const p = await createPlayer(ctx, thabo({ squadNumber: "32", firstName: "Andile" }));
+    const left = new Date("2026-01-05T09:00:00Z");
+    await markDeparted(ctx, p.id, left);
+    const err = await errorOf(undoDeparture(ctx, p.id, new Date(left.getTime() + 7 * DAY + 1)));
+    expect(err!.code).toBe("undo_expired");
+    expect(err!.userMessage).toBe(
+      "Andile left more than 7 days ago, so the departure can no longer be undone.",
+    );
+    const row = await rawDb.player.findUniqueOrThrow({ where: { id: p.id } });
+    expect([row.clubStatus, row.departedAt]).toEqual(["departed", left]);
+    expect((await errorOf(updatePlayer(ctx, p.id, thabo({ firstName: "Andile" }))))!.code).toBe(
+      "departed",
+    );
+    // On the last moment of the window it still works.
+    expect(await undoDeparture(ctx, p.id, new Date(left.getTime() + 7 * DAY))).toEqual({
+      name: "Andile Nkosi",
+    });
+  });
+
+  it("asks for the teammate's number to change first when the number is taken", async () => {
+    const p = await createPlayer(ctx, thabo({ squadNumber: "33", firstName: "Lindo" }));
+    await markDeparted(ctx, p.id);
+    await createPlayer(ctx, thabo({ squadNumber: "33", firstName: "Mpho" }));
+    const err = await errorOf(undoDeparture(ctx, p.id));
+    expect(err!.code).toBe("squad_number_taken");
+    expect(err!.field).toBe("squadNumber");
+    expect(err!.userMessage).toBe(
+      "Number 33 is now worn by Mpho Nkosi in U15 Boys (2026). Give them another number first, then undo the departure.",
+    );
+    expect((await rawDb.player.findUniqueOrThrow({ where: { id: p.id } })).clubStatus).toBe(
+      "departed",
+    );
+    expect(
+      await rawDb.auditLog.count({ where: { action: "player.depart_undone", targetId: p.id } }),
+    ).toBe(0);
+  });
+
+  it("organisation B cannot undo organisation A's departure", async () => {
+    const p = await createPlayer(ctx, thabo({ squadNumber: "34", firstName: "Karabo" }));
+    await markDeparted(ctx, p.id);
+    expect((await errorOf(undoDeparture(ctxB, p.id)))!.code).toBe("not_found");
+    expect((await rawDb.player.findUniqueOrThrow({ where: { id: p.id } })).clubStatus).toBe(
+      "departed",
+    );
+  });
+});
+
 describe("opposition placeholders (SQUAD07)", () => {
   it("adds placeholders to opposition teams only, all or nothing", async () => {
     expect(await addPlaceholders(ctx, opposition.id, [1, 2, 3, 3])).toEqual({ added: 3 });
@@ -259,17 +359,45 @@ describe("tenant isolation (NFR16)", () => {
 
   it("refuses a player on another organisation's team, in the service and in the database", async () => {
     expect((await errorOf(createPlayer(ctxB, thabo())))!.code).toBe("wrong_team_kind");
-    // The composite foreign key refuses it even past the service.
-    await expect(
-      ctxB.db.player.create({
+    // The composite (organisationId, teamId) foreign key refuses it even past the
+    // service and the scoped client.
+    const err = await rawDb.player
+      .create({
         data: {
           organisationId: ctxB.organisationId,
           teamId: u15.id,
           firstName: "X",
           lastName: "Y",
         },
-      }),
-    ).rejects.toThrow();
+      })
+      .catch((e: unknown) => e);
+    expect(prismaErrorCode(err)).toBe("P2003");
+    expect(JSON.stringify(err) + String(err)).toContain("Player_organisationId_teamId_fkey");
+    expect(await rawDb.player.count({ where: { organisationId: ctxB.organisationId } })).toBe(0);
     expect((await errorOf(addPlaceholders(ctxB, opposition.id, [5])))!.code).toBe("not_found");
+  });
+
+  it("organisation B cannot delete organisation A's team", async () => {
+    const team = await createTeam(ctx, { name: "U9 Empty", season: "2026" });
+    const err = await deleteTeam(ctxB, team.id).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TeamError);
+    expect((err as TeamError).code).toBe("not_found");
+    expect((await getTeam(ctx, team.id)).id).toBe(team.id);
+    expect(
+      await rawDb.auditLog.count({ where: { action: "team.delete", targetId: team.id } }),
+    ).toBe(0);
+  });
+
+  it("organisation B cannot import into organisation A's team", async () => {
+    const csv = "First name,Last name,Date of birth\r\nImported,Across,14/03/2011\r\n";
+    const own = await previewImport(ctx, u15.id, csv);
+    const before = await rawDb.player.count({ where: { teamId: u15.id } });
+    const err = await commitImport(ctxB, u15.id, csv, own.digest, own.validCount).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ImportError);
+    expect((err as ImportError).code).toBe("team");
+    expect(await rawDb.player.count({ where: { teamId: u15.id } })).toBe(before);
+    expect(await rawDb.player.count({ where: { organisationId: ctxB.organisationId } })).toBe(0);
   });
 });

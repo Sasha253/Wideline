@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { teamLabel } from "@/lib/labels";
 import { todayIso } from "@/lib/squad-fields";
 import { CLUB_ROLES, requirePageRole } from "@/server/auth/session";
+import { requireSquadOrgPage } from "@/server/squad/access";
 import { listTeams } from "@/server/squad/teams";
 import { AdminOnlyNotice, canEditSquad } from "../../shared";
 import { EMPTY_PLAYER } from "../form-values";
@@ -21,7 +22,7 @@ export default async function NewPlayerPage({
 }: {
   searchParams: Promise<{ team?: string }>;
 }) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const { own } = await listTeams(ctx);
   const wanted = (await searchParams).team;
   const team = own.find((t) => t.id === wanted) ?? own[0] ?? null;

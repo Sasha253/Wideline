@@ -62,7 +62,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** commas between thousands and a full stop for decimals ("10,000", "8.59"), using `Intl.NumberFormat("en-GB")` in `formatCount()` and `formatGB()` in `web/src/lib/labels.ts`. This matches the design system's own examples ("8.4 km", "0.81 confidence").
 - **Recommended:** keep the default. The South African standard style ("10 000", "8,59") is correct but less familiar on screens, and it would clash with the design system's examples.
 - **Impact:** a different style changes the locale in two helpers in `labels.ts` and the expected text in a few tests. No schema or layout change.
-- **Answer:**
+- **Answer:** Keep the default. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-008 · C03 · Which roles count toward member seats and scout seats
 
@@ -70,7 +71,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** member seats are owners, admins and coaches. Scout seats are scouts and agents. Players and guardians never count, because they never pay (PRD pricing). The descriptions in `web/src/lib/entitlement-keys.ts` say so, marked as draft copy.
 - **Recommended:** keep the default for v0. Nothing is enforced until v2, so confirm it when the paid plans are priced.
 - **Impact:** a different split changes two descriptions now, and the seat-counting query when BILL05 is built. No schema change.
-- **Answer:**
+- **Answer:** Keep the default. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-009 · C03 · Limits on the free Pilot plan
 
@@ -78,7 +80,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** `matches_per_month` 100, `favourited_clips` 10,000, `member_seats` 100, `scout_seats` 50, `upload_max_bytes` 8 GiB, and every feature flag (billing, scout search, share links, scout reports) off. These are draft values, in `PILOT_PLAN_LIMITS` and in the `pilot` Plan row.
 - **Recommended:** keep these generous numbers for the pilot (the PRD says "effectively unmetered"). Nothing is enforced until V201 (BILL05), and a single club can be raised from the admin flags and limits page.
 - **Impact:** different numbers need only a new data migration that updates the Plan row's limits JSON, plus the constant. No code or schema change.
-- **Answer:**
+- **Answer:** Keep the default. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-010 · C03 · Currency for GPU cost in the usage meter
 
@@ -86,7 +89,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** each GPU cost row records cents in the provider's billing currency, with an ISO currency column. Totals are grouped by currency, with no exchange-rate conversion.
 - **Recommended:** keep the provider's currency, and add ZAR conversion in the C18 usage report once the GPU provider (a PRD open question) is chosen.
 - **Impact:** if everything must be stored in ZAR, C08 converts at record time with a stored rate. The meter already has the currency column, so nothing in C03 changes.
-- **Answer:**
+- **Answer:** Keep the default. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-011 · C04 · Can coaches change the squad
 
@@ -94,7 +98,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** owners and admins only (`SQUAD_ADMIN_ROLES` = `ORG_ADMIN_ROLES`). Coaches see the squad read-only.
 - **Recommended:** keep the default for v0. The PRD gives "adds the squad" and "marks players who leave" to the club admin.
 - **Impact:** one constant in `session.ts` and the read-only branches on two pages. No schema change.
-- **Answer:**
+- **Answer:** Coaches too: owners, admins and coaches may change the squad. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** differs from the default (owners and admins only). **Not done yet:** the session's permission check blocked adding `coach` to `SQUAD_ADMIN_ROLES` as a security-weakening change, so it waits for the user's explicit go-ahead.
 
 ## Q-012 · C04 · Undoing a departure
 
@@ -102,7 +107,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** no. Once departed, the player is read-only to the club (SQUAD09), and the confirm dialog says so. A platform admin can fix a mistake later (C18).
 - **Recommended:** allow an owner or admin an "Undo departure" action for 7 days, audited. This is cheap and still keeps SQUAD09's intent.
 - **Impact:** one audited server action and a button on the departed player page. No schema change.
-- **Answer:**
+- **Answer:** Yes: an owner, admin or coach may undo a departure within 7 days, audited. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** differs from the default (no undo). Reworked in the C04 follow-up commit.
 
 ## Q-013 · C04 · Importing valid rows when some rows have errors
 
@@ -110,7 +116,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** yes. The confirm button says "Import 18 players, skip 2 rows with errors". Nothing commits until it is pressed.
 - **Recommended:** keep the default. The alternative is to block the commit until the file has no errors.
 - **Impact:** one branch in `commitImport` and the button copy.
-- **Answer:**
+- **Answer:** Keep the default: import valid rows and skip rows with errors. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-014 · C04 · Named opposition players
 
@@ -118,4 +125,5 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** only placeholders (shirt number and optional position) on opposition teams.
 - **Recommended:** keep placeholders only. Named opposition minors would have no guardian consent recorded by their own club.
 - **Impact:** lifting it means relaxing one validator and showing the name fields on opposition teams. No schema change.
-- **Answer:**
+- **Answer:** Keep the default: opposition players are unnamed placeholders only. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.

@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { fieldErrorsFrom, UNEXPECTED_ERROR, type ActionResult } from "@/lib/action-result";
 import { requireRole, SQUAD_ADMIN_ROLES } from "@/server/auth/session";
 import { log } from "@/server/log";
+import { requireSquadOrg } from "@/server/squad/access";
 import {
   parseShirtNumbers,
   SHIRT_NUMBERS_INVALID,
@@ -48,7 +49,7 @@ export async function createTeamAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const ctx = await requireRole(SQUAD_ADMIN_ROLES);
+  const ctx = requireSquadOrg(await requireRole(SQUAD_ADMIN_ROLES));
   const input = teamInput(formData);
   const kind = formData.get("kind") === "opposition" ? "opposition" : "own";
   let id: string;
@@ -65,7 +66,7 @@ export async function updateTeamAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const ctx = await requireRole(SQUAD_ADMIN_ROLES);
+  const ctx = requireSquadOrg(await requireRole(SQUAD_ADMIN_ROLES));
   const teamId = String(formData.get("teamId") ?? "");
   const input = teamInput(formData);
   try {
@@ -81,7 +82,7 @@ export async function deleteTeamAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const ctx = await requireRole(SQUAD_ADMIN_ROLES);
+  const ctx = requireSquadOrg(await requireRole(SQUAD_ADMIN_ROLES));
   const teamId = String(formData.get("teamId") ?? "");
   try {
     await deleteTeam(ctx, teamId);
@@ -103,7 +104,7 @@ export async function addPlaceholdersAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const ctx = await requireRole(SQUAD_ADMIN_ROLES);
+  const ctx = requireSquadOrg(await requireRole(SQUAD_ADMIN_ROLES));
   const teamId = String(formData.get("teamId") ?? "");
   const numbers = parseShirtNumbers(String(formData.get("numbers") ?? ""));
   if (numbers === "empty") return { ok: false, fieldErrors: { numbers: SHIRT_NUMBERS_REQUIRED } };

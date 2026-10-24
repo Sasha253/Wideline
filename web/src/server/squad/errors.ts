@@ -28,12 +28,16 @@ export function isSquadNumberViolation(err: unknown): boolean {
   return text !== null && (text.includes(SQUAD_NUMBER_INDEX) || text.includes("squadNumber"));
 }
 
-/** Another team already has this name in this season (P2002 on Team name and season). */
+/**
+ * The unique index on Team ("organisationId", lower("name"), "season"), in raw
+ * SQL only (migration 20261024093500_c04_squad_rules; Prisma cannot express it).
+ */
+export const TEAM_NAME_INDEX = "Team_organisationId_lower_name_season_key";
+
+/** Another team already has this name, in any case, in this season (P2002 on TEAM_NAME_INDEX). */
 export function isTeamNameViolation(err: unknown): boolean {
   const text = uniqueViolationText(err);
-  return (
-    text !== null && (text.includes("Team_organisationId_name_season_key") || text.includes("name"))
-  );
+  return text !== null && (text.includes(TEAM_NAME_INDEX) || text.includes("name"));
 }
 
 type TeamRef = { name: string; season: string };
@@ -45,6 +49,18 @@ type TeamRef = { name: string; season: string };
 export function squadNumberTakenMessage(number: number, team: TeamRef, holder?: string): string {
   const by = holder ? ` by ${holder}` : "";
   return `Number ${number} is already taken in ${teamLabel(team)}${by}. Choose another number.`;
+}
+
+/**
+ * Undoing a departure when an active teammate now wears the player's number:
+ * "Number 7 is now worn by Sipho Dlamini in U15 Boys (2026). Give them another
+ * number first, then undo the departure." Without a holder (a concurrent
+ * write), the name is left out.
+ */
+export function undoNumberTakenMessage(number: number, team: TeamRef, holder?: string): string {
+  const by = holder ? `worn by ${holder}` : "taken";
+  const who = holder ? "them" : "that player";
+  return `Number ${number} is now ${by} in ${teamLabel(team)}. Give ${who} another number first, then undo the departure.`;
 }
 
 /** The active player on a team who wears this number, if any. */
@@ -93,7 +109,13 @@ export class TeamError extends Error {
 }
 
 export type PlayerErrorCode =
-  "not_found" | "departed" | "squad_number_taken" | "wrong_team_kind" | "placeholder_only";
+  | "not_found"
+  | "departed"
+  | "not_departed"
+  | "undo_expired"
+  | "squad_number_taken"
+  | "wrong_team_kind"
+  | "placeholder_only";
 
 export class PlayerError extends Error {
   constructor(

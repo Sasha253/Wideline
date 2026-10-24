@@ -16,6 +16,7 @@ import {
 } from "@/lib/labels";
 import { positionLabel } from "@/lib/squad-fields";
 import { CLUB_ROLES, requirePageRole } from "@/server/auth/session";
+import { requireSquadOrgPage } from "@/server/squad/access";
 import { countPlayers, listPlayers, type PlayerRow } from "@/server/squad/players";
 import { listTeams } from "@/server/squad/teams";
 import { canEditSquad, metaText } from "./shared";
@@ -59,7 +60,7 @@ export default async function SquadPage({
 }: {
   searchParams: Promise<{ team?: string; status?: string }>;
 }) {
-  const ctx = await requirePageRole(CLUB_ROLES);
+  const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
   const params = await searchParams;
   const admin = canEditSquad(ctx.roles);
   const { own } = await listTeams(ctx);
@@ -143,7 +144,7 @@ export default async function SquadPage({
           </select>
         </div>
         {status === "departed" && <input type="hidden" name="status" value="departed" />}
-        <Button type="submit" variant="secondary" block>
+        <Button type="submit" variant="secondary" block className="justify-center">
           Show
         </Button>
       </form>
@@ -158,8 +159,8 @@ export default async function SquadPage({
           className="body-strong"
           aria-current={status === s ? "page" : undefined}
         >
-          {s === "current" ? "Current" : "Departed"}
-          <span className="data">{s === "current" ? counts.current : counts.departed}</span>
+          {s === "current" ? "Current" : "Departed"}{" "}
+          <span className="data">{s === "current" ? counts.current : counts.departed}</span>{" "}
           <span className="sr-only">players</span>
         </Link>
       ))}
@@ -284,12 +285,13 @@ export default async function SquadPage({
 function PlayerCardRow({ p, showTeam }: { p: PlayerRow; showTeam: boolean }) {
   const departed = p.clubStatus === "departed";
   const age = formatAge(p.dateOfBirth);
+  // A non-breaking space keeps each number with its label or unit on narrow cards.
   const meta = metaText([
-    !departed && p.squadNumber !== null && `No. ${p.squadNumber}`,
+    !departed && p.squadNumber !== null && `No.\u00a0${p.squadNumber}`,
     positionLabel(p.position),
     p.preferredFoot && FOOT_PHRASES[p.preferredFoot],
-    age !== null && `Age ${age}`,
-    p.heightCm !== null && `${p.heightCm} cm`,
+    age !== null && `Age\u00a0${age}`,
+    p.heightCm !== null && `${p.heightCm}\u00a0cm`,
     (showTeam || departed) && p.team && teamLabel(p.team),
   ]);
   return (
