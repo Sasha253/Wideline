@@ -134,7 +134,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** it takes effect at once. The guardian types their name, chooses a relationship and confirms "I am {first name}'s parent or guardian and I am 18 or over". The club sees the decision in the consent history as "Guardian link", recorded by "The guardian, through the link", and can withdraw it or record consent again. The copy box tells the club to send the link only to the parent or guardian.
 - **Recommended:** keep the default for the pilot, and ask the privacy lawyer as part of the v0 gate whether this is enough for a "competent person" under POPIA section 35. A confirm step would add a sixth, pending state outside CONS01's five.
 - **Impact:** a club confirmation step means a "waiting for the club" state (or a flag on the Consent row), a confirm action on the player page, and different copy on the guardian done screen. The append-only model and the visibility helper stay the same.
-- **Answer:**
+- **Answer:** Keep the default: a link decision takes effect at once. Ask the privacy lawyer at the v0 gate whether this satisfies POPIA s35. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework. Lawyer question added to the v0 gate.
 
 ## Q-016 · C05 · Languages for guardian consent
 
@@ -142,7 +143,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** English only, written for a reading age of about 12. Each wording version holds the text for two audiences (guardian and adult player), with no language key.
 - **Recommended:** English for the pilot. Add the pilot clubs' main home languages before v1, each translated and checked by the privacy lawyer, because a guardian must understand what they agree to.
 - **Impact:** a language key in `CONSENT_WORDINGS` (a version per language, stored on the Consent row), a language choice on the first guardian screen and on the print page, and translated screen copy. No change to states or visibility.
-- **Answer:**
+- **Answer:** English for the pilot; add the pilot clubs' home languages before v1, translated and checked by the lawyer. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-017 · C05 · Who may record or withdraw consent on the club side
 
@@ -150,7 +152,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** `CONSENT_ADMIN_ROLES` = owners and admins. Coaches see consent state and history read-only.
 - **Recommended:** keep owners and admins. The PRD gives consent recording to the club admin, and a mistaken grant carries POPIA weight.
 - **Impact:** one constant in `session.ts`, plus the read-only branch on the player page and the role expectations in the e2e spec.
-- **Answer:**
+- **Answer:** Owners and admins only record or withdraw consent; coaches read. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-018 · C05 · Consent gate for players aged 18 or over
 
@@ -158,7 +161,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** yes. `attributablePlayerIds` allows only `club_only` or `scout_visible` for everyone. Adults give self-consent, recorded by the club.
 - **Recommended:** keep it. It is simpler and safer, and CONS01 gives every player a consent state.
 - **Impact:** one condition in `visibility.ts` (`mayAttribute`) plus its tests.
-- **Answer:**
+- **Answer:** Yes: every player, adult or minor, needs recorded consent before per-player data is derived. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-019 · C05 · How a guardian receives the consent link in v0
 
@@ -166,7 +170,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** the club copies the link and shares it itself (WhatsApp or SMS), or hands its phone to the guardian. A paper form can be printed for signed consent. No email is sent.
 - **Recommended:** keep it for the pilot. V104 adds email via `sendMail` and pg-boss.
 - **Impact:** adding email now means a guardian email field (more personal data) and one `sendMail` call in `createConsentRequest`.
-- **Answer:**
+- **Answer:** Email the guardian the consent link now: add a guardian email field and send the link from Wideline (Mailpit locally). (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** differs from the default (club shares the link itself). Rework queued as a C05 follow-up. Choosing a real email provider for production stays a separate decision (it touches real infrastructure).
 
 ## Q-020 · C05 · Draft consent wording
 
@@ -174,7 +179,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** build with the draft wording. It discloses independent scout review even when the scouts answer is no, and EU storage with possible processing elsewhere, outside South Africa.
 - **Recommended:** yes, the same approach as Q-004.
 - **Impact:** new wording means a new `CONSENT_WORDING_VERSION` entry. Existing rows keep their version. A re-consent prompt would be extra work in V104.
-- **Answer:**
+- **Answer:** Build with the draft wording; the privacy lawyer approves the final text at the v0 gate. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-021 · C05 · Names of club-only players during scout review
 
@@ -182,7 +188,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** C05 discloses review in the wording. C10/C11 decide the display, and the noted default is shirt number only for `club_only` players.
 - **Recommended:** shirt number only for `club_only` players during review.
 - **Impact:** a reviewer viewer kind in `consentVisibleTo` and the review workspace labels. No schema change.
-- **Answer:**
+- **Answer:** Shirt number only for club-only players during scout review. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework. Applies in C10/C11.
 
 ## Q-022 · C05 · Uploading signed paper consent forms
 
@@ -190,4 +197,5 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** no upload in v0. `Consent.evidencePath` exists but is unused. The method `paper_form` and the recording user are stored.
 - **Recommended:** add it in V104 with private storage and a retention rule.
 - **Impact:** an upload step, an S3 prefix, and a signed-URL route for owners and admins. No schema change.
-- **Answer:**
+- **Answer:** Later, in V104. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.

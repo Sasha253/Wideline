@@ -14,8 +14,9 @@ import { log } from "@/server/log";
  * the guarded-actions allowlist (tests/unit/server-actions-guarded.test.ts).
  * guardianDecide and guardianWithdraw re-check the link on every call. Results
  * go back to the page by redirect, so the screens work without JavaScript. The
- * typed name is never put in a URL; only the carried yes or no answers and an
- * error code are.
+ * typed name is never put in a URL; only the carried yes or no answers, the
+ * wording version and an error code are. A form without the current wording
+ * version (NFR09: proof the about step was shown) goes back to the about step.
  */
 
 const yesNo = (v: FormDataEntryValue | null) => (v === "yes" || v === "no" ? v : null);
@@ -26,9 +27,11 @@ export async function guardianDecisionAction(formData: FormData): Promise<void> 
   const base = `/consent/${encodeURIComponent(token)}`;
   const club = yesNo(formData.get("club"));
   const scouts = yesNo(formData.get("scouts"));
+  const wording = String(formData.get("wording") ?? "");
   let target = `${base}?step=done`;
   try {
     await guardianDecide(token, {
+      wordingVersion: wording,
       club: club ?? "",
       scouts: scouts ?? "",
       guardianName: String(formData.get("guardianName") ?? ""),
@@ -39,10 +42,12 @@ export async function guardianDecisionAction(formData: FormData): Promise<void> 
     if (err instanceof GuardianLinkError) {
       target = base;
     } else if (err instanceof GuardianInputError) {
-      if (err.code === "answers" || !club || (club === "yes" && !scouts)) {
-        target = `${base}?step=club&error=answers`;
+      if (err.code === "wording") {
+        target = `${base}?step=about`;
+      } else if (err.code === "answers" || !club || (club === "yes" && !scouts)) {
+        target = `${base}?${new URLSearchParams({ step: "club", wording, error: "answers" })}`;
       } else {
-        const params = new URLSearchParams({ step: "you", club, scouts: scouts ?? "no" });
+        const params = new URLSearchParams({ step: "you", wording, club, scouts: scouts ?? "no" });
         params.set("error", err.code);
         target = `${base}?${params}`;
       }

@@ -3,6 +3,7 @@ import type { AuthContext } from "@/server/auth/session";
 import { rawDb } from "@/server/db/raw";
 import { TenantScopeError } from "@/server/db/scoped";
 import { recordConsent } from "@/server/consent/records";
+import { createConsentRequest } from "@/server/consent/requests";
 import { createTeam } from "@/server/squad/teams";
 import { guardianGrant, namedPlayer } from "./helpers/consent";
 import { fixtures } from "./helpers/fixtures";
@@ -143,8 +144,140 @@ describe("Postgres", () => {
     const octx = await f.ctx(owner, other.id);
     const team = await createTeam(octx, { name: "U12", season: "2026" });
     const p = await namedPlayer(octx, team.id);
+    // A requested row points at the link (Consent.requestId, a NO ACTION key).
+    await createConsentRequest(octx, p.id);
     await recordConsent(octx, p.id, guardianGrant());
+    expect(await rawDb.consent.count({ where: { playerId: p.id, requestId: { not: null } } })).toBe(
+      1,
+    );
     await rawDb.organisation.delete({ where: { id: other.id } });
     expect(await rawDb.consent.count({ where: { playerId: p.id } })).toBe(0);
+    expect(await rawDb.consentRequest.count({ where: { playerId: p.id } })).toBe(0);
+  });
+
+  it("still cascades when a player with a linked consent row is deleted", async () => {
+    const team = await createTeam(ctx, { name: "U12 Cascade", season: "2026" });
+    const p = await namedPlayer(ctx, team.id);
+    await createConsentRequest(ctx, p.id);
+    await rawDb.player.delete({ where: { id: p.id } });
+    expect(await rawDb.consent.count({ where: { playerId: p.id } })).toBe(0);
+    expect(await rawDb.consentRequest.count({ where: { playerId: p.id } })).toBe(0);
+  });
+});
+
+// CONS02 in the database: the trigger derives playerWasMinor from the date of
+// birth on the decision date (Africa/Johannesburg) and ignores the caller's.
+describe("Postgres derives playerWasMinor", () => {
+  let teamId: string;
+  beforeAll(async () => {
+    teamId = (await createTeam(ctx, { name: "U14 Minors", season: "2026" })).id;
+  });
+
+  const selfGrant = (pid: string, extra: Record<string, unknown> = {}) => ({
+    organisationId: orgId,
+    playerId: pid,
+    state: "club_only" as const,
+    clubStats: true,
+    scoutVisible: false,
+    grantedBy: "The player",
+    relationship: "self" as const,
+    method: "in_person" as const,
+    wordingVersion: "test",
+    playerWasMinor: false,
+    grantedAt: new Date(),
+    ...extra,
+  });
+
+  it("refuses a 14-year-old's own grant written with playerWasMinor false (raw client)", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 14 });
+    const err = await errorOf(rawDb.consent.create({ data: selfGrant(p.id) }));
+    expect(String(err)).toContain("parent or guardian");
+    expect(await rawDb.consent.count({ where: { playerId: p.id } })).toBe(0);
+    expect((await rawDb.player.findUniqueOrThrow({ where: { id: p.id } })).consentState).toBe(
+      "none",
+    );
+  });
+
+  it("refuses it through the scoped client too", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 14 });
+    const err = await errorOf(ctx.db.consent.create({ data: selfGrant(p.id) }));
+    expect(String(err)).toContain("parent or guardian");
+    expect(await rawDb.consent.count({ where: { playerId: p.id } })).toBe(0);
+  });
+
+  it("refuses an own grant for a player with no date of birth", async () => {
+    const p = await rawDb.player.create({
+      data: { organisationId: orgId, firstName: "Nodob", lastName: "Player", teamId },
+    });
+    const err = await errorOf(rawDb.consent.create({ data: selfGrant(p.id) }));
+    expect(String(err)).toContain("parent or guardian");
+  });
+
+  it("refuses an own grant future-dated past a 17-year-old's 18th birthday", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 17 });
+    const err = await errorOf(
+      rawDb.consent.create({
+        data: selfGrant(p.id, { grantedAt: new Date(Date.now() + 2 * 365 * 864e5) }),
+      }),
+    );
+    expect(String(err)).toContain("parent or guardian");
+    expect(await rawDb.consent.count({ where: { playerId: p.id } })).toBe(0);
+  });
+
+  it("refuses an own grant dated before the 18th birthday", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 19 });
+    const err = await errorOf(
+      rawDb.consent.create({
+        data: selfGrant(p.id, { grantedAt: new Date(Date.now() - 2 * 365 * 864e5) }),
+      }),
+    );
+    expect(String(err)).toContain("parent or guardian");
+  });
+
+  it("overrides the caller's value both ways", async () => {
+    const minor = await namedPlayer(ctx, teamId, { age: 14 });
+    const refusal = await rawDb.consent.create({
+      data: {
+        organisationId: orgId,
+        playerId: minor.id,
+        state: "none",
+        clubStats: false,
+        scoutVisible: false,
+        grantedBy: "Thandi Mokoena",
+        relationship: "parent",
+        method: "paper_form",
+        playerWasMinor: false,
+        grantedAt: new Date(),
+      },
+    });
+    expect(refusal.playerWasMinor).toBe(true);
+    const adult = await namedPlayer(ctx, teamId, { age: 19 });
+    const own = await rawDb.consent.create({ data: selfGrant(adult.id, { playerWasMinor: true }) });
+    expect(own.playerWasMinor).toBe(false);
+    expect(own.state).toBe("club_only");
+  });
+
+  it("counts the 18th birthday by the calendar day in South Africa", async () => {
+    const p = await rawDb.player.create({
+      data: {
+        organisationId: orgId,
+        firstName: "Birthday",
+        lastName: "Player",
+        teamId,
+        dateOfBirth: new Date("2008-06-15T00:00:00Z"),
+      },
+    });
+    // 14 June 2026 23:30 in South Africa (21:30 UTC): still 17.
+    const before = await errorOf(
+      rawDb.consent.create({
+        data: selfGrant(p.id, { grantedAt: new Date("2026-06-14T21:30:00Z") }),
+      }),
+    );
+    expect(String(before)).toContain("parent or guardian");
+    // 15 June 2026 00:30 in South Africa (22:30 UTC on the 14th): 18.
+    const on = await rawDb.consent.create({
+      data: selfGrant(p.id, { grantedAt: new Date("2026-06-14T22:30:00Z") }),
+    });
+    expect(on.playerWasMinor).toBe(false);
   });
 });

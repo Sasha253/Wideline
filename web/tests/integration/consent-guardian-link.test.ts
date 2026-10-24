@@ -19,13 +19,31 @@ import {
 import { CONSENT_WORDING_VERSION } from "@/server/consent/wording";
 import { markDeparted } from "@/server/squad/players";
 import { createTeam } from "@/server/squad/teams";
-import { guardianGrant, namedPlayer } from "./helpers/consent";
+import { guardianDecisionAction } from "@/app/consent/[token]/actions";
+import { todayIso } from "@/lib/squad-fields";
+import { dobYearsAgo, guardianGrant, namedPlayer } from "./helpers/consent";
 import { fixtures } from "./helpers/fixtures";
 
 // Guardian links (CONS02, CONS03, NFR11; docs/build/design/C05.md, Surface 1).
 
 const jobs = vi.hoisted(() => ({ enqueueConsentWithdrawn: vi.fn(async () => {}) }));
 vi.mock("@/server/consent/jobs", () => jobs);
+
+// The guardian actions end in redirect(); capture the target instead.
+const nav = vi.hoisted(() => {
+  class Redirect extends Error {
+    constructor(readonly url: string) {
+      super(`redirect ${url}`);
+    }
+  }
+  return {
+    Redirect,
+    redirect: (url: string) => {
+      throw new Redirect(url);
+    },
+  };
+});
+vi.mock("next/navigation", () => ({ redirect: nav.redirect }));
 
 const f = fixtures();
 let ctx: AuthContext;
@@ -52,6 +70,7 @@ const errorOf = (p: Promise<unknown>) =>
     (e: unknown) => e as Error,
   );
 const answer = (extra: Record<string, string> = {}) => ({
+  wordingVersion: CONSENT_WORDING_VERSION,
   club: "yes",
   scouts: "no",
   guardianName: "Thandi Mokoena",
@@ -230,5 +249,293 @@ describe("deciding through a link", () => {
     expect((await guardianDecide(token, answer({ club: "no", scouts: "no" }))).state).toBe(
       "withdrawn",
     );
+  });
+});
+
+/** No name of a player or guardian in an audit row's metadata. */
+const NAMES = ["Lebo", "Mokoena", "Thandi", "Sipho"];
+const expectNoNames = (metadata: unknown) => {
+  const text = JSON.stringify(metadata);
+  for (const name of NAMES) expect(text).not.toContain(name);
+};
+
+describe("withdrawing through a link is audited", () => {
+  it.each([
+    [
+      "expired link",
+      async (_playerId: string, requestId: string) => {
+        await rawDb.consentRequest.update({
+          where: { id: requestId },
+          data: { expiresAt: new Date(Date.now() - 1000) },
+        });
+      },
+    ],
+    ["departed player", async (playerId: string) => void (await markDeparted(ctx, playerId))],
+  ])("%s: one consent.withdraw row, no actor, no names", async (_case, close) => {
+    const p = await namedPlayer(ctx, teamId);
+    const { url, requestId } = await createConsentRequest(ctx, p.id);
+    const token = tokenOf(url);
+    await guardianDecide(token, answer({ scouts: "yes" }));
+    await close(p.id, requestId);
+    expect(await guardianView(token)).toMatchObject({ mode: "withdraw_only" });
+    const res = await guardianWithdraw(token);
+    const audits = await rawDb.auditLog.findMany({
+      where: { organisationId: ctx.organisationId, targetId: p.id, action: "consent.withdraw" },
+    });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]!.actorUserId).toBeNull();
+    expect(audits[0]!.metadata).toMatchObject({
+      consentId: res.consentId,
+      requestId,
+      from: "scout_visible",
+      to: "withdrawn",
+      method: "guardian_link",
+    });
+    expectNoNames(audits[0]!.metadata);
+  });
+});
+
+/**
+ * Runs `during` while another transaction holds the player row lock and has
+ * made `change` (not yet committed): guardianView before the lock sees the old
+ * state. Commits the change once `during` waits on the lock, then returns
+ * `during`'s error, or null.
+ */
+async function raceWithLockedChange(
+  playerId: string,
+  change: (tx: Parameters<Parameters<typeof rawDb.$transaction>[0]>[0]) => Promise<unknown>,
+  during: () => Promise<unknown>,
+): Promise<Error | null> {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let changed!: () => void;
+  const ready = new Promise<void>((r) => (changed = r));
+  const holder = rawDb.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "Player" WHERE "id" = ${playerId} FOR UPDATE`;
+      await change(tx);
+      changed();
+      await gate;
+    },
+    { timeout: 20_000 },
+  );
+  await ready;
+  const result = errorOf(during());
+  // Wait until the guardian's transaction blocks on the player row lock.
+  for (let i = 0; ; i++) {
+    const [{ n }] = await rawDb.$queryRaw<[{ n: number }]>`
+      SELECT count(*)::int AS n FROM pg_stat_activity
+       WHERE datname = current_database() AND wait_event_type = 'Lock'
+         AND query LIKE '%FOR UPDATE%'`;
+    if (n > 0) break;
+    if (i > 200) throw new Error("the guardian decision never waited on the player lock");
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  release();
+  await holder;
+  return result;
+}
+
+describe("a decision re-checks the link under the player lock", () => {
+  it.each([
+    [
+      "the player departs",
+      (playerId: string) => (tx: Parameters<Parameters<typeof rawDb.$transaction>[0]>[0]) =>
+        tx.player.update({
+          where: { id: playerId },
+          data: { clubStatus: "departed", departedAt: new Date() },
+        }),
+    ],
+    [
+      "the player's date of birth makes them 18",
+      (playerId: string) => (tx: Parameters<Parameters<typeof rawDb.$transaction>[0]>[0]) =>
+        tx.player.update({
+          where: { id: playerId },
+          data: { dateOfBirth: new Date(`${dobYearsAgo(19)}T00:00:00Z`) },
+        }),
+    ],
+    [
+      "the organisation is suspended",
+      () => (tx: Parameters<Parameters<typeof rawDb.$transaction>[0]>[0]) =>
+        tx.organisation.update({
+          where: { id: ctx.organisationId },
+          data: { status: "suspended" },
+        }),
+    ],
+  ])("closes the link and writes nothing when %s meanwhile", async (_case, makeChange) => {
+    const p = await namedPlayer(ctx, teamId);
+    const token = tokenOf((await createConsentRequest(ctx, p.id)).url);
+    expect(await guardianView(token)).toMatchObject({ mode: "decide" });
+    try {
+      const err = await raceWithLockedChange(p.id, makeChange(p.id), () =>
+        guardianDecide(token, answer()),
+      );
+      expect(err).toBeInstanceOf(GuardianLinkError);
+      expect((err as GuardianLinkError).code).toBe("closed");
+      expect(
+        await rawDb.consent.count({ where: { playerId: p.id, state: { not: "requested" } } }),
+      ).toBe(0);
+      expect(
+        await rawDb.auditLog.count({ where: { targetId: p.id, action: "consent.record" } }),
+      ).toBe(0);
+    } finally {
+      await rawDb.organisation.update({
+        where: { id: ctx.organisationId },
+        data: { status: "active" },
+      });
+    }
+  });
+
+  it("stores playerWasMinor from the date of birth read under the lock", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 17 });
+    const token = tokenOf((await createConsentRequest(ctx, p.id)).url);
+    const res = await guardianDecide(token, answer());
+    const row = await rawDb.consent.findUniqueOrThrow({ where: { id: res.consentId } });
+    expect(row.playerWasMinor).toBe(true);
+    const audit = await rawDb.auditLog.findFirstOrThrow({
+      where: { targetId: p.id, action: "consent.record" },
+    });
+    expect(audit.metadata).toMatchObject({ playerWasMinor: true });
+  });
+});
+
+describe("an adult's own consent closes the guardian links", () => {
+  it("revokes open links in the same transaction, and the old link cannot withdraw", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 17 });
+    const { url, requestId } = await createConsentRequest(ctx, p.id);
+    const token = tokenOf(url);
+    await guardianDecide(token, answer({ scouts: "yes" }));
+    // The player turns 18: the guardian link may still withdraw the guardian's grant.
+    await rawDb.player.update({
+      where: { id: p.id },
+      data: { dateOfBirth: new Date(`${dobYearsAgo(18, 3)}T00:00:00Z`) },
+    });
+    expect(await guardianView(token)).toMatchObject({ mode: "withdraw_only", reason: "adult" });
+
+    const own = await recordConsent(ctx, p.id, {
+      relationship: "self",
+      method: "in_person",
+      grantedAt: todayIso(),
+      clubStats: "yes",
+      scoutVisible: "yes",
+      seenWording: "on",
+    });
+    const req = await rawDb.consentRequest.findUniqueOrThrow({ where: { id: requestId } });
+    expect(req.revokedAt).not.toBeNull();
+    const revokes = await rawDb.auditLog.findMany({
+      where: { targetId: p.id, action: "consent.request_revoke" },
+    });
+    expect(revokes).toHaveLength(1);
+    expect(revokes[0]!.metadata).toEqual({
+      requestIds: [requestId],
+      consentId: own.consentId,
+      reason: "self_consent",
+    });
+    expectNoNames(revokes[0]!.metadata);
+
+    expect(await guardianView(token)).toMatchObject({ mode: "closed" });
+    const err = await errorOf(guardianWithdraw(token));
+    expect(err).toBeInstanceOf(GuardianLinkError);
+    expect((err as GuardianLinkError).code).toBe("closed");
+    expect((await rawDb.player.findUniqueOrThrow({ where: { id: p.id } })).consentState).toBe(
+      "scout_visible",
+    );
+  });
+
+  it("refuses a withdrawal through a link that is still open once the newest grant is 'self'", async () => {
+    const p = await namedPlayer(ctx, teamId, { age: 17 });
+    const { url, requestId } = await createConsentRequest(ctx, p.id);
+    const token = tokenOf(url);
+    await guardianDecide(token, answer());
+    await rawDb.player.update({
+      where: { id: p.id },
+      data: { dateOfBirth: new Date(`${dobYearsAgo(18, 3)}T00:00:00Z`) },
+    });
+    await recordConsent(ctx, p.id, {
+      relationship: "self",
+      method: "in_person",
+      grantedAt: todayIso(),
+      clubStats: "yes",
+      scoutVisible: "no",
+      seenWording: "on",
+    });
+    // A link left open (written before links were turned off on a 'self' grant).
+    await rawDb.consentRequest.update({ where: { id: requestId }, data: { revokedAt: null } });
+    expect(await guardianView(token)).toMatchObject({ mode: "closed", reason: "adult" });
+    expect(((await errorOf(guardianWithdraw(token))) as GuardianLinkError).code).toBe("closed");
+    expect(
+      await rawDb.consent.count({
+        where: { playerId: p.id, method: "guardian_link", state: "withdrawn" },
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("the decision needs the wording version from the about step (NFR09)", () => {
+  it.each([
+    ["missing", {}],
+    ["empty", { wordingVersion: "" }],
+    ["old", { wordingVersion: "2000-01" }],
+  ])("guardianDecide refuses a %s wording version and writes nothing", async (_case, extra) => {
+    const p = await namedPlayer(ctx, teamId);
+    const token = tokenOf((await createConsentRequest(ctx, p.id)).url);
+    const input: Record<string, string> = { ...answer(), ...extra };
+    if (!("wordingVersion" in extra)) delete input.wordingVersion;
+    const err = await errorOf(guardianDecide(token, input));
+    expect(err).toBeInstanceOf(GuardianInputError);
+    expect((err as GuardianInputError).code).toBe("wording");
+    expect(
+      await rawDb.consent.count({ where: { playerId: p.id, state: { not: "requested" } } }),
+    ).toBe(0);
+  });
+
+  const form = (token: string, wording: string | null) => {
+    const fd = new FormData();
+    fd.set("token", token);
+    if (wording !== null) fd.set("wording", wording);
+    fd.set("club", "yes");
+    fd.set("scouts", "no");
+    fd.set("guardianName", "Thandi Mokoena");
+    fd.set("relationship", "parent");
+    fd.set("confirm", "on");
+    return fd;
+  };
+  const redirectOf = async (p: Promise<unknown>) => {
+    const err = await errorOf(p);
+    expect(err).toBeInstanceOf(nav.Redirect);
+    return (err as InstanceType<typeof nav.Redirect>).url;
+  };
+
+  it.each([
+    ["missing", null],
+    ["old", "2000-01"],
+  ])("the action sends a %s wording version back to the about step", async (_case, wording) => {
+    const p = await namedPlayer(ctx, teamId);
+    const token = tokenOf((await createConsentRequest(ctx, p.id)).url);
+    expect(await redirectOf(guardianDecisionAction(form(token, wording)))).toBe(
+      `/consent/${token}?step=about`,
+    );
+    expect(
+      await rawDb.consent.count({ where: { playerId: p.id, state: { not: "requested" } } }),
+    ).toBe(0);
+  });
+
+  it("the action saves with the current version and carries it on an input error", async () => {
+    const p = await namedPlayer(ctx, teamId);
+    const token = tokenOf((await createConsentRequest(ctx, p.id)).url);
+    const bad = form(token, CONSENT_WORDING_VERSION);
+    bad.set("confirm", "");
+    const back = new URL(await redirectOf(guardianDecisionAction(bad)), "http://x");
+    expect(back.searchParams.get("step")).toBe("you");
+    expect(back.searchParams.get("error")).toBe("confirm");
+    expect(back.searchParams.get("wording")).toBe(CONSENT_WORDING_VERSION);
+    expect(back.search).not.toContain("Thandi");
+    expect(await redirectOf(guardianDecisionAction(form(token, CONSENT_WORDING_VERSION)))).toBe(
+      `/consent/${token}?step=done`,
+    );
+    const row = await rawDb.consent.findFirstOrThrow({
+      where: { playerId: p.id, state: "club_only" },
+    });
+    expect(row.wordingVersion).toBe(CONSENT_WORDING_VERSION);
   });
 });

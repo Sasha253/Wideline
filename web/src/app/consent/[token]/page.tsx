@@ -20,7 +20,13 @@ import { guardianView, type GuardianView } from "@/server/consent/guardian";
 import { CONSENT_WORDING_VERSION } from "@/server/consent/wording";
 import { guardianDecisionAction, guardianWithdrawAction } from "./actions";
 
-type SearchParams = { step?: string; club?: string; scouts?: string; error?: string };
+type SearchParams = {
+  step?: string;
+  club?: string;
+  scouts?: string;
+  error?: string;
+  wording?: string;
+};
 type OpenView = Exclude<GuardianView, { reason: "unknown" }>;
 
 const answer = (v: string | undefined) => (v === "yes" || v === "no" ? v : null);
@@ -32,6 +38,11 @@ const answer = (v: string | undefined) => (v === "yes" || v === "no" ? v : null)
  * only the last step posts to a server action, so every step works without
  * JavaScript. One decision per screen, body-lg, 48px targets. The page never
  * trusts the carried answers: guardianDecisionAction validates them again.
+ *
+ * The about step's form carries the wording version it showed (`wording`)
+ * through every later step as a hidden field or URL parameter, and the
+ * decision is refused without the current one (NFR09). A question step reached
+ * without it shows the about step instead.
  */
 export default async function GuardianConsentPage({
   params,
@@ -99,6 +110,10 @@ function Step({
   const granted = isGranted(view.state);
   const clubAnswer = answer(sp.club);
   const scoutsAnswer = answer(sp.scouts);
+  // The wording the about step showed, carried through the steps (NFR09).
+  const wording = sp.wording === CONSENT_WORDING_VERSION ? CONSENT_WORDING_VERSION : null;
+  const withWording = (params: Record<string, string>) =>
+    `${self}?${new URLSearchParams({ ...params, wording: wording ?? "" })}`;
 
   // After a withdrawal through an expired link the link is closed, but the
   // confirmation still shows.
@@ -121,6 +136,10 @@ function Step({
   let step = sp.step;
   if (step === "answered-club")
     step = clubAnswer === "yes" ? "scouts" : clubAnswer === "no" ? "you" : undefined;
+  if (decide && (step === "club" || step === "scouts" || step === "you") && !wording) {
+    step = "about";
+  }
+  if (decide && step === "about") return <About view={view} self={self} />;
 
   if (decide && step === "club") {
     return (
@@ -130,7 +149,7 @@ function Step({
         explainer={`We record goals, shots and where ${first} ran during matches. Only ${first}'s coaches and club staff can see them, unless you also say yes to scouts.`}
         action={self}
         submitLabel="Continue"
-        secondary={{ href: self, label: "Back" }}
+        secondary={{ href: `${self}?step=about`, label: "Back" }}
         error={
           sp.error === "answers" ? (
             <Banner tone="danger">
@@ -140,6 +159,7 @@ function Step({
         }
       >
         <input type="hidden" name="step" value="answered-club" />
+        <input type="hidden" name="wording" value={wording!} />
         <DecisionChoice name="club" value="yes" label="Yes, the club can record them" />
         <DecisionChoice
           name="club"
@@ -159,9 +179,10 @@ function Step({
         explainer={`Scouts look for players for other clubs and academies. They can only see ${first}'s stats if you say yes.`}
         action={self}
         submitLabel="Continue"
-        secondary={{ href: `${self}?step=club`, label: "Back" }}
+        secondary={{ href: withWording({ step: "club" }), label: "Back" }}
       >
         <input type="hidden" name="step" value="you" />
+        <input type="hidden" name="wording" value={wording!} />
         <input type="hidden" name="club" value="yes" />
         <DecisionChoice name="scouts" value="yes" label="Yes, scouts can see them" />
         <DecisionChoice name="scouts" value="no" label="No, keep them inside the club" />
@@ -187,7 +208,10 @@ function Step({
         submitLabel="Save my answer"
         pendingLabel="Saving…"
         secondary={{
-          href: clubAnswer === "yes" ? `${self}?step=scouts&club=yes` : `${self}?step=club`,
+          href:
+            clubAnswer === "yes"
+              ? withWording({ step: "scouts", club: "yes" })
+              : withWording({ step: "club" }),
           label: "Back",
         }}
         error={
@@ -199,6 +223,7 @@ function Step({
         }
       >
         <input type="hidden" name="token" value={token} />
+        <input type="hidden" name="wording" value={wording!} />
         <input type="hidden" name="club" value={clubAnswer} />
         <input type="hidden" name="scouts" value={scouts} />
         <div className="wl-card">
@@ -207,7 +232,7 @@ function Step({
           {clubAnswer === "yes" && (
             <p className="body-lg">Scouts: {scouts === "yes" ? "Yes" : "No"}</p>
           )}
-          <Link href={`${self}?step=club`} className="body text-pitch underline">
+          <Link href={withWording({ step: "club" })} className="body text-pitch underline">
             Change my answers
           </Link>
         </div>
@@ -226,14 +251,23 @@ function Step({
             aria-describedby={sp.error === "name" ? errorId : undefined}
           />
         </div>
-        <fieldset className="flex flex-col gap-3">
+        <fieldset
+          className="flex flex-col gap-3"
+          aria-describedby={sp.error === "relationship" ? errorId : undefined}
+        >
           <legend className="body-lg mb-3">How are you related to {first}?</legend>
           {GUARDIAN_RELATIONSHIPS.map((r) => (
             <DecisionChoice key={r} name="relationship" value={r} label={RELATIONSHIP_LABELS[r]} />
           ))}
         </fieldset>
         <label className="wl-decision__choice wl-decision__choice--top body-lg">
-          <input type="checkbox" name="confirm" required />
+          <input
+            type="checkbox"
+            name="confirm"
+            required
+            aria-invalid={sp.error === "confirm" ? true : undefined}
+            aria-describedby={sp.error === "confirm" ? errorId : undefined}
+          />
           <span className="min-w-0 break-words">
             I am {first}&apos;s parent or guardian and I am 18 or over.
           </span>
@@ -277,7 +311,7 @@ function Step({
     );
   }
 
-  // The entry view.
+  // The entry view: the answer when there is a grant, otherwise the about step.
   if (granted) {
     return (
       <>
@@ -292,6 +326,16 @@ function Step({
       </>
     );
   }
+  return <About view={view} self={self} />;
+}
+
+/**
+ * The about step (Step 1): the consent wording. Its form starts the questions
+ * and carries the wording version it showed (NFR09).
+ */
+function About({ view, self }: { view: OpenView; self: string }) {
+  const first = view.firstName;
+  const club = view.clubName;
   return (
     <>
       <p className="caption text-ink-muted">Step 1 of 4</p>
@@ -311,6 +355,7 @@ function Step({
       </div>
       <form action={self} className="mt-6">
         <input type="hidden" name="step" value="club" />
+        <input type="hidden" name="wording" value={CONSENT_WORDING_VERSION} />
         <Button variant="primary" type="submit" block className="justify-center">
           Continue
         </Button>
@@ -351,7 +396,7 @@ function AnswerButtons({ view, self }: { view: OpenView; self: string }) {
         <ButtonLink
           variant="secondary"
           className="h-12 w-full justify-center"
-          href={`${self}?step=club`}
+          href={`${self}?step=about`}
         >
           Change my answer
         </ButtonLink>
@@ -383,7 +428,7 @@ function Closed({ view }: { view: OpenView }) {
     ],
     inactive: [
       "This link no longer works",
-      `${club} turned off this link or sent a newer one. Use the newest link from ${club}, or ask them for a new one.`,
+      `${club} cannot take answers on Wideline right now. If you have questions, ask ${club}.`,
     ],
     adult: [
       `${first} is now 18`,

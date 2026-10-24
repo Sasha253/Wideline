@@ -191,7 +191,7 @@ export function ConsentActions({
           <ConfirmDialog
             trigger={{ label: "Withdraw consent", variant: "danger", icon: ShieldOff, block: true }}
             title={`Withdraw consent for ${name}?`}
-            body={`The club and scouts stop seeing ${firstName}'s stats straight away. Wideline keeps no new stats for ${firstName}, and removes ${firstName} from clips, searches and saved lists within 24 hours. You can record consent again later.`}
+            body={`The club and scouts stop seeing ${firstName}'s stats straight away. Wideline keeps no new stats for ${firstName}, and removes ${firstName} from clips, searches and saved lists within 24 hours.${active ? " You can record consent again later." : ""}`}
             form={withdraw}
             hidden={hidden}
             submit={{ label: "Withdraw consent", pendingLabel: "Withdrawing…", variant: "danger" }}
@@ -216,7 +216,7 @@ export function ConsentActions({
                 {minor && (
                   <RadioGroup
                     name="relationship"
-                    legend={`How are they related to ${firstName}?`}
+                    legend={`How are they related to ${firstName}? (optional)`}
                     options={GUARDIAN_RELATIONSHIPS.map((r) => ({
                       value: r,
                       label: RELATIONSHIP_LABELS[r],
@@ -270,19 +270,34 @@ function CopyBox({
     () => false,
   );
   const [announce, setAnnounce] = useState("");
+  const announceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), 2000);
     return () => clearTimeout(t);
   }, [copied]);
+  useEffect(
+    () => () => {
+      if (announceTimer.current) clearTimeout(announceTimer.current);
+    },
+    [],
+  );
+
+  // Clear the live region, then set the message after a moment, so a second
+  // click announces again even when the words are the same.
+  function say(text: string) {
+    if (announceTimer.current) clearTimeout(announceTimer.current);
+    setAnnounce("");
+    announceTimer.current = setTimeout(() => setAnnounce(text), 100);
+  }
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setAnnounce("Link copied.");
+      say("Link copied.");
     } catch {
-      setAnnounce("The link was not copied. Select it and copy it yourself.");
+      say("The link was not copied. Select it and copy it yourself.");
     }
   }
 

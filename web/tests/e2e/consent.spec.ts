@@ -124,6 +124,10 @@ test("an admin records and withdraws a guardian's consent", async ({ page }) => 
   await page.getByRole("button", { name: "Withdraw consent" }).click();
   const dialog = page.getByRole("dialog", { name: `Withdraw consent for ${name}?` });
   await expect(dialog.getByLabel("Who asked to withdraw?")).toBeFocused();
+  await expect(
+    dialog.getByRole("group", { name: `How are they related to ${first}? (optional)` }),
+  ).toBeVisible();
+  await expect(dialog.getByText("You can record consent again later.")).toBeVisible();
   await axeEverywhere(page);
   await dialog.getByRole("button", { name: "Withdraw consent" }).click();
   await expect(dialog.getByText("Enter the name of the person who asked.")).toBeVisible();

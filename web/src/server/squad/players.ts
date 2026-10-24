@@ -149,13 +149,16 @@ export async function countPlayers(
   { teamId }: { teamId?: string | null },
 ): Promise<{ current: number; departed: number }> {
   requireSquadOrg(ctx);
-  const where = {
-    ...consentVisibleTo({ kind: "club" }),
-    ...(teamId
-      ? { teamId, team: { isOpposition: false } }
-      : { OR: [{ teamId: null }, { team: { isOpposition: false } }] }),
-  };
-  const groups = await ctx.db.player.groupBy({ by: ["clubStatus"], where, _count: true });
+  const groups = await ctx.db.player.groupBy({
+    by: ["clubStatus"],
+    where: {
+      ...consentVisibleTo({ kind: "club" }),
+      ...(teamId
+        ? { teamId, team: { isOpposition: false } }
+        : { OR: [{ teamId: null }, { team: { isOpposition: false } }] }),
+    },
+    _count: true,
+  });
   const of = (s: ClubStatus) => groups.find((g) => g.clubStatus === s)?._count ?? 0;
   return { current: of("active"), departed: of("departed") };
 }

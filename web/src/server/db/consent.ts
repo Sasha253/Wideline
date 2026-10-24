@@ -1,5 +1,5 @@
 import "server-only";
-import type { ConsentState } from "@/generated/prisma/enums";
+import type { ClubStatus, ConsentState } from "@/generated/prisma/enums";
 import { rawDb } from "./raw";
 
 /**
@@ -24,19 +24,27 @@ export async function lockConsentState(
   return (await lockConsentPlayer(tx, organisationId, playerId))?.consentState ?? null;
 }
 
+export type LockedConsentPlayer = {
+  consentState: ConsentState;
+  dateOfBirth: Date | null;
+  clubStatus: ClubStatus;
+};
+
 /**
- * lockConsentState, plus the date of birth read under the same lock. Whether a
- * guardian must decide hangs on it (CONS02), so a consent change and a date of
- * birth edit to one player run one after the other and each sees the other's
- * result. Null when the player is not in this organisation.
+ * lockConsentState, plus the date of birth and club status read under the same
+ * lock. Whether a guardian must decide hangs on the date of birth (CONS02), and
+ * whether a link may decide on both, so a consent change and a date of birth
+ * edit or a departure of one player run one after the other and each sees the
+ * other's result. Null when the player is not in this organisation.
  */
 export async function lockConsentPlayer(
   tx: RawQuery,
   organisationId: string,
   playerId: string,
-): Promise<{ consentState: ConsentState; dateOfBirth: Date | null } | null> {
-  const rows = await tx.$queryRaw<{ consentState: ConsentState; dateOfBirth: Date | null }[]>`
-    SELECT "consentState"::text AS "consentState", "dateOfBirth" FROM "Player"
+): Promise<LockedConsentPlayer | null> {
+  const rows = await tx.$queryRaw<LockedConsentPlayer[]>`
+    SELECT "consentState"::text AS "consentState", "dateOfBirth", "clubStatus"::text AS "clubStatus"
+      FROM "Player"
      WHERE "organisationId" = ${organisationId} AND "id" = ${playerId}
      FOR UPDATE`;
   return rows[0] ?? null;

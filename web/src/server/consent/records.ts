@@ -174,6 +174,11 @@ export function losesVisibility(from: ConsentState, to: ConsentState): boolean {
  * after a grant is a withdrawal, otherwise a refusal (none). Stamps
  * CONSENT_WORDING_VERSION. Audited as consent.record, or consent.withdraw when
  * the answer withdraws a grant.
+ *
+ * An adult's own answer ("self") is theirs from now on: in the same
+ * transaction it turns off every guardian link of the player that is not
+ * already turned off, so a parent's old link cannot undo it (audited as
+ * consent.request_revoke with ids only).
  */
 export async function recordConsent(
   ctx: AuthContext,
@@ -255,6 +260,9 @@ export async function recordConsent(
       },
       asTransactionClient(tx),
     );
+    if (data.relationship === "self") {
+      await revokeLinksForSelf(asTransactionClient(tx), ctx, playerId, row.id, now);
+    }
     return { consentId: row.id, state, from };
   });
   if (losesVisibility(result.from, result.state)) {
@@ -265,6 +273,42 @@ export async function recordConsent(
     });
   }
   return result;
+}
+
+/**
+ * Turns off the player's guardian links after an adult's own answer (CONS02):
+ * every link not already turned off, expired ones too, since an expired link
+ * can still withdraw. Audited as consent.request_revoke with ids only. Runs in
+ * recordConsent's transaction, under its player row lock.
+ */
+async function revokeLinksForSelf(
+  tx: AuditTx,
+  ctx: AuthContext,
+  playerId: string,
+  consentId: string,
+  now: Date,
+): Promise<void> {
+  const open = await tx.consentRequest.findMany({
+    where: { playerId, revokedAt: null },
+    select: { id: true },
+  });
+  if (open.length === 0) return;
+  const requestIds = open.map((r) => r.id);
+  await tx.consentRequest.updateMany({
+    where: { id: { in: requestIds }, revokedAt: null },
+    data: { revokedAt: now },
+  });
+  await audit(
+    {
+      organisationId: ctx.organisationId,
+      actorUserId: ctx.user.id,
+      action: "consent.request_revoke",
+      targetType: "Player",
+      targetId: playerId,
+      metadata: { requestIds, consentId, reason: "self_consent" },
+    },
+    tx,
+  );
 }
 
 /**

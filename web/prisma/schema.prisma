@@ -95,13 +95,13 @@ model Organisation {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
-  memberships Membership[]
-  teams       Team[]
-  players     Player[]
-  matches     Match[]
-  lineups     Lineup[]
-  auditLogs   AuditLog[]
-  invitations Invitation[]
+  memberships     Membership[]
+  teams           Team[]
+  players         Player[]
+  matches         Match[]
+  lineups         Lineup[]
+  auditLogs       AuditLog[]
+  invitations     Invitation[]
   // C05: consent records and guardian links (CONS01 to CONS04).
   consents        Consent[]
   consentRequests ConsentRequest[]
@@ -128,14 +128,14 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  sessions            Session[]
-  accounts            Account[]
-  memberships         Membership[] @relation("MembershipUser")
-  invitations         Membership[] @relation("MembershipInvitedBy")
-  invitationsSent     Invitation[] @relation("InvitationInvitedBy")
-  invitationsAccepted Invitation[] @relation("InvitationAcceptedBy")
+  sessions               Session[]
+  accounts               Account[]
+  memberships            Membership[]     @relation("MembershipUser")
+  invitations            Membership[]     @relation("MembershipInvitedBy")
+  invitationsSent        Invitation[]     @relation("InvitationInvitedBy")
+  invitationsAccepted    Invitation[]     @relation("InvitationAcceptedBy")
   // Refused by the scoped client (USER_PRIVATE_RELATIONS).
-  scoutProfile        ScoutProfile?
+  scoutProfile           ScoutProfile?
   // C05. Refused by the scoped client (USER_PRIVATE_RELATIONS): they would list
   // every consent a user recorded or requested, in any organisation.
   consentsRecorded       Consent[]        @relation("ConsentRecordedBy")
@@ -495,9 +495,12 @@ model Consent {
   // link, or the user was deleted.
   recordedById   String?
   recordedBy     User?                @relation("ConsentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
-  // The guardian link it came through, if any. A plain column: the row must
-  // outlive the link, and a composite SetNull would null organisationId.
+  // The guardian link it came through, if any. A composite foreign key, so a
+  // row can only point at a link of its own organisation (NFR16). NoAction on
+  // delete: links are never deleted on their own, only by the same organisation
+  // or player cascade that deletes this row (migration c05_consent_request_fk).
   requestId      String?
+  request        ConsentRequest?      @relation(fields: [organisationId, requestId], references: [organisationId, id], onDelete: NoAction, onUpdate: NoAction)
   // V104: a scan of a signed paper form, in private storage. Unused in v0.
   evidencePath   String?
   // Set by the trigger: clock_timestamp() in UTC, or the player's newest row
@@ -527,6 +530,7 @@ model ConsentRequest {
   expiresAt      DateTime
   revokedAt      DateTime?
   lastUsedAt     DateTime?
+  consents       Consent[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playerId])

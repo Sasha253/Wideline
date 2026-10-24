@@ -34,7 +34,11 @@ const SUMMARY_SELECT = {
   gender: true,
   season: true,
   isOpposition: true,
-  _count: { select: { players: { where: { clubStatus: "active" as const } } } },
+  _count: {
+    select: {
+      players: { where: { clubStatus: "active" as const, ...consentVisibleTo({ kind: "club" }) } },
+    },
+  },
 };
 
 type SummaryRow = Omit<TeamSummary, "activeCount"> & { _count: { players: number } };
@@ -78,7 +82,9 @@ export async function getTeam(ctx: AuthContext, teamId: string): Promise<TeamDet
       ...SUMMARY_SELECT,
       _count: {
         select: {
-          players: { where: { clubStatus: "active" as const } },
+          players: {
+            where: { clubStatus: "active" as const, ...consentVisibleTo({ kind: "club" }) },
+          },
           homeMatches: true,
           awayMatches: true,
           lineups: true,
@@ -257,7 +263,14 @@ async function deleteTeamOnce(ctx: AuthContext, teamId: string): Promise<{ name:
         name: true,
         season: true,
         isOpposition: true,
-        _count: { select: { players: true, homeMatches: true, awayMatches: true, lineups: true } },
+        _count: {
+          select: {
+            players: { where: { ...consentVisibleTo({ kind: "club" }) } },
+            homeMatches: true,
+            awayMatches: true,
+            lineups: true,
+          },
+        },
       },
     });
     if (!team) throw new TeamError("not_found");

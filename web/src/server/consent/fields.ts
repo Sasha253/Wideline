@@ -147,6 +147,8 @@ export const guardianDecisionSchema = z
   });
 
 export type GuardianDecisionInput = {
+  /** The wording version the about step showed, carried through the steps (NFR09). */
+  wordingVersion?: string;
   club?: string;
   scouts?: string;
   guardianName?: string;

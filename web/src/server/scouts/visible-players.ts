@@ -14,6 +14,13 @@ import { rawDb } from "../db/raw";
  * their scout reads on this, and must keep the consentVisibleTo filter. Players
  * belong to many organisations, so it uses the raw client with the scout role
  * checked here; it returns only what a scout card needs.
+ *
+ * Departed players: no clubStatus filter, on purpose. A departed player's
+ * consent still governs what scouts see (PRD PROF09: the profile stays under
+ * the player's or guardian's control after they leave the club), so a departed
+ * player with scout_visible consent stays visible to scouts until that consent
+ * is withdrawn, which the family can still do through the club or an unrevoked
+ * guardian link.
  */
 export type ScoutVisiblePlayer = {
   id: string;

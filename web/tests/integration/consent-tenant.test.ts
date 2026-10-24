@@ -24,6 +24,7 @@ let orgA: string;
 let orgB: string;
 let playerA: string;
 let playerB: string;
+let requestA: string;
 
 beforeAll(async () => {
   const a = await f.org("Consent tenant A");
@@ -41,7 +42,7 @@ beforeAll(async () => {
   playerA = (await namedPlayer(ctxA, teamA.id)).id;
   playerB = (await namedPlayer(ctxB, teamB.id)).id;
   await recordConsent(ctxA, playerA, guardianGrant());
-  await createConsentRequest(ctxA, playerA);
+  requestA = (await createConsentRequest(ctxA, playerA)).requestId;
 });
 
 afterAll(async () => {
@@ -109,6 +110,38 @@ describe("org B's scoped client and org A's consent", () => {
     expect((await rawDb.player.findUniqueOrThrow({ where: { id: playerA } })).consentState).toBe(
       "scout_visible",
     );
+  });
+
+  it("cannot point a Consent row at org A's guardian link (composite requestId key)", async () => {
+    const row = (requestId: string) => ({
+      organisationId: orgB,
+      playerId: playerB,
+      state: "requested" as const,
+      clubStats: false,
+      scoutVisible: false,
+      method: "guardian_link" as const,
+      playerWasMinor: true,
+      requestId,
+    });
+    for (const db of [rawDb, ctxB.db]) {
+      const err = await errorOf(db.consent.create({ data: row(requestA) }));
+      expect(prismaErrorCode(err)).toBe("P2003");
+    }
+    expect(
+      prismaErrorCode(await errorOf(rawDb.consent.create({ data: row("no-such-link") }))),
+    ).toBe("P2003");
+    expect(await rawDb.consent.count({ where: { playerId: playerB } })).toBe(0);
+    // Org A's own link is accepted.
+    const ok = await rawDb.consent.create({
+      data: {
+        ...row(requestA),
+        organisationId: orgA,
+        playerId: playerA,
+        state: "withdrawn",
+        withdrawnAt: new Date(),
+      },
+    });
+    expect(ok.requestId).toBe(requestA);
   });
 
   it("gets not_found from every service for org A's player", async () => {
