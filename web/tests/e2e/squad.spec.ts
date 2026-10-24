@@ -113,7 +113,8 @@ test("add a team and players; a duplicate number is refused; mark a player depar
   await expect(page.getByRole("status")).toHaveText(
     "Thabo Nkosi is marked as departed. Their records are kept.",
   );
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Departed");
+  // C05: the hero shows the ConsentBadge first, then the Departed chip.
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText(["No consent", "Departed"]);
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Mark as departed" })).toHaveCount(0);
   await expect(page.getByText("Left on", { exact: true })).toBeVisible();
@@ -129,7 +130,8 @@ test("add a team and players; a duplicate number is refused; mark a player depar
     name: `Departed players in ${teamLabel}, by date left`,
   });
   await expect(departed.getByRole("row").nth(1)).toContainText("Thabo Nkosi");
-  await expect(departed.locator(".wl-chip")).toHaveText("Departed");
+  // C05: the Consent column sits after Name, so the row has two chips.
+  await expect(departed.locator(".wl-chip")).toHaveText(["Departed", "No consent"]);
 
   // Undo within 7 days (Q-012): back in the squad, then depart again for the later tests.
   await page.goto(thaboPath);
@@ -137,7 +139,7 @@ test("add a team and players; a duplicate number is refused; mark a player depar
   await page.getByRole("button", { name: "Undo departure" }).click();
   await expect(page).toHaveURL(/\?done=restored/);
   await expect(page.getByRole("status")).toHaveText("Thabo Nkosi is back in the squad.");
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveCount(0);
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText(["No consent"]);
   await page.getByRole("button", { name: "Mark as departed" }).click();
   await page
     .getByRole("dialog", { name: "Mark Thabo Nkosi as departed?" })

@@ -1,7 +1,7 @@
 import type { audit } from "../audit";
 
 /** The transaction client audit(entry, tx) takes. */
-type AuditTx = NonNullable<Parameters<typeof audit>[1]>;
+export type AuditTx = NonNullable<Parameters<typeof audit>[1]>;
 
 /**
  * A scoped client's interactive transaction, typed for audit(entry, tx). The

@@ -9,6 +9,8 @@ describe("isPublicPath", () => {
     "/register",
     "/register/",
     "/invite/abc123",
+    "/consent/abc",
+    "/consent/abc?step=club",
     "/api/auth/session",
   ])("%s is public", (path) => expect(isPublicPath(path)).toBe(true));
 
@@ -16,6 +18,8 @@ describe("isPublicPath", () => {
     "/",
     "/applications",
     "/invites",
+    "/consents",
+    "/consenting/abc",
     "/apiary",
     "/registered",
     "/registration",

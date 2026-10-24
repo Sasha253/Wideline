@@ -102,6 +102,9 @@ model Organisation {
   lineups     Lineup[]
   auditLogs   AuditLog[]
   invitations Invitation[]
+  // C05: consent records and guardian links (CONS01 to CONS04).
+  consents        Consent[]
+  consentRequests ConsentRequest[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -133,6 +136,10 @@ model User {
   invitationsAccepted Invitation[] @relation("InvitationAcceptedBy")
   // Refused by the scoped client (USER_PRIVATE_RELATIONS).
   scoutProfile        ScoutProfile?
+  // C05. Refused by the scoped client (USER_PRIVATE_RELATIONS): they would list
+  // every consent a user recorded or requested, in any organisation.
+  consentsRecorded       Consent[]        @relation("ConsentRecordedBy")
+  consentRequestsCreated ConsentRequest[] @relation("ConsentRequestCreatedBy")
 }
 
 // Better Auth: database sessions, so a session can be revoked server-side.
@@ -384,7 +391,12 @@ model Player {
   preferredFoot  PreferredFoot?
   heightCm       Int?
   squadNumber    Int?
-  // Cached current state; the Consent table (later) is the source of truth.
+  // CONS01: a cache of the newest Consent row's state. Only the database writes
+  // it: the BEFORE INSERT trigger "Consent_before_insert" sets it in the same
+  // statement as the Consent insert, and "Player_consentState_guard" refuses
+  // any other change (a new player must start at none). The scoped client also
+  // refuses it in Player writes. Read visibility through consentVisibleTo()
+  // (src/server/consent/visibility.ts), never by comparing this by hand.
   consentState   ConsentState   @default(none)
   // SQUAD09: departing sets clubStatus and departedAt only (markDeparted in
   // src/server/squad/players.ts). Nothing cascades: lineups, matches and stats
@@ -395,7 +407,9 @@ model Player {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  lineups Lineup[]
+  lineups         Lineup[]
+  consents        Consent[]
+  consentRequests ConsentRequest[]
 
   @@unique([organisationId, id])
   // SQUAD04: a squad number is used once per team among active players. A Team
@@ -407,6 +421,115 @@ model Player {
   @@unique([organisationId, teamId, squadNumber], map: "Player_team_squadNumber_active_key", where: raw("\"squadNumber\" IS NOT NULL AND \"clubStatus\" = 'active'"))
   @@index([organisationId])
   @@index([teamId])
+}
+
+// ---------------------------------------------------------------------------
+// Consent (CONS01 to CONS04, NFR08 to NFR12; docs/build/design/C05.md)
+// ---------------------------------------------------------------------------
+
+// How the decision reached the club. guardian_link is set only by the guardian
+// screens (/consent/[token]); email is for CONS05 (v1) and paper forms.
+enum ConsentMethod {
+  paper_form
+  in_person
+  guardian_link
+  email
+}
+
+// Who decided, relative to the player. self only when the player was 18 or
+// over on the decision date (CHECK "Consent_minor_needs_guardian").
+enum ConsentRelationship {
+  self
+  parent
+  legal_guardian
+  grandparent
+  other_relative
+}
+
+// Append-only (PRD "Rules the schema must enforce"): one row per decision,
+// request or withdrawal, never edited or deleted. The current state is the
+// newest row by createdAt, cached in Player.consentState by the trigger
+// "Consent_before_insert" in the same statement. The rules live in Postgres,
+// in raw SQL (migration c05_consent), because Prisma cannot declare them:
+//  - CHECK "Consent_state_matches_choices": scout_visible is club and scouts
+//    yes; club_only is club yes, scouts no; none, requested and withdrawn are
+//    both no (NFR10).
+//  - CHECK "Consent_scout_needs_club": scouts yes needs club yes.
+//  - CHECK "Consent_grant_complete": a granting row names who decided, their
+//    relationship, the method, the wording version and the date (NFR09).
+//  - CHECK "Consent_minor_needs_guardian": a grant for a player under 18 on
+//    the decision date comes from a guardian, never "self" (CONS02).
+//  - CHECK "Consent_withdrawn_has_time": a withdrawn row has withdrawnAt.
+//  - Trigger "Consent_append_only": UPDATE and DELETE raise, apart from the
+//    cascades (organisation or player deleted) and the recordedById SetNull
+//    when a user is deleted, which run inside another trigger.
+//  - Trigger "Consent_before_insert": refuses placeholder and opposition
+//    players, writes Player.consentState (locking the player row, so changes
+//    to one player serialise) and stamps a strictly increasing createdAt.
+// Names (grantedBy) are children's and guardians' data: shown on screen only,
+// never in audit metadata or logs.
+model Consent {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  playerId       String
+  player         Player               @relation(fields: [organisationId, playerId], references: [organisationId, id], onDelete: Cascade)
+  state          ConsentState
+  // NFR10: the two separate choices.
+  clubStats      Boolean
+  scoutVisible   Boolean
+  // Who decided (or, for a withdrawal, who asked): a guardian's or the
+  // player's own name as given.
+  grantedBy      String?
+  relationship   ConsentRelationship?
+  method         ConsentMethod?
+  // CONSENT_WORDING_VERSION shown to the person deciding
+  // (src/server/consent/wording.ts).
+  wordingVersion String?
+  // Under 18 on the decision date (Africa/Johannesburg), or no date of birth.
+  playerWasMinor Boolean
+  // The decision date, for grants and refusals.
+  grantedAt      DateTime?
+  withdrawnAt    DateTime?
+  // The club user who recorded it; null when the guardian decided through a
+  // link, or the user was deleted.
+  recordedById   String?
+  recordedBy     User?                @relation("ConsentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  // The guardian link it came through, if any. A plain column: the row must
+  // outlive the link, and a composite SetNull would null organisationId.
+  requestId      String?
+  // V104: a scan of a signed paper form, in private storage. Unused in v0.
+  evidencePath   String?
+  // Set by the trigger: clock_timestamp() in UTC, or the player's newest row
+  // plus 1 ms, so one player's rows are strictly ordered (migration
+  // c05_consent_order).
+  createdAt      DateTime             @default(now())
+
+  @@unique([organisationId, id])
+  @@index([organisationId, playerId, createdAt])
+}
+
+// A guardian consent link (/consent/<token>). Only a sha256 hash of the token
+// is stored; the raw URL is shown to the club once. One open link per player:
+// a new one revokes the others. A link decides for 14 days; after that, and
+// until it is revoked or replaced, it can still withdraw (NFR11: withdrawing
+// is as easy as granting).
+model ConsentRequest {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  playerId       String
+  player         Player       @relation(fields: [organisationId, playerId], references: [organisationId, id], onDelete: Cascade)
+  tokenHash      String       @unique
+  createdById    String?
+  createdBy      User?        @relation("ConsentRequestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+
+  @@unique([organisationId, id])
+  @@index([organisationId, playerId])
 }
 
 // ---------------------------------------------------------------------------

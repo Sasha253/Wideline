@@ -1,4 +1,5 @@
 import { playerName, teamLabel } from "@/lib/labels";
+import { consentVisibleTo } from "../consent/visibility";
 import type { ScopedDb } from "../db/scoped";
 
 // Errors for the squad module and the copy they carry (docs/build/design/C04.md).
@@ -82,6 +83,7 @@ export async function findNumberHolder(
       squadNumber,
       clubStatus: "active",
       ...(exceptPlayerId && { id: { not: exceptPlayerId } }),
+      ...consentVisibleTo({ kind: "club" }),
     },
     select: {
       id: true,

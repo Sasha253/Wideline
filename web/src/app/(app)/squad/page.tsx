@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/states/EmptyState";
 import { DataTable, Missing, type DataColumn } from "@/components/templates/DataTable";
 import { ListPage } from "@/components/templates/ListPage";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { ConsentBadge } from "@/components/ui/ConsentBadge";
 import { initials } from "@/components/ui/PlayerCard";
 import { ClubStatusChip } from "@/components/ui/StatusChip";
 import {
@@ -49,6 +50,11 @@ function NameLink({ p }: { p: PlayerRow }) {
 
 const orMissing = (v: string | number | null | undefined) =>
   v === null || v === undefined || v === "" ? <Missing /> : v;
+
+/** CONS01: the consent badge for named players; placeholders never hold consent (C05). */
+function ConsentCell({ p }: { p: PlayerRow }) {
+  return p.isPlaceholder ? <Missing /> : <ConsentBadge state={p.consentState} />;
+}
 
 /**
  * The squad list (SQUAD02, SQUAD09; docs/build/design/C04.md, Surfaces 1 and 2):
@@ -188,6 +194,7 @@ export default async function SquadPage({
     const columns: DataColumn[] = [
       { id: "no", header: "No.", numeric: true },
       { id: "name", header: "Name" },
+      { id: "consent", header: "Consent" },
       { id: "position", header: "Position" },
       { id: "foot", header: "Foot" },
       { id: "age", header: "Age", numeric: true },
@@ -207,6 +214,7 @@ export default async function SquadPage({
           cells: [
             orMissing(p.squadNumber),
             <NameLink key="name" p={p} />,
+            <ConsentCell key="consent" p={p} />,
             orMissing(positionLabel(p.position)),
             orMissing(p.preferredFoot && FOOT_LABELS[p.preferredFoot]),
             orMissing(formatAge(p.dateOfBirth)),
@@ -233,6 +241,7 @@ export default async function SquadPage({
         }
         columns={[
           { id: "name", header: "Name" },
+          { id: "consent", header: "Consent" },
           { id: "position", header: "Position" },
           { id: "age", header: "Age", numeric: true },
           { id: "team", header: "Team" },
@@ -245,6 +254,7 @@ export default async function SquadPage({
               <NameLink p={p} />
               <ClubStatusChip status={p.clubStatus} />
             </span>,
+            <ConsentCell key="consent" p={p} />,
             orMissing(positionLabel(p.position)),
             orMissing(formatAge(p.dateOfBirth)),
             <span key="team" className="break-words">
@@ -311,10 +321,11 @@ function PlayerCardRow({ p, showTeam }: { p: PlayerRow; showTeam: boolean }) {
           {playerName(p)}
         </Link>
         {meta && <p className="caption text-ink-muted">{meta}</p>}
-        {departed && (
+        {(!p.isPlaceholder || departed) && (
           <div className="wl-row mt-2">
-            <ClubStatusChip status={p.clubStatus} />
-            {p.departedAt && (
+            {!p.isPlaceholder && <ConsentBadge state={p.consentState} />}
+            {departed && <ClubStatusChip status={p.clubStatus} />}
+            {departed && p.departedAt && (
               <span className="caption text-ink-muted">Left on {formatDate(p.departedAt)}</span>
             )}
           </div>

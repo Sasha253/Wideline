@@ -14,6 +14,10 @@ const PUBLIC_ACTIONS = new Set([
   // Public scout registration (C02): a new account, or the signed-in user registering
   // themselves; never another user. A honeypot catches simple bots.
   "registerScoutAction",
+  // Guardian consent links (C05): the token is the capability; guardianDecide and
+  // guardianWithdraw re-check the link on every call.
+  "guardianDecisionAction",
+  "guardianWithdrawAction",
 ]);
 
 const appDir = join(import.meta.dirname, "../../src/app");
@@ -95,6 +99,28 @@ describe("server actions", () => {
           /requireRole\(SQUAD_ADMIN_ROLES\)/,
         );
       }
+    }
+  });
+
+  it("finds the C05 consent action files: club actions need CONSENT_ADMIN_ROLES", () => {
+    const rel = actionFiles.map((f) => f.slice(appDir.length + 1));
+    const club = "(app)/squad/players/[playerId]/consent/actions.ts";
+    expect(rel).toContain(club);
+    expect(rel).toContain("consent/[token]/actions.ts");
+    const actions = exportedActions(readFileSync(join(appDir, club), "utf8"));
+    expect(actions.map((a) => a.name)).toEqual(
+      expect.arrayContaining([
+        "recordConsentAction",
+        "withdrawConsentAction",
+        "requestConsentAction",
+        "revokeConsentRequestAction",
+      ]),
+    );
+    for (const { name, body } of actions) {
+      expect(PUBLIC_ACTIONS.has(name), name).toBe(false);
+      expect(body, `${name} must write with CONSENT_ADMIN_ROLES`).toMatch(
+        /requireRole\(CONSENT_ADMIN_ROLES\)/,
+      );
     }
   });
 

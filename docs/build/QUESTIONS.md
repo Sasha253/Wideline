@@ -127,3 +127,67 @@ These questions do not block the build. Each one has a default that the build is
 - **Impact:** lifting it means relaxing one validator and showing the name fields on opposition teams. No schema change.
 - **Answer:** Keep the default: opposition players are unnamed placeholders only. (Given by the user in the orchestrator chat on 2026-10-24, recorded by the orchestrator.)
 - **Resolved:** matches the default; no rework.
+
+## Q-015 · C05 · Checking who answers through a guardian link
+
+- **Question:** A decision made through a guardian link takes effect as soon as it is saved. Wideline cannot check that the person who opened the link is really the player's parent or guardian. Should a link decision wait until a club admin confirms it, or take effect at once?
+- **Default taken:** it takes effect at once. The guardian types their name, chooses a relationship and confirms "I am {first name}'s parent or guardian and I am 18 or over". The club sees the decision in the consent history as "Guardian link", recorded by "The guardian, through the link", and can withdraw it or record consent again. The copy box tells the club to send the link only to the parent or guardian.
+- **Recommended:** keep the default for the pilot, and ask the privacy lawyer as part of the v0 gate whether this is enough for a "competent person" under POPIA section 35. A confirm step would add a sixth, pending state outside CONS01's five.
+- **Impact:** a club confirmation step means a "waiting for the club" state (or a flag on the Consent row), a confirm action on the player page, and different copy on the guardian done screen. The append-only model and the visibility helper stay the same.
+- **Answer:**
+
+## Q-016 · C05 · Languages for guardian consent
+
+- **Question:** Should the guardian consent screens and the paper form be offered in languages other than English, for example isiZulu, isiXhosa, Afrikaans or Sesotho?
+- **Default taken:** English only, written for a reading age of about 12. Each wording version holds the text for two audiences (guardian and adult player), with no language key.
+- **Recommended:** English for the pilot. Add the pilot clubs' main home languages before v1, each translated and checked by the privacy lawyer, because a guardian must understand what they agree to.
+- **Impact:** a language key in `CONSENT_WORDINGS` (a version per language, stored on the Consent row), a language choice on the first guardian screen and on the print page, and translated screen copy. No change to states or visibility.
+- **Answer:**
+
+## Q-017 · C05 · Who may record or withdraw consent on the club side
+
+- **Question:** Who may record or withdraw consent on the club side: owners and admins only, or coaches too (as with squad edits in Q-011)?
+- **Default taken:** `CONSENT_ADMIN_ROLES` = owners and admins. Coaches see consent state and history read-only.
+- **Recommended:** keep owners and admins. The PRD gives consent recording to the club admin, and a mistaken grant carries POPIA weight.
+- **Impact:** one constant in `session.ts`, plus the read-only branch on the player page and the role expectations in the e2e spec.
+- **Answer:**
+
+## Q-018 · C05 · Consent gate for players aged 18 or over
+
+- **Question:** Should the consent gate on per-player data (NFR08) also apply to players aged 18 or over, so an adult with no recorded consent gets no per-player stats?
+- **Default taken:** yes. `attributablePlayerIds` allows only `club_only` or `scout_visible` for everyone. Adults give self-consent, recorded by the club.
+- **Recommended:** keep it. It is simpler and safer, and CONS01 gives every player a consent state.
+- **Impact:** one condition in `visibility.ts` (`mayAttribute`) plus its tests.
+- **Answer:**
+
+## Q-019 · C05 · How a guardian receives the consent link in v0
+
+- **Question:** How does a guardian receive the consent link in v0, before emailed requests (CONS05) arrive in v1?
+- **Default taken:** the club copies the link and shares it itself (WhatsApp or SMS), or hands its phone to the guardian. A paper form can be printed for signed consent. No email is sent.
+- **Recommended:** keep it for the pilot. V104 adds email via `sendMail` and pg-boss.
+- **Impact:** adding email now means a guardian email field (more personal data) and one `sendMail` call in `createConsentRequest`.
+- **Answer:**
+
+## Q-020 · C05 · Draft consent wording
+
+- **Question:** Is the draft consent wording (version `2026-10-draft-1`, marked for legal review) acceptable for building, with the privacy lawyer approving the final text as part of the v0 gate?
+- **Default taken:** build with the draft wording. It discloses independent scout review even when the scouts answer is no, and EU storage with possible processing elsewhere, outside South Africa.
+- **Recommended:** yes, the same approach as Q-004.
+- **Impact:** new wording means a new `CONSENT_WORDING_VERSION` entry. Existing rows keep their version. A re-consent prompt would be extra work in V104.
+- **Answer:**
+
+## Q-021 · C05 · Names of club-only players during scout review
+
+- **Question:** When independent scouts review a match (C10/C11), may they see the names of `club_only` players, or only shirt numbers?
+- **Default taken:** C05 discloses review in the wording. C10/C11 decide the display, and the noted default is shirt number only for `club_only` players.
+- **Recommended:** shirt number only for `club_only` players during review.
+- **Impact:** a reviewer viewer kind in `consentVisibleTo` and the review workspace labels. No schema change.
+- **Answer:**
+
+## Q-022 · C05 · Uploading signed paper consent forms
+
+- **Question:** Should clubs upload a scan or photo of a signed paper consent form as evidence?
+- **Default taken:** no upload in v0. `Consent.evidencePath` exists but is unused. The method `paper_form` and the recording user are stored.
+- **Recommended:** add it in V104 with private storage and a retention rule.
+- **Impact:** an upload step, an S3 prefix, and a signed-URL route for owners and admins. No schema change.
+- **Answer:**

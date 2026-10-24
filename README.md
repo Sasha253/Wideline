@@ -58,8 +58,9 @@ docs/                PRD
   and the organisation approval queue (`/admin/organisations`). A unit test
   (`tests/unit/server-actions-guarded.test.ts`) checks every `actions.ts`;
   the only public actions are accepting an invitation (the token is the
-  capability), the "Join the pilot" form at `/apply` and scout registration
-  at `/register`.
+  capability), the "Join the pilot" form at `/apply`, scout registration
+  at `/register`, and a guardian's answer or withdrawal at `/consent/<token>`
+  (C05; the link token is the capability).
 - **App shell and navigation** (D02): every signed-in page renders inside
   `src/components/shell/AppShell.tsx` (sidebar from 992px, rail from 768px, top
   bar and bottom tab bar on phones). The nav comes from `src/lib/nav.ts` by the
@@ -187,6 +188,28 @@ chunk" section holds the rules each chunk follows: permissions, tenant data,
 entitlement limits, consent, the audit log, migrations via `make migrate-new`, UI
 tokens and voice, tests, and the definition of done.
 
+- **Consent** (C05; CONS01 to CONS04, NFR08 to NFR12): `Consent` is
+  append-only and the newest row is the current state. Postgres enforces it:
+  CHECK constraints tie the state to the two choices (club stats, scout
+  visibility) and require a parent or guardian for a minor's grant; the
+  trigger `Consent_append_only` refuses UPDATE and DELETE (cascades from an
+  organisation or player deletion still run); `Consent_before_insert` writes
+  the cached `Player.consentState` in the same statement and stamps a strictly
+  increasing `createdAt`; `Player_consentState_guard` refuses any other write of
+  the cache. The scoped client refuses consent updates and deletes too. Record
+  changes through `src/server/consent/` (`recordConsent`, `withdrawConsent`,
+  `createConsentRequest`, the guardian side in `guardian.ts`), each audited in
+  the same transaction with no names in the metadata. Read player visibility
+  only through `consentVisibleTo(viewer)` from
+  `src/server/consent/visibility.ts` (kinds `club`, `club_stats`, `scout`),
+  spread into every player query's where clause
+  (`tests/unit/player-queries-consent.test.ts` checks it). A new viewer kind
+  goes in that file with a case in `tests/integration/consent-visibility.test.ts`.
+  The wording lives in `src/server/consent/wording.ts`; a new text is a new
+  `CONSENT_WORDING_VERSION`. Guardian links (`/consent/<token>`, public, sha256
+  hash stored) decide for 14 days and withdraw until revoked or replaced.
+  Changes that take visibility away enqueue `consent-withdrawn` for later chunks
+  to purge derived data within 24 hours.
 - [docs/build/STATUS.md](docs/build/STATUS.md): progress per chunk, and the log.
 - [docs/build/QUESTIONS.md](docs/build/QUESTIONS.md) and
   [docs/build/BLOCKERS.md](docs/build/BLOCKERS.md): open decisions.
@@ -202,9 +225,10 @@ join:
   (about 600,000 rows per match) must be partitioned by match with a raw SQL
   migration. The model carries a `TODO(partition)` note when it lands (Phase 4).
 - **Postgres row-level security** as a second layer under the scoped client.
-- **Consent gate at ingest** (NFR-08). V0 Lab lineups use shirt-number
-  placeholders only, so no per-player data is derived about named,
-  non-consented children.
+- **Consent gate at ingest** (NFR-08): C05 provides
+  `attributablePlayerIds()` in `src/server/consent/visibility.ts`; C08 must call
+  it before linking tracks or attributing events. Until then V0 Lab lineups use
+  shirt-number placeholders only.
 - **Retention cleanup job** and bucket lifecycle rules (CONS-09, NFR-13).
 - The legal gates in NFR-14 and NFR-15.
 

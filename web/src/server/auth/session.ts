@@ -263,6 +263,14 @@ export const CLUB_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 export const SQUAD_ADMIN_ROLES: readonly Role[] = ["owner", "admin", "coach"];
 
 /**
+ * Consent writes (C05): recording, withdrawing and guardian links. Owners and
+ * admins only: the PRD gives consent recording to the club admin, and a wrong
+ * grant carries POPIA weight. Coaches read consent states and history. This
+ * is an open C05 question (docs/build/QUESTIONS.md, who may record consent).
+ */
+export const CONSENT_ADMIN_ROLES: readonly Role[] = ["owner", "admin"];
+
+/**
  * Scouts: the review queue, shortlists and the scout profile (D02 nav; C02,
  * C10, C15 pages). Review pages also need requireReviewer() (auth/reviewer.ts).
  */

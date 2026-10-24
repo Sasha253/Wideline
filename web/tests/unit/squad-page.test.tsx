@@ -47,6 +47,7 @@ vi.mock("@/server/squad/players", async (importOriginal) => ({
       preferredFoot: null,
       heightCm: 165,
       squadNumber: 7,
+      consentState: "club_only",
       clubStatus: "active",
       departedAt: null,
       teamId: "t-1",

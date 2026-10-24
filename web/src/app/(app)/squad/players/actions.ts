@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 import { fieldErrorsFrom, UNEXPECTED_ERROR, type ActionResult } from "@/lib/action-result";
+import { selfConsentWithdrawnByDob } from "@/lib/consent-rules";
 import { teamLabel } from "@/lib/labels";
 import { requireRole, SQUAD_ADMIN_ROLES } from "@/server/auth/session";
 import { log } from "@/server/log";
@@ -78,13 +79,20 @@ export async function updatePlayerAction(
 ): Promise<ActionResult> {
   const ctx = requireSquadOrg(await requireRole(SQUAD_ADMIN_ROLES));
   const playerId = String(formData.get("playerId") ?? "");
+  let saved: Awaited<ReturnType<typeof updatePlayer>>;
   try {
-    await updatePlayer(ctx, playerId, playerInput(formData));
+    saved = await updatePlayer(ctx, playerId, playerInput(formData));
   } catch (err) {
     return playerError(err);
   }
   revalidatePath("/squad", "layout");
-  return { ok: true, message: "Changes saved.", key: String(Date.now()) };
+  return {
+    ok: true,
+    message: saved.consentWithdrawn
+      ? selfConsentWithdrawnByDob(String(formData.get("firstName") ?? "").trim() || saved.name)
+      : "Changes saved.",
+    key: String(Date.now()),
+  };
 }
 
 export async function markDepartedAction(

@@ -14,7 +14,18 @@ export const QUEUES = {
   transcode: "transcode",
   cv: "cv",
   clips: "clips",
+  // C05 (NFR11): a consent change took visibility away. Payload
+  // ConsentWithdrawnJob. The handler is a stub until C12, C13 and C17 have
+  // derived artefacts to purge (src/worker/index.ts).
+  consentWithdrawn: "consent-withdrawn",
 } as const;
+
+/** The consent-withdrawn payload: ids only, never names (children's data). */
+export type ConsentWithdrawnJob = {
+  organisationId: string;
+  playerId: string;
+  consentId: string;
+};
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

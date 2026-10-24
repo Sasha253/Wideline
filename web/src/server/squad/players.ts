@@ -1,10 +1,13 @@
 import "server-only";
-import type { ClubStatus, PreferredFoot } from "@/generated/prisma/enums";
+import type { ClubStatus, ConsentState, PreferredFoot } from "@/generated/prisma/enums";
 import type { PlayerWhereInput } from "@/generated/prisma/models";
 import { playerName, teamLabel } from "@/lib/labels";
 import { canUndoDeparture } from "@/lib/squad-fields";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { enqueueConsentWithdrawn } from "../consent/jobs";
+import { withdrawSelfConsentOfMinor } from "../consent/records";
+import { consentVisibleTo } from "../consent/visibility";
 import { requireSquadOrg } from "./access";
 import {
   findNumberHolder,
@@ -55,6 +58,7 @@ const PLAYER_SELECT = {
   preferredFoot: true,
   heightCm: true,
   squadNumber: true,
+  consentState: true,
   clubStatus: true,
   departedAt: true,
   teamId: true,
@@ -71,6 +75,8 @@ export type PlayerRow = {
   preferredFoot: PreferredFoot | null;
   heightCm: number | null;
   squadNumber: number | null;
+  /** CONS01: the cached state of the newest Consent row (C05). Club views only. */
+  consentState: ConsentState;
   clubStatus: ClubStatus;
   departedAt: Date | null;
   teamId: string | null;
@@ -98,7 +104,7 @@ export async function activePlayers(
 ): Promise<PlayerRow[]> {
   requireSquadOrg(ctx);
   const rows = await ctx.db.player.findMany({
-    where: { teamId, ...ACTIVE_PLAYER },
+    where: { teamId, ...ACTIVE_PLAYER, ...consentVisibleTo({ kind: "club" }) },
     select: PLAYER_SELECT,
   });
   return rows.sort(compareInTeam);
@@ -116,6 +122,7 @@ export async function listPlayers(
   requireSquadOrg(ctx);
   const rows = await ctx.db.player.findMany({
     where: {
+      ...consentVisibleTo({ kind: "club" }),
       clubStatus: status === "departed" ? "departed" : "active",
       ...(teamId
         ? { teamId, team: { isOpposition: false } }
@@ -142,9 +149,12 @@ export async function countPlayers(
   { teamId }: { teamId?: string | null },
 ): Promise<{ current: number; departed: number }> {
   requireSquadOrg(ctx);
-  const where = teamId
-    ? { teamId, team: { isOpposition: false } }
-    : { OR: [{ teamId: null }, { team: { isOpposition: false } }] };
+  const where = {
+    ...consentVisibleTo({ kind: "club" }),
+    ...(teamId
+      ? { teamId, team: { isOpposition: false } }
+      : { OR: [{ teamId: null }, { team: { isOpposition: false } }] }),
+  };
   const groups = await ctx.db.player.groupBy({ by: ["clubStatus"], where, _count: true });
   const of = (s: ClubStatus) => groups.find((g) => g.clubStatus === s)?._count ?? 0;
   return { current: of("active"), departed: of("departed") };
@@ -153,7 +163,10 @@ export async function countPlayers(
 /** One player. Throws PlayerError("not_found") for an unknown or foreign id. */
 export async function getPlayer(ctx: AuthContext, playerId: string): Promise<PlayerRow> {
   requireSquadOrg(ctx);
-  const player = await ctx.db.player.findFirst({ where: { id: playerId }, select: PLAYER_SELECT });
+  const player = await ctx.db.player.findFirst({
+    where: { id: playerId, ...consentVisibleTo({ kind: "club" }) },
+    select: PLAYER_SELECT,
+  });
   if (!player) throw new PlayerError("not_found");
   return player;
 }
@@ -254,12 +267,17 @@ const sameValue = (a: unknown, b: unknown) =>
  * Saves a current, named player. Refuses a departed player (read-only to the
  * club, SQUAD09) and a placeholder. The update matches clubStatus active, so a
  * departure that lands meanwhile wins. Audits changed field names only.
+ *
+ * A new or cleared date of birth that makes the player under 18 on the date
+ * they gave consent themselves withdraws that consent in the same transaction
+ * (CONS02, NFR08; withdrawSelfConsentOfMinor), then enqueues the
+ * consent-withdrawn job. consentWithdrawn says so, for the confirmation.
  */
 export async function updatePlayer(
   ctx: AuthContext,
   playerId: string,
   input: PlayerInput,
-): Promise<{ changed: string[]; name: string }> {
+): Promise<{ changed: string[]; name: string; consentWithdrawn: boolean }> {
   requireSquadOrg(ctx);
   const current = await getPlayer(ctx, playerId);
   if (current.team?.isOpposition || current.isPlaceholder)
@@ -271,17 +289,23 @@ export async function updatePlayer(
   const team = data.teamId ? await ownTeam(ctx, data.teamId) : null;
   const changed = FIELDS.filter((f) => !sameValue(data[f], current[f]));
   const name = playerName(data);
-  if (changed.length === 0) return { changed, name };
+  if (changed.length === 0) return { changed, name, consentWithdrawn: false };
   if (team && (changed.includes("squadNumber") || changed.includes("teamId"))) {
     await assertNumberFree(ctx, team, data.squadNumber, playerId);
   }
+  let withdrawal: Awaited<ReturnType<typeof withdrawSelfConsentOfMinor>> = null;
   try {
-    await ctx.db.$transaction(async (tx) => {
+    withdrawal = await ctx.db.$transaction(async (tx) => {
       const res = await tx.player.updateMany({
         where: { id: playerId, ...ACTIVE_PLAYER },
         data: Object.fromEntries(changed.map((f) => [f, data[f]])),
       });
       if (res.count === 0) throw new PlayerError("departed", playerDeparted(playerName(current)));
+      // The update above holds the player row lock, so no consent change lands
+      // between it and this check.
+      const withdrawn = changed.includes("dateOfBirth")
+        ? await withdrawSelfConsentOfMinor(asTransactionClient(tx), ctx, playerId, data.dateOfBirth)
+        : null;
       await audit(
         {
           organisationId: ctx.organisationId,
@@ -293,11 +317,19 @@ export async function updatePlayer(
         },
         asTransactionClient(tx),
       );
+      return withdrawn;
     });
   } catch (err) {
     throw numberRace(err, team, data.squadNumber);
   }
-  return { changed, name };
+  if (withdrawal) {
+    await enqueueConsentWithdrawn({
+      organisationId: ctx.organisationId,
+      playerId,
+      consentId: withdrawal.consentId,
+    });
+  }
+  return { changed, name, consentWithdrawn: withdrawal !== null };
 }
 
 /**
@@ -322,7 +354,12 @@ export async function addPlaceholders(
   const takenNumbers = async (db: Pick<typeof ctx.db, "player">) =>
     (
       await db.player.findMany({
-        where: { teamId, ...ACTIVE_PLAYER, squadNumber: { in: unique } },
+        where: {
+          teamId,
+          ...ACTIVE_PLAYER,
+          squadNumber: { in: unique },
+          ...consentVisibleTo({ kind: "club" }),
+        },
         select: { squadNumber: true },
         orderBy: { squadNumber: "asc" },
       })

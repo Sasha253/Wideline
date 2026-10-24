@@ -12,7 +12,9 @@ import { rawDb } from "./raw";
  *  - exposes global models only in a narrowed form (User: read-only and only
  *    members of this organisation; Organisation: only this one);
  *  - refuses the Better Auth tables, the scout tables and the plan,
- *    entitlement and usage tables entirely.
+ *    entitlement and usage tables entirely;
+ *  - refuses every update and delete of Consent rows (append-only, CONS01) and
+ *    any write of Player.consentState, the cache the Consent trigger keeps.
  *
  * Cross-tenant foreign keys are blocked in the database too: references between
  * tenant tables are composite (organisationId, id) foreign keys, so a row can
@@ -31,6 +33,8 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Lineup",
   "AuditLog",
   "Invitation",
+  "Consent",
+  "ConsentRequest",
 ]);
 
 // Tables no organisation may reach: the Better Auth tables, the scout tables
@@ -125,8 +129,35 @@ const USER_PRIVATE_RELATIONS = new Set([
   "invitationsSent",
   "invitationsAccepted",
   "scoutProfile",
+  // C05: every consent a user recorded or requested, in any organisation.
+  "consentsRecorded",
+  "consentRequestsCreated",
 ]);
-const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy"]);
+const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy", "recordedBy", "createdBy"]);
+
+// C05 (CONS01, PRD "Rules the schema must enforce"): consent rows are never
+// edited in place. The database refuses it too (trigger "Consent_append_only");
+// this fails earlier, with a clearer message.
+const CONSENT_REFUSED_OPS = new Set([
+  "update",
+  "updateMany",
+  "updateManyAndReturn",
+  "upsert",
+  "delete",
+  "deleteMany",
+]);
+
+/** Throws if a Player write sets consentState: only the Consent trigger writes it. */
+function assertNoConsentStateWrite(value: unknown, path: string): void {
+  const rows = Array.isArray(value) ? value : [value];
+  for (const row of rows) {
+    if (row && typeof row === "object" && "consentState" in row) {
+      throw new TenantScopeError(
+        `${path}.consentState: Player.consentState is set by recording a Consent row`,
+      );
+    }
+  }
+}
 
 // The only Organisation fields a scoped client may change: the settings an
 // organisation edits itself. Everything else is refused, so an organisation
@@ -285,6 +316,17 @@ export function scopedDb(organisationId: string) {
 
           if (!TENANT_SCOPED.has(model)) {
             throw new TenantScopeError(`${model} has no tenant scope defined`);
+          }
+
+          if (model === "Consent" && CONSENT_REFUSED_OPS.has(operation)) {
+            throw new TenantScopeError(
+              `Consent.${operation}: Consent is append-only; record a new row instead`,
+            );
+          }
+          if (model === "Player") {
+            assertNoConsentStateWrite(a.data, "data");
+            assertNoConsentStateWrite(a.create, "create");
+            assertNoConsentStateWrite(a.update, "update");
           }
 
           if (UNIQUE_WHERE_OPS.has(operation)) {

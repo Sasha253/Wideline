@@ -25,7 +25,14 @@ export function ConfirmDialog({
   submit,
   children,
 }: {
-  trigger: { label: string; variant: ButtonVariant; icon?: LucideIcon; ariaLabel?: string };
+  trigger: {
+    label: string;
+    variant: ButtonVariant;
+    icon?: LucideIcon;
+    ariaLabel?: string;
+    /** Full width and 48px on phones, as a row of page actions (C05 consent section). */
+    block?: boolean;
+  };
   title: string;
   body: ReactNode;
   form: SectionForm;
@@ -69,6 +76,8 @@ export function ConfirmDialog({
         size="sm"
         icon={trigger.icon}
         aria-label={trigger.ariaLabel}
+        block={trigger.block}
+        className={trigger.block ? "justify-center" : undefined}
         onClick={open}
       >
         {trigger.label}

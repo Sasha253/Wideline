@@ -426,3 +426,41 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
   .wl-facts dd { margin-bottom: 0; }
   .wl-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-6); }
 }
+
+/* Consent for C05 (docs/build/design/C05.md). Not in the design system; built from tokens. */
+/* The guardian's "I am 18 or over" confirmation: the radio rule for a checkbox card. */
+.wl-decision__choice input[type="checkbox"] { accent-color: var(--pitch); width: 20px; height: 20px; margin: 0; flex: none; }
+.wl-decision__choice input[type="checkbox"]:focus-visible { outline: none; }
+/* A two-line checkbox label lines up with its first line. */
+.wl-decision__choice--top { align-items: flex-start; }
+.wl-decision__choice--top input { margin-top: calc(var(--space-1) / 2); }
+/* The guardian name input, added to .wl-input; markup adds body-lg. */
+.wl-decision__input { min-height: var(--space-12); }
+/* The guardian page frame: no app shell. */
+.wl-guardian { min-height: 100vh; padding: var(--space-6) var(--space-4) var(--space-12); background: var(--surface); }
+.wl-guardian__head { max-width: calc(var(--space-12) * 12); margin-inline: auto; margin-bottom: var(--space-8); display: flex; flex-direction: column; gap: var(--space-1); }
+/* The guardian link copy box: input, then Copy and Share; one row from 768px. */
+.wl-copybox { display: flex; flex-direction: column; gap: var(--space-2); }
+.wl-copybox > input { flex: 1 1 auto; min-width: 0; }
+/* The printable paper consent form. */
+.wl-paper { max-width: calc(var(--space-12) * 16); margin-inline: auto; padding: var(--space-8); background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.wl-paper__section { margin-top: var(--space-8); break-inside: avoid; }
+.wl-paper__box { display: inline-block; width: 20px; height: 20px; flex: none; border: 1px solid var(--ink); border-radius: var(--radius-sm); }
+.wl-paper__option { display: flex; align-items: center; gap: var(--space-2); min-height: var(--space-8); }
+.wl-paper__line { display: block; min-height: var(--space-8); border-bottom: 1px solid var(--ink); }
+.wl-paper__lines { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+@media (min-width: 768px) {
+  .wl-guardian { padding: var(--space-12) var(--space-6); }
+  .wl-copybox { flex-direction: row; align-items: center; }
+  .wl-paper__lines { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+}
+@media (max-width: 767px) {
+  .wl-paper { padding: var(--space-4); }
+}
+@media print {
+  .wl-sidebar, .wl-topbar, .wl-tabbar, .wl-skip, .wl-print-hide { display: none !important; }
+  .wl-shell { display: block; }
+  /* !important: the shell sets its padding with utilities, which beat the components layer. */
+  .wl-main { padding: 0 !important; }
+  .wl-paper { border: 0; padding: 0; max-width: none; }
+}

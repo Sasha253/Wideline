@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SubmitButton } from "@/components/forms";
 import { Button } from "@/components/ui/Button";
 import { iconProps } from "@/components/ui/icons";
 
@@ -15,6 +16,7 @@ export function DecisionFlow({
   explainer,
   action,
   submitLabel,
+  pendingLabel,
   secondary,
   error,
   children,
@@ -25,6 +27,8 @@ export function DecisionFlow({
   explainer?: ReactNode;
   action: string | ((formData: FormData) => void | Promise<void>);
   submitLabel: string;
+  /** With JavaScript, the submit button shows this while a server action runs (C05). */
+  pendingLabel?: string;
   secondary?: { href: string; label: string };
   /** A server-side validation error, shown above the submit button (C01 banner). */
   error?: ReactNode;
@@ -42,9 +46,20 @@ export function DecisionFlow({
         </fieldset>
         {error && <div className="mt-6">{error}</div>}
         <div className="mt-6 flex flex-col md:flex-row md:items-center md:gap-2">
-          <Button variant="primary" type="submit" block className="justify-center">
-            {submitLabel}
-          </Button>
+          {pendingLabel ? (
+            <SubmitButton
+              variant="primary"
+              block
+              className="justify-center"
+              pendingLabel={pendingLabel}
+            >
+              {submitLabel}
+            </SubmitButton>
+          ) : (
+            <Button variant="primary" type="submit" block className="justify-center">
+              {submitLabel}
+            </Button>
+          )}
           {secondary && (
             <Link
               href={secondary.href}

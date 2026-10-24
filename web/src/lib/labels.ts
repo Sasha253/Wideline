@@ -115,6 +115,23 @@ export function formatDate(date: Date): string {
   return dateFormat.format(date);
 }
 
+const dateTimeFormat = new Intl.DateTimeFormat("en-ZA", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Africa/Johannesburg",
+});
+
+/** "24 Oct 2026, 14:05": the date as formatDate, then the 24-hour time in South Africa (C05 history). */
+export function formatDateTime(date: Date): string {
+  const parts = dateTimeFormat.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value;
+  return `${formatDate(date)}, ${get("hour")}:${get("minute")}`;
+}
+
 const DAY = 24 * 60 * 60 * 1000;
 
 /** "in 14 days", "in 1 day", "today" (under 24 hours left), "1 day ago", "3 days ago". */

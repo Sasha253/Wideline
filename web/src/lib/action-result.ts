@@ -12,6 +12,8 @@ export type ActionResult =
       key?: string;
       /** A page about what the action made, linked after the message ("View player", C04). */
       href?: string;
+      /** Values the client shows once and never puts in a URL, such as a guardian link (C05). */
+      values?: Record<string, string>;
     }
   | {
       ok: false;

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { teamLabel } from "@/lib/labels";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { consentVisibleTo } from "../consent/visibility";
 import { requireSquadOrg } from "./access";
 import { mapHeader, parseCsv, rowValues } from "./csv";
 import { isSquadNumberViolation, squadNumberTakenMessage } from "./errors";
@@ -135,13 +136,23 @@ async function checkImport(
   const [holders, sameDob] = await Promise.all([
     numbers.length
       ? ctx.db.player.findMany({
-          where: { teamId: team.id, ...ACTIVE_PLAYER, squadNumber: { in: numbers } },
+          where: {
+            teamId: team.id,
+            ...ACTIVE_PLAYER,
+            squadNumber: { in: numbers },
+            ...consentVisibleTo({ kind: "club" }),
+          },
           select: { squadNumber: true, firstName: true, lastName: true, isPlaceholder: true },
         })
       : [],
     dobs.length
       ? ctx.db.player.findMany({
-          where: { ...ACTIVE_PLAYER, isPlaceholder: false, dateOfBirth: { in: dobs } },
+          where: {
+            ...ACTIVE_PLAYER,
+            isPlaceholder: false,
+            dateOfBirth: { in: dobs },
+            ...consentVisibleTo({ kind: "club" }),
+          },
           select: {
             firstName: true,
             lastName: true,

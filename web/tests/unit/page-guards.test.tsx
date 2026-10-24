@@ -49,6 +49,18 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
     session.CLUB_ROLES,
   ],
   ["/squad/import", () => import("@/app/(app)/squad/import/page"), session.CLUB_ROLES],
+  // C05: the consent pages read with CLUB_ROLES (coaches see a note, not the
+  // form); the actions check CONSENT_ADMIN_ROLES.
+  [
+    "/squad/players/[playerId]/consent",
+    () => import("@/app/(app)/squad/players/[playerId]/consent/page"),
+    session.CLUB_ROLES,
+  ],
+  [
+    "/squad/players/[playerId]/consent/print",
+    () => import("@/app/(app)/squad/players/[playerId]/consent/print/page"),
+    session.CLUB_ROLES,
+  ],
   ["/matches", () => import("@/app/(app)/matches/page"), session.CLUB_ROLES],
   ["/scout", () => import("@/app/(app)/scout/page"), session.SCOUT_ROLES],
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
@@ -171,5 +183,12 @@ describe("role constants", () => {
 
   it("SQUAD_ADMIN_ROLES is owners, admins and coaches (C04, Q-011)", () => {
     expect(session.SQUAD_ADMIN_ROLES).toEqual(["owner", "admin", "coach"]);
+  });
+
+  it("CONSENT_ADMIN_ROLES is owners and admins: coaches read consent only (C05)", () => {
+    expect(session.CONSENT_ADMIN_ROLES).toEqual(["owner", "admin"]);
+    expect(session.CONSENT_ADMIN_ROLES).not.toContain("coach");
+    expect(session.CONSENT_ADMIN_ROLES).not.toContain("scout");
+    expect(session.CONSENT_ADMIN_ROLES).not.toContain("guardian");
   });
 });

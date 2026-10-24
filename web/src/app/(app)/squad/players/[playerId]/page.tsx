@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { Banner } from "@/components/forms";
 import { DetailPage, type DetailSection } from "@/components/templates/DetailPage";
+import { ConsentBadge } from "@/components/ui/ConsentBadge";
 import { initials } from "@/components/ui/PlayerCard";
 import { ClubStatusChip } from "@/components/ui/StatusChip";
 import {
@@ -12,19 +13,29 @@ import {
   playerName,
   teamLabel,
 } from "@/lib/labels";
+import { CONSENT_STATE_LABELS, isGranted, isMinorOn } from "@/lib/consent-rules";
 import {
   canUndoDeparture,
   departureUndoDeadline,
   positionLabel,
   todayIso,
 } from "@/lib/squad-fields";
-import { CLUB_ROLES, requirePageRole, type AuthContext } from "@/server/auth/session";
+import {
+  CLUB_ROLES,
+  CONSENT_ADMIN_ROLES,
+  requirePageRole,
+  type AuthContext,
+} from "@/server/auth/session";
+import { consentHistory } from "@/server/consent/records";
+import { openConsentRequest } from "@/server/consent/requests";
 import { requireSquadOrgPage } from "@/server/squad/access";
 import { getPlayer, PlayerError, type PlayerRow } from "@/server/squad/players";
 import { listTeams } from "@/server/squad/teams";
 import { FocusHeadingOnMount } from "../../FocusOnMount";
 import { canEditSquad, Facts, metaText } from "../../shared";
 import { PlayerForm } from "../PlayerForm";
+import { ConsentActions } from "./ConsentActions";
+import { ConsentHistory, ConsentSummary } from "./ConsentSection";
 import { DepartPlayer } from "./DepartPlayer";
 import { UndoDeparture } from "./UndoDeparture";
 
@@ -58,6 +69,10 @@ const isoDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
  * and admins edit a current player and can mark them departed, and undo a
  * departure for DEPARTURE_UNDO_DAYS. Coaches, and everyone for a departed
  * player or a placeholder, see the facts only.
+ *
+ * Named players also get Consent (first, after the hero) and Consent history
+ * (after Details), and a ConsentBadge in the hero (CONS01 to CONS03;
+ * docs/build/design/C05.md, Surfaces 4 to 6). Placeholders get neither.
  */
 export default async function PlayerPage({ params, searchParams }: Props) {
   const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
@@ -220,6 +235,62 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     });
   }
 
+  if (!player.isPlaceholder) {
+    const [history, openLink] = await Promise.all([
+      consentHistory(ctx, player.id),
+      openConsentRequest(ctx, player.id),
+    ]);
+    const consentAdmin = ctx.roles.some((r) => CONSENT_ADMIN_ROLES.includes(r));
+    const granted = isGranted(player.consentState);
+    const consent: DetailSection = {
+      id: "consent",
+      title: "Consent",
+      content: (
+        <ConsentActions
+          playerId={player.id}
+          name={name}
+          firstName={firstName}
+          admin={consentAdmin}
+          active={!departed}
+          minor={isMinorOn(player.dateOfBirth)}
+          granted={granted}
+          changeLabel={granted ? "Change consent" : "Record consent"}
+          openLink={openLink && { createdOn: formatDate(openLink.createdAt) }}
+          initialBanner={
+            done === "consent"
+              ? `Consent saved. ${firstName}'s consent is now ${CONSENT_STATE_LABELS[player.consentState]}.`
+              : null
+          }
+          notes={
+            departed && consentAdmin ? (
+              <p className="caption mt-2 text-ink-muted">
+                {firstName} has left the club. You can withdraw consent, but not record new consent.
+              </p>
+            ) : undefined
+          }
+        >
+          <ConsentSummary
+            newest={history[0] ?? null}
+            state={player.consentState}
+            name={name}
+            firstName={firstName}
+            clubName={ctx.organisationName}
+            noDateOfBirth={!player.dateOfBirth}
+            openUntil={openLink?.expiresAt ?? null}
+          />
+        </ConsentActions>
+      ),
+    };
+    const historySection: DetailSection = {
+      id: "consent-history",
+      title: "Consent history",
+      content: <ConsentHistory rows={history} name={name} />,
+    };
+    const details = sections.findIndex((s) => s.id === "details");
+    sections.splice(details + 1, 0, historySection);
+    sections.unshift(consent);
+  }
+
   const justDeparted = done === "departed" && departed;
   const justRestored = done === "restored" && !departed;
 
@@ -236,7 +307,14 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         eyebrow={eyebrow}
         title={name}
         meta={meta || undefined}
-        badges={departed ? <ClubStatusChip status={player.clubStatus} /> : undefined}
+        badges={
+          player.isPlaceholder ? undefined : (
+            <>
+              <ConsentBadge state={player.consentState} />
+              {departed && <ClubStatusChip status={player.clubStatus} />}
+            </>
+          )
+        }
         notice={
           <>
             <div aria-live="polite" className="mt-6 empty:mt-0">

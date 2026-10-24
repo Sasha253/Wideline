@@ -1,6 +1,7 @@
 import "server-only";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { consentVisibleTo } from "../consent/visibility";
 import { requireSquadOrg } from "./access";
 import { isTeamNameViolation, prismaErrorCode, TeamError, type TeamUsage } from "./errors";
 import { joinAnd, teamKindField, teamSchema, type TeamInput } from "./fields";
@@ -87,9 +88,16 @@ export async function getTeam(ctx: AuthContext, teamId: string): Promise<TeamDet
   });
   if (!team) throw new TeamError("not_found");
   const [departedCount, numbered] = await Promise.all([
-    ctx.db.player.count({ where: { teamId, clubStatus: "departed" } }),
+    ctx.db.player.count({
+      where: { teamId, clubStatus: "departed", ...consentVisibleTo({ kind: "club" }) },
+    }),
     ctx.db.player.findMany({
-      where: { teamId, clubStatus: "active", squadNumber: { not: null } },
+      where: {
+        teamId,
+        clubStatus: "active",
+        squadNumber: { not: null },
+        ...consentVisibleTo({ kind: "club" }),
+      },
       select: { squadNumber: true },
       orderBy: { squadNumber: "asc" },
     }),
