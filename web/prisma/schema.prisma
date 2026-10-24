@@ -530,6 +530,9 @@ model ConsentRequest {
   expiresAt      DateTime
   revokedAt      DateTime?
   lastUsedAt     DateTime?
+  /// The guardian's email address, when the club asked Wideline to email the
+  /// link (Q-019). Personal data: never in AuditLog metadata or logs.
+  guardianEmail  String?
   consents       Consent[]
 
   @@unique([organisationId, id])

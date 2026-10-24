@@ -9,13 +9,21 @@ import {
   CONSENT_NOT_SAVED,
   CONSENT_NOT_WITHDRAWN,
   CONSENT_PLAYER_GONE,
+  LINK_EMAIL_FAILED,
+  linkEmailed,
   LINK_NOT_CREATED,
+  LINK_NOT_OPEN,
 } from "@/lib/consent-rules";
 import { formatDate } from "@/lib/labels";
 import { CONSENT_ADMIN_ROLES, requireRole } from "@/server/auth/session";
 import { ConsentError } from "@/server/consent/errors";
 import { recordConsent, withdrawConsent } from "@/server/consent/records";
-import { createConsentRequest, revokeConsentRequest } from "@/server/consent/requests";
+import {
+  createConsentRequest,
+  emailConsentRequest,
+  revokeConsentRequest,
+  type LinkEmailResult,
+} from "@/server/consent/requests";
 import { log } from "@/server/log";
 import { requireSquadOrg } from "@/server/squad/access";
 
@@ -94,10 +102,35 @@ export async function withdrawConsentAction(
   };
 }
 
+/** The club's message after a link is made or emailed: the email result is told in words. */
+function linkResult(
+  created: { url: string; expiresAt: Date; email: LinkEmailResult },
+  lead: string,
+): ActionResult {
+  const { email } = created;
+  return {
+    ok: true,
+    message: !email
+      ? `${lead} Copy it below and send it.`
+      : email.sent
+        ? `${lead} ${linkEmailed(email.masked)}`
+        : `${lead} ${LINK_EMAIL_FAILED}`,
+    tone: email && !email.sent ? "warn" : "ok",
+    values: {
+      url: created.url,
+      until: formatDate(created.expiresAt),
+      ...(email && { emailed: email.sent ? "sent" : "failed" }),
+    },
+    key: String(Date.now()),
+  };
+}
+
 /**
  * Creates a guardian link (Surface 4, "Ask a guardian" and "Create a new
- * link"). The URL travels once, in the result's values; it is never put in a
- * URL, a redirect or a log.
+ * link"), and emails it when the club gave the guardian's address (Q-019). The
+ * URL travels once, in the result's values; it is never put in a URL, a
+ * redirect or a log. The address is never logged or echoed: the message shows
+ * it masked.
  */
 export async function requestConsentAction(
   _prev: ActionResult,
@@ -107,19 +140,44 @@ export async function requestConsentAction(
   const playerId = text(formData, "playerId");
   let created: Awaited<ReturnType<typeof createConsentRequest>>;
   try {
-    created = await createConsentRequest(ctx, playerId);
+    created = await createConsentRequest(ctx, playerId, new Date(), {
+      guardianEmail: text(formData, "guardianEmail"),
+    });
   } catch (err) {
     if (err instanceof ConsentError) return consentError(err, LINK_NOT_CREATED);
     log.error({ err }, "consent link failed");
     return { ok: false, formError: LINK_NOT_CREATED };
   }
   revalidatePath("/squad", "layout");
-  return {
-    ok: true,
-    message: "Guardian link created. Copy it below and send it.",
-    values: { url: created.url, until: formatDate(created.expiresAt) },
-    key: String(Date.now()),
-  };
+  return linkResult(created, "Guardian link created.");
+}
+
+/**
+ * "Email the link again" (Surface 4, Q-019): a fresh token on the open link,
+ * emailed to the stored or a new address. The new URL comes back for the copy
+ * box, as after creating a link.
+ */
+export async function emailConsentRequestAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const ctx = requireSquadOrg(await requireRole(CONSENT_ADMIN_ROLES));
+  const playerId = text(formData, "playerId");
+  let sent: Awaited<ReturnType<typeof emailConsentRequest>>;
+  try {
+    sent = await emailConsentRequest(ctx, playerId, {
+      guardianEmail: text(formData, "guardianEmail"),
+    });
+  } catch (err) {
+    if (err instanceof ConsentError && err.code === "no_link") {
+      return { ok: false, formError: LINK_NOT_OPEN };
+    }
+    if (err instanceof ConsentError) return consentError(err, UNEXPECTED_ERROR);
+    log.error({ err }, "consent link email failed");
+    return { ok: false, formError: UNEXPECTED_ERROR };
+  }
+  revalidatePath("/squad", "layout");
+  return linkResult(sent, "We made a new link, and the earlier one no longer works.");
 }
 
 /** Turns off the open guardian link (Surface 4, "Turn off link"). The consent state stays. */

@@ -296,7 +296,8 @@ async function revokeLinksForSelf(
   const requestIds = open.map((r) => r.id);
   await tx.consentRequest.updateMany({
     where: { id: { in: requestIds }, revokedAt: null },
-    data: { revokedAt: now },
+    // A closed link no longer needs the guardian's address (data minimisation).
+    data: { revokedAt: now, guardianEmail: null },
   });
   await audit(
     {

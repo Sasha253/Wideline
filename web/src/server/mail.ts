@@ -15,6 +15,18 @@ function getTransport(): Transporter {
   return transport;
 }
 
-export async function sendMail(to: string, subject: string, text: string): Promise<void> {
-  await getTransport().sendMail({ from: env().MAIL_FROM, to, subject, text });
+/** Sends one email. `html` is an optional HTML part next to the plain text (C05 guardian link). */
+export async function sendMail(
+  to: string,
+  subject: string,
+  text: string,
+  html?: string,
+): Promise<void> {
+  await getTransport().sendMail({
+    from: env().MAIL_FROM,
+    to,
+    subject,
+    text,
+    ...(html && { html }),
+  });
 }

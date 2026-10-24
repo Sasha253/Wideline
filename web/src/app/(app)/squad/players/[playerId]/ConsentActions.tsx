@@ -1,35 +1,38 @@
 "use client";
 
-import { Check, Clock, Copy, Printer, Share2, ShieldCheck, ShieldOff } from "lucide-react";
+import { Check, Clock, Copy, Mail, Printer, Share2, ShieldCheck, ShieldOff } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { RadioGroup } from "@/components/consent/RadioGroup";
-import { Banner, Field, fieldError, SubmitButton } from "@/components/forms";
+import { Banner, Field, fieldError } from "@/components/forms";
 import { useSectionAction } from "@/components/section-result";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { iconProps } from "@/components/ui/icons";
 import type { ActionResult } from "@/lib/action-result";
 import {
   CLUB_CONSENT_METHODS,
+  CONSENT_LINK_DAYS,
   CONSENT_METHOD_LABELS,
   CONSENT_NAME_MAX,
   GUARDIAN_RELATIONSHIPS,
   RELATIONSHIP_LABELS,
 } from "@/lib/consent-rules";
 import {
+  emailConsentRequestAction,
   requestConsentAction,
   revokeConsentRequestAction,
   withdrawConsentAction,
 } from "./consent/actions";
 
-type BannerState = { tone: "ok" | "danger"; text: string } | null;
+type BannerState = { tone: "ok" | "warn" | "danger"; text: string } | null;
 
 /**
  * The live parts of the Consent section on the player page (CONS02, CONS03,
  * NFR11; docs/build/design/C05.md, Surface 4): the result banners, the guardian
  * link copy box, and the actions with their dialogs. The state line and facts
  * are rendered on the server and passed in as children. The link URL lives in
- * client state only, from the action result: never in a URL.
+ * client state only, from the action result: never in a URL. The guardian's
+ * email address (Q-019) is typed here and sent once; it comes back masked only.
  */
 export function ConsentActions({
   playerId,
@@ -53,8 +56,11 @@ export function ConsentActions({
   minor: boolean;
   granted: boolean;
   changeLabel: string;
-  /** The open link's creation date, formatted, when a link is open. */
-  openLink: { createdOn: string } | null;
+  /**
+   * The open link, when there is one: its creation and expiry dates, formatted,
+   * and the stored guardian address, masked ("t***@example.com"), or null.
+   */
+  openLink: { createdOn: string; until: string; emailMasked: string | null } | null;
   initialBanner: string | null;
   children: ReactNode;
   notes?: ReactNode;
@@ -84,17 +90,17 @@ export function ConsentActions({
     }
   }, [focus]);
 
+  // Errors stay in the dialogs (okOnly): the email field shows its own.
   const onLink = (r: ActionResult) => {
     if (r?.ok && r.values?.url) {
       setLink({ url: r.values.url, until: r.values.until ?? "" });
-      setBanner({ tone: "ok", text: r.message });
+      setBanner({ tone: r.tone ?? "ok", text: r.message });
       setFocusTarget("copy");
-    } else if (r && !r.ok) {
-      setBanner({ tone: "danger", text: r.formError ?? "The link was not created. Try again." });
     }
   };
-  const ask = useSectionAction(requestConsentAction, onLink);
+  const ask = useSectionAction(requestConsentAction, onLink, { okOnly: true });
   const renew = useSectionAction(requestConsentAction, onLink, { okOnly: true });
+  const resend = useSectionAction(emailConsentRequestAction, onLink, { okOnly: true });
   const revoke = useSectionAction(
     revokeConsentRequestAction,
     (r) => {
@@ -140,17 +146,22 @@ export function ConsentActions({
           </ButtonLink>
         )}
         {admin && active && minor && !openLink && (
-          <form {...ask.formProps} className="w-full md:w-auto">
-            <input type="hidden" name="playerId" value={playerId} />
-            <SubmitButton
-              variant="secondary"
-              block
-              className="justify-center"
-              pendingLabel="Creating link…"
-            >
-              Ask a guardian
-            </SubmitButton>
-          </form>
+          <ConfirmDialog
+            trigger={{ label: "Ask a guardian", variant: "secondary", block: true }}
+            title={`Ask ${firstName}'s parent or guardian`}
+            body={`We make a link where they answer on their phone. It works for ${CONSENT_LINK_DAYS} days. Anyone with the link can answer, so send it only to them.`}
+            form={ask}
+            hidden={hidden}
+            submit={{ label: "Create link", pendingLabel: "Creating link…", variant: "primary" }}
+          >
+            {(visible) => (
+              <GuardianEmailField
+                label="Guardian's email address (optional)"
+                hint="We email them the link. Leave it empty to copy the link and send it yourself."
+                error={fieldError(visible, "guardianEmail")}
+              />
+            )}
+          </ConfirmDialog>
         )}
         {admin && active && minor && openLink && (
           <ConfirmDialog
@@ -164,7 +175,50 @@ export function ConsentActions({
               pendingLabel: "Creating link…",
               variant: "primary",
             }}
-          />
+          >
+            {(visible) => (
+              <GuardianEmailField
+                label="Guardian's email address (optional)"
+                hint="We email them the new link. Leave it empty to copy the link and send it yourself."
+                error={fieldError(visible, "guardianEmail")}
+              />
+            )}
+          </ConfirmDialog>
+        )}
+        {admin && active && minor && openLink && (
+          <ConfirmDialog
+            trigger={{
+              label: "Email the link again",
+              variant: "secondary",
+              icon: Mail,
+              block: true,
+            }}
+            title="Email the link again?"
+            body={
+              openLink.emailMasked
+                ? `We email a new link to ${openLink.emailMasked}. The link you made before stops working, so they should use the newest one. It works until ${openLink.until}.`
+                : `We email a new link to ${firstName}'s parent or guardian. The link you made before stops working. It works until ${openLink.until}.`
+            }
+            form={resend}
+            hidden={hidden}
+            submit={{ label: "Email the link", pendingLabel: "Sending…", variant: "primary" }}
+          >
+            {(visible) => (
+              <GuardianEmailField
+                label={
+                  openLink.emailMasked
+                    ? "Send to a different email address (optional)"
+                    : "Guardian's email address"
+                }
+                hint={
+                  openLink.emailMasked
+                    ? `Leave it empty to use ${openLink.emailMasked}.`
+                    : undefined
+                }
+                error={fieldError(visible, "guardianEmail")}
+              />
+            )}
+          </ConfirmDialog>
         )}
         {admin && openLink && (
           <ConfirmDialog
@@ -245,6 +299,33 @@ export function ConsentActions({
         </p>
       )}
     </div>
+  );
+}
+
+/** The guardian's email address in the link dialogs (Q-019). Validated on the server. */
+function GuardianEmailField({
+  label,
+  hint,
+  error,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+}) {
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {(p) => (
+        <input
+          {...p}
+          type="email"
+          name="guardianEmail"
+          className="wl-input"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={254}
+        />
+      )}
+    </Field>
   );
 }
 

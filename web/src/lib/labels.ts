@@ -132,6 +132,17 @@ export function formatDateTime(date: Date): string {
   return `${formatDate(date)}, ${get("hour")}:${get("minute")}`;
 }
 
+/**
+ * An email address with most of its local part hidden: "t***@example.com"
+ * (C05, Q-019). Shown to the club after Wideline emails a guardian link, so the
+ * full address never goes back to the browser.
+ */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at < 1) return "***";
+  return `${email[0]}***${email.slice(at)}`;
+}
+
 const DAY = 24 * 60 * 60 * 1000;
 
 /** "in 14 days", "in 1 day", "today" (under 24 hours left), "1 day ago", "3 days ago". */

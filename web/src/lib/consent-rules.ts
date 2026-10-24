@@ -159,5 +159,10 @@ export const WITHDRAW_METHOD_REQUIRED = "Choose how they asked.";
 export const ALREADY_WITHDRAWN = "Consent is already withdrawn.";
 export const CONSENT_NOT_WITHDRAWN = "Consent was not withdrawn. Try again.";
 export const LINK_NOT_CREATED = "The link was not created. Try again.";
+export const LINK_NOT_OPEN = "The link is no longer open. Create a new one.";
+export const GUARDIAN_EMAIL_REQUIRED = "Enter the guardian's email address.";
+/** The club's result after Wideline emails a guardian link (Q-019). `masked` is maskEmail(). */
+export const linkEmailed = (masked: string) => `We emailed the link to ${masked}.`;
+export const LINK_EMAIL_FAILED = "We could not send the email. Copy the link and send it yourself.";
 export const playerIsAdult = (first: string) =>
   `${first} is 18 or over and decides for themselves. Record their answer instead.`;

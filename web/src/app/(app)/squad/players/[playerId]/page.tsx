@@ -255,7 +255,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           minor={isMinorOn(player.dateOfBirth)}
           granted={granted}
           changeLabel={granted ? "Change consent" : "Record consent"}
-          openLink={openLink && { createdOn: formatDate(openLink.createdAt) }}
+          openLink={
+            openLink && {
+              createdOn: formatDate(openLink.createdAt),
+              until: formatDate(openLink.expiresAt),
+              emailMasked: openLink.emailMasked,
+            }
+          }
           initialBanner={
             done === "consent"
               ? `Consent saved. ${firstName}'s consent is now ${CONSENT_STATE_LABELS[player.consentState]}.`

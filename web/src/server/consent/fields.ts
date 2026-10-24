@@ -18,6 +18,7 @@ import {
   WITHDRAW_METHOD_REQUIRED,
 } from "@/lib/consent-rules";
 import { parseDateOfBirth, todayUtc } from "@/lib/squad-fields";
+import { emailField } from "../organisations/fields";
 
 export * from "@/lib/consent-rules";
 
@@ -157,3 +158,16 @@ export type GuardianDecisionInput = {
 };
 
 export type ClubConsentMethod = (typeof CLUB_CONSENT_METHODS)[number] & ConsentMethod;
+
+/**
+ * The guardian's email address on a link (Q-019): optional, trimmed and
+ * lowercased with the invitation rules (emailField). Empty means "no email".
+ */
+export const guardianEmailSchema = z.object({
+  guardianEmail: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => v || undefined)
+    .pipe(emailField.optional()),
+});

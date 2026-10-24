@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { expectNoAxeViolations } from "./helpers/a11y";
 import { requireAdminPassword, signInAsAdmin } from "./helpers/auth";
-import { findInviteEmail } from "./helpers/mailpit";
+import { findEmailLink, findInviteEmail } from "./helpers/mailpit";
 import { acceptAsNewUser, DEMO, invite, mail, switchTo, unique } from "./helpers/orgs";
 
 // C05: consent records and guardian consent (docs/build/design/C05.md). Every
@@ -159,21 +159,59 @@ test("a guardian answers through the link, with and without JavaScript", async (
   page,
   browser,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   await page.goto(playerPath);
+  // Ask a guardian opens a dialog with an optional email address (Q-019).
   await page.getByRole("button", { name: "Ask a guardian" }).click();
+  const askDialog = page.getByRole("dialog", { name: `Ask ${first}'s parent or guardian` });
+  const emailField = askDialog.getByLabel("Guardian's email address (optional)");
+  await expect(emailField).toBeFocused();
+  await axeEverywhere(page);
+  await emailField.fill("not-an-email");
+  await askDialog.getByRole("button", { name: "Create link" }).click();
+  await expect(
+    askDialog.getByText("Enter an email address, for example name@club.co.za."),
+  ).toBeVisible();
+  await axeEverywhere(page);
+  const guardianEmail = mail(`guardian-${tag}`);
+  await emailField.fill(guardianEmail);
+  await askDialog.getByRole("button", { name: "Create link" }).click();
   const linkBox = page.getByRole("textbox", { name: "Guardian link" });
   await expect(linkBox).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy link" })).toBeFocused();
+  await expect(page.getByRole("status").filter({ hasText: "Guardian link created." })).toHaveText(
+    `Guardian link created. We emailed the link to g***@${guardianEmail.split("@")[1]}.`,
+  );
   await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Requested");
   await axeEverywhere(page);
   const linkPath = new URL(await linkBox.inputValue()).pathname;
   expect(page.url()).not.toContain(linkPath);
 
-  // A fresh browser with no session completes every step.
+  // The email lands in Mailpit with the same link, the first name only.
+  const emailed = await findEmailLink(
+    page.context(),
+    guardianEmail,
+    "is asking about",
+    /https?:\/\/[^\s]+\/consent\/[\w-]+/,
+  );
+  expect(new URL(emailed.url).pathname).toBe(linkPath);
+  expect(emailed.text).toContain(`${first}'s`);
+  expect(emailed.text).not.toContain(`Consent${tag}`);
+  expect(emailed.text).not.toContain("2012");
+
+  // Email the link again: the dialog names the stored address, masked.
+  await page.reload();
+  await page.getByRole("button", { name: "Email the link again" }).click();
+  const resendDialog = page.getByRole("dialog", { name: "Email the link again?" });
+  await expect(resendDialog).toContainText(`g***@${guardianEmail.split("@")[1]}`);
+  await expect(resendDialog).not.toContainText(guardianEmail);
+  await axeEverywhere(page);
+  await resendDialog.getByRole("button", { name: "Cancel" }).click();
+
+  // A fresh browser with no session follows the emailed link and completes every step.
   const { context, page: g } = await guardianContext(browser);
   await g.setViewportSize({ width: 375, height: 800 });
-  await g.goto(linkPath);
+  await g.goto(emailed.url);
   await expect(g.getByRole("heading", { level: 1 })).toContainText(`record ${first}'s match stats`);
   await expect(g.getByText("outside South Africa", { exact: false })).toBeVisible();
   await axeEverywhere(g);
@@ -332,7 +370,12 @@ test("a coach sees consent but cannot record or withdraw it", async ({ page, bro
   await expect(
     coach.getByText("Only owners and admins can record or withdraw consent."),
   ).toBeVisible();
-  for (const label of ["Withdraw consent", "Ask a guardian", "Turn off link"]) {
+  for (const label of [
+    "Withdraw consent",
+    "Ask a guardian",
+    "Email the link again",
+    "Turn off link",
+  ]) {
     await expect(coach.getByRole("button", { name: label })).toHaveCount(0);
   }
   await expect(coach.getByRole("link", { name: /Record consent|Change consent/ })).toHaveCount(0);

@@ -35,6 +35,7 @@ const form = () => {
   fd.set("playerId", "p-1");
   fd.set("grantedBy", "Thandi");
   fd.set("requestedBy", "Thandi");
+  fd.set("guardianEmail", "thandi@example.com");
   return fd;
 };
 
@@ -43,6 +44,7 @@ const ALL = [
   ["withdrawConsentAction", actions.withdrawConsentAction],
   ["requestConsentAction", actions.requestConsentAction],
   ["revokeConsentRequestAction", actions.revokeConsentRequestAction],
+  ["emailConsentRequestAction", actions.emailConsentRequestAction],
 ] as const;
 
 beforeEach(() => {
