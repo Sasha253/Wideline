@@ -47,6 +47,14 @@ async function routeParts(page: Page, log: PutLog, block: { on: boolean }) {
 const sentCount = (log: PutLog, part: number) =>
   log.filter((p) => p.part === part && p.sent).length;
 
+/**
+ * Waits until the upload panel has hydrated. A file set on the server-rendered
+ * input before then fires no React change handler and is lost.
+ */
+async function panelReady(page: Page) {
+  await expect(page.locator('[data-upload-ready="true"]')).toBeAttached();
+}
+
 test.beforeEach(async ({ page }) => {
   requireAdminPassword();
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -74,6 +82,7 @@ test("a dropped connection at 50% retries and completes without resending part 1
   await page.goto(`${acceptedPath}/upload`);
   await expect(page.getByRole("heading", { level: 2, name: "Choose the recording" })).toBeVisible();
   await expectNoAxeViolations(page);
+  await panelReady(page);
   await page.locator('input[type="file"]').setInputFiles(FOOTAGE_1080P);
   await expect(page.getByText("footage-1080p.mp4", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start upload" }).click();
@@ -108,6 +117,8 @@ test("a reload mid-upload resumes from the same point with the same file", async
   const block = { on: true };
   await routeParts(page, log, block);
   await page.goto(`${path}/upload`);
+  await expect(page.getByRole("heading", { level: 2, name: "Choose the recording" })).toBeVisible();
+  await panelReady(page);
   await page.locator('input[type="file"]').setInputFiles(FOOTAGE_1080P);
   await page.getByRole("button", { name: "Start upload" }).click();
   await expect(page.getByText("Connection lost. Retrying in", { exact: false })).toBeVisible({
@@ -123,6 +134,7 @@ test("a reload mid-upload resumes from the same point with the same file", async
     ),
   ).toBeVisible();
   await expectNoAxeViolations(page);
+  await panelReady(page);
   // Another file is refused with the C06 copy.
   await page.locator('input[type="file"]').setInputFiles(FOOTAGE_720P);
   await expect(
@@ -146,6 +158,8 @@ test("720p footage is rejected with re-film guidance", async ({ page }) => {
   test.setTimeout(180_000);
   const path = await createMatch(page, { home: ownId, awayLabel: `${oppName} (2026)` });
   await page.goto(`${path}/upload`);
+  await expect(page.getByRole("heading", { level: 2, name: "Choose the recording" })).toBeVisible();
+  await panelReady(page);
   await page.locator('input[type="file"]').setInputFiles(FOOTAGE_720P);
   // The browser pre-check reads the frame size and warns before the upload.
   await expect(
@@ -153,9 +167,21 @@ test("720p footage is rejected with re-film guidance", async ({ page }) => {
       "This video looks like 1280 × 720. Footage under 1080p is rejected after upload.",
     ),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Choose another file" })).toHaveClass(
-    /wl-btn--primary/,
-  );
+  const chooseAgain = page.getByRole("button", { name: "Choose another file" });
+  await expect(chooseAgain).toHaveClass(/wl-btn--primary/);
+  // A wrong type picked from the summary is refused. The summary's file input
+  // is hidden from assistive technology, so focus goes to the button and the
+  // error is its description.
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("not a video"),
+  });
+  await expect(page.getByText("Choose an MP4 or MOV file.")).toBeVisible();
+  await expect(chooseAgain).toBeFocused();
+  await expect(chooseAgain).toHaveAccessibleDescription("Choose an MP4 or MOV file.");
+  await expect(page.getByText("footage-720p.mp4", { exact: true })).toBeVisible();
+  await expectNoAxeViolations(page);
   await page.getByRole("button", { name: "Upload anyway" }).click();
   await expect(page).toHaveURL(/\?done=uploaded/, { timeout: 60_000 });
   // The worker checks the footage; the page polls, a reload is the same.
@@ -196,6 +222,9 @@ test("accepted footage takes kickoff and half-time markers, typed as mm:ss", asy
   await page.getByRole("textbox", { name: "Second-half kickoff", exact: true }).fill("2:50");
   await page.getByRole("textbox", { name: "Full time", exact: true }).fill("5:20.5");
   await expect(page.getByText("Unsaved changes")).toBeVisible();
+  // Short halves on a 2 x 10 match end on the clock they reached, not 10 and 20.
+  await expect(page.getByText("First half: 3 min (3).")).toBeVisible();
+  await expect(page.getByText("Second half: 3 min (13).")).toBeVisible();
   await page.getByRole("button", { name: "Save markers" }).click();
   await expect(
     page

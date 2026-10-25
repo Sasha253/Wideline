@@ -178,6 +178,13 @@ describe("parseClock and formatVideoTime", () => {
     expect(halfDuration(0, 47 * 60_000, 45, 0)).toEqual({ minutes: 47, clock: "45+2" });
     expect(halfDuration(0, 45 * 60_000, 45, 45)).toEqual({ minutes: 45, clock: "90" });
   });
+
+  it("gives a short half the clock it reached, not the full length", () => {
+    expect(halfDuration(0, 40 * 60_000, 45, 0)).toEqual({ minutes: 40, clock: "40" });
+    expect(halfDuration(0, 43 * 60_000, 45, 45)).toEqual({ minutes: 43, clock: "88" });
+    // Kickoff 0:05, half-time 2:40 on a 2 x 10 match.
+    expect(halfDuration(5_000, 160_000, 10, 0)).toEqual({ minutes: 3, clock: "3" });
+  });
 });
 
 describe("C06 labels", () => {

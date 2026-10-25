@@ -178,6 +178,11 @@ export function halfDuration(
   const minutes = Math.round(elapsed / 60_000);
   const halfMs = halfLengthMinutes * 60_000;
   const end = offsetMin + halfLengthMinutes;
-  const clock = elapsed > halfMs ? `${end}+${Math.ceil((elapsed - halfMs) / 60_000)}` : `${end}`;
+  // A short half ends on the clock it reached ("40", not "45"); only a half
+  // that ran past its length shows stoppage ("45+2").
+  const clock =
+    elapsed > halfMs
+      ? `${end}+${Math.ceil((elapsed - halfMs) / 60_000)}`
+      : `${offsetMin + minutes}`;
   return { minutes, clock };
 }

@@ -4,6 +4,10 @@ import { expect, type Locator, type Page } from "@playwright/test";
 // Accessibility checks shared by the specs (NFR23, NFR27).
 
 export async function expectNoAxeViolations(page: Page) {
+  // Next streams metadata: right after a server action re-render, <title> can be
+  // missing for a moment until the metadata chunk lands. Wait for it so axe checks
+  // the settled page. A page that never gets a title still fails here.
+  await expect(page).toHaveTitle(/\S/);
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();

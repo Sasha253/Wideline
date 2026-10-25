@@ -2,7 +2,15 @@
 
 import { Check, Pause, Play, Upload, WifiOff, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type DragEvent,
+} from "react";
 import { Banner, FieldErrorText } from "@/components/forms";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { cx } from "@/components/ui/cx";
@@ -34,6 +42,8 @@ type Notice = { tone: "ok" | "danger"; text: string; signIn?: boolean } | null;
 const SIGNED_OUT =
   "You have been signed out. Sign in again, then come back here and choose the same file to carry on.";
 const GONE = "This upload was cancelled, so it cannot carry on. Choose your file to start again.";
+
+const noSubscribe = () => () => {};
 
 /** The copy for a file the browser can refuse before any upload starts. */
 function refuse(file: File, limit: number): string | null {
@@ -83,6 +93,9 @@ export function UploadPanel({
   const headingId = `${ids}-heading`;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // "Choose another file" in the summary view: its file input is hidden from
+  // assistive technology, so a refusal there focuses this button instead.
+  const chooseAgainRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
   const uploaderRef = useRef<MultipartUploader | null>(null);
@@ -97,6 +110,20 @@ export function UploadPanel({
   const [cancelling, setCancelling] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [uploader, setUploader] = useState<MultipartUploader | null>(null);
+  // Bumped on each client refusal; the effect below focuses the control the
+  // error describes once the error is in the DOM.
+  const [refusals, setRefusals] = useState(0);
+  // False in the server HTML, true once hydrated: the file input only works then.
+  const hydrated = useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
+
+  useEffect(() => {
+    if (refusals === 0) return;
+    (chooseAgainRef.current ?? inputRef.current)?.focus();
+  }, [refusals]);
 
   // Focus the new view's heading when the view changes (not on first load).
   const shownView = useRef(view);
@@ -170,7 +197,7 @@ export function UploadPanel({
     const refused = refuse(f, limitBytes);
     if (refused) {
       setFileError(refused);
-      inputRef.current?.focus();
+      setRefusals((n) => n + 1);
       return;
     }
     setFileError(null);
@@ -183,7 +210,7 @@ export function UploadPanel({
         setFileError(
           `This is not the file you started with (${resume.fileName}, ${formatSize(resume.sizeBytes)}). Choose that file, or cancel the upload to start again.`,
         );
-        inputRef.current?.focus();
+        setRefusals((n) => n + 1);
         return;
       }
       void begin(f);
@@ -324,9 +351,11 @@ export function UploadPanel({
           {warn ? (
             <>
               <Button
+                ref={chooseAgainRef}
                 variant="primary"
                 block
                 className="justify-center"
+                aria-describedby={fileError ? `${ids}-file-error` : undefined}
                 onClick={() => inputRef.current?.click()}
               >
                 Choose another file
@@ -353,9 +382,11 @@ export function UploadPanel({
                 Start upload
               </Button>
               <Button
+                ref={chooseAgainRef}
                 variant="ghost"
                 block
                 className="justify-center"
+                aria-describedby={fileError ? `${ids}-file-error` : undefined}
                 onClick={() => inputRef.current?.click()}
               >
                 Choose another file
@@ -409,7 +440,7 @@ export function UploadPanel({
     snap?.sentBytes ?? (resume ? Math.floor((resume.percent / 100) * resume.sizeBytes) : 0);
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl" data-upload-ready={hydrated ? "true" : undefined}>
       <div aria-live="polite" className="mt-6 empty:mt-0">
         {notice && (
           <div className="wl-stack">

@@ -6,7 +6,7 @@ out/
 coverage/
 web/src/generated/
 web/playwright-report/
-web/test-results/
+web/test-results*/
 __pycache__/
 .venv/
 .pytest_cache/
