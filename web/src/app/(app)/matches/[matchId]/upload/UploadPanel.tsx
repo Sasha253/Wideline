@@ -296,8 +296,11 @@ export function UploadPanel({
     </label>
   );
 
+  // role="alert": a refusal moves focus to the control, which reads only the
+  // field's name, so the message itself is announced. Keyed by the refusal
+  // count, so refusing the same file again announces it again.
   const fileErrorText = fileError && (
-    <div className="mt-2">
+    <div key={refusals} role="alert" className="mt-2">
       <FieldErrorText id={`${ids}-file-error`} message={fileError} />
     </div>
   );

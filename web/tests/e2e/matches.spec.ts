@@ -193,7 +193,7 @@ test("delete is for owners and admins: hidden for a coach, works for an owner", 
   await dialog.getByRole("button", { name: "Delete match" }).click();
   await expect(page).toHaveURL(/\/matches\?done=deleted/);
   await expect(page.getByRole("status").filter({ hasText: "Match deleted." })).toHaveText(
-    "Match deleted. Its footage, lineups and markers are being removed.",
+    "Match deleted. Its lineups and markers are gone. The footage file is deleted 7 days after upload.",
   );
   await page.goto(matchPath);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/not found/i);

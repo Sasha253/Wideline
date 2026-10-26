@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 // `pnpm start` in CI). Set E2E_BASE_URL to point elsewhere.
 export default defineConfig({
   testDir: "tests/e2e",
+  // Deletes the rows the suite created (tests/e2e/helpers/db.ts, cleanupE2EData).
+  globalTeardown: "./tests/e2e/global-teardown.ts",
   timeout: 30_000,
   // Locally the dev server and Chromium share Docker's memory; 3+ workers have
   // OOM-killed the web container. CI uses Playwright's default.

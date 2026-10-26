@@ -27,8 +27,9 @@ export function DeleteMatch({
       title="Delete this match?"
       body={
         <>
-          This deletes {fixture} on {date}, with its footage, lineups and markers, and every stat
-          and clip from it. You cannot undo this.
+          This deletes {fixture} on {date}, with its lineups and markers, and every stat and clip
+          from it. The footage file is kept until 7 days after upload, then deleted. You cannot undo
+          this.
           {uploading && " The upload in progress stops."}
         </>
       }

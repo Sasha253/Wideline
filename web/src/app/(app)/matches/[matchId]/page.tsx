@@ -106,12 +106,20 @@ function FootageFacts({ video, now }: { video: VideoSummary; now: Date }) {
       </span>,
     ]);
   }
-  if (video.deletedAt) items.push(["Raw footage deleted", "Deleted"]);
-  else if (expires) {
+  if (video.deletedAt) {
+    items.push([
+      "Raw footage deleted",
+      <span key="v" className="data">
+        Deleted
+      </span>,
+    ]);
+  } else if (expires) {
     const left = expires.getTime() - now.getTime();
     items.push([
       "Raw footage deleted",
-      left > 0 ? `${formatDeletionDate(expires)}, in ${formatTimeLeft(left)}` : "Deleted",
+      <span key="v" className="data">
+        {left > 0 ? `${formatDeletionDate(expires)}, in ${formatTimeLeft(left)}` : "Deleted"}
+      </span>,
     ]);
   }
   return <FactList items={items} />;
@@ -183,25 +191,25 @@ export default async function MatchPage({ params, searchParams }: Props) {
   let primary: ReactNode = null;
   if (match.status === "draft" && (!video || video.status === "rejected")) {
     primary = (
-      <ButtonLink variant="primary" icon={Upload} href={`/matches/${match.id}/upload`}>
+      <ButtonLink variant="primary" block icon={Upload} href={`/matches/${match.id}/upload`}>
         Upload footage
       </ButtonLink>
     );
   } else if (match.status === "uploading" && video?.status === "uploading") {
     primary = (
-      <ButtonLink variant="primary" icon={Upload} href={`/matches/${match.id}/upload`}>
+      <ButtonLink variant="primary" block icon={Upload} href={`/matches/${match.id}/upload`}>
         Carry on uploading
       </ButtonLink>
     );
   } else if (accepted && !locked && lineupMissing) {
     primary = (
-      <ButtonLink variant="primary" icon={Users} href={`/matches/${match.id}/lineup`}>
+      <ButtonLink variant="primary" block icon={Users} href={`/matches/${match.id}/lineup`}>
         Enter lineups
       </ButtonLink>
     );
   } else if (accepted && !locked && markersMissing) {
     primary = (
-      <ButtonLink variant="primary" icon={Flag} href={`/matches/${match.id}/markers`}>
+      <ButtonLink variant="primary" block icon={Flag} href={`/matches/${match.id}/markers`}>
         Set kickoff and half-time
       </ButtonLink>
     );
@@ -357,8 +365,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
       content: canDeleteMatch(ctx.roles) ? (
         <div className="max-w-3xl">
           <p className="body text-ink-muted">
-            Deleting a match removes its footage, lineups, markers and everything worked out from
-            them, such as stats and clips.
+            Deleting a match removes its lineups, markers and everything worked out from them, such
+            as stats and clips. The footage file is kept until 7 days after upload, then deleted.
           </p>
           <div className="mt-4">
             <DeleteMatch
@@ -405,6 +413,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
             <ButtonLink
               variant="secondary"
               size="sm"
+              block
               icon={Pencil}
               href={`/matches/${match.id}/edit`}
             >

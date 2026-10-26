@@ -24,7 +24,10 @@ export const QUEUES = {
   retention: "retention",
 } as const;
 
-/** The probe payload (C06): ids only. The handler re-reads the Video row. */
+/**
+ * The probe payload (C06): ids only. The handler re-reads the Video row. Sent
+ * with the video id as the pg-boss job id, so sending it again is a no-op.
+ */
 export type ProbeJob = {
   organisationId: string;
   videoId: string;
@@ -32,14 +35,21 @@ export type ProbeJob = {
 
 /**
  * The retention payload. Ids and object keys only, never names. match_deleted
- * (C06): the match rows are gone; purge everything under its storage prefix
- * and abort the open multipart uploads listed.
+ * (C06): the match rows are gone, so everything the worker needs travels here.
+ * It aborts the open multipart uploads listed, then purges everything under
+ * `prefix`, but not before `rawExpiresAt` (Q-025, NFR32: raw footage is kept 7
+ * days after upload, even when its match is deleted). `rawExpiresAt` is the
+ * latest raw-footage expiry of the match's videos as an ISO string, or null
+ * when no upload ever completed. Jobs sent before these fields existed have
+ * neither: the worker derives the prefix and treats the expiry as null.
  */
 export type RetentionJob = {
   kind: "match_deleted";
   organisationId: string;
   matchId: string;
   uploads: { key: string; uploadId: string }[];
+  prefix?: string;
+  rawExpiresAt?: string | null;
 };
 
 /** The consent-withdrawn payload: ids only, never names (children's data). */

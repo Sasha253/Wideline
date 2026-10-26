@@ -323,7 +323,7 @@ export function MarkerTool({
           </div>
           <details className="mt-3">
             <summary className="label">Keyboard shortcuts</summary>
-            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+            <dl className="wl-facts mt-2">
               <dt>
                 <Kbd>K</Kbd>
               </dt>

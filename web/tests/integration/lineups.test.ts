@@ -362,6 +362,6 @@ describe("substitutions", () => {
         where: { id: l.fourteen.id },
         data: { replacesLineupId: foreignRow.id },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "P2003" });
   });
 });

@@ -20,7 +20,8 @@ export const metadata = { title: "Matches" };
 const PUBLISHED_SHOWN = 10;
 
 const DONE = {
-  deleted: "Match deleted. Its footage, lineups and markers are being removed.",
+  deleted:
+    "Match deleted. Its lineups and markers are gone. The footage file is deleted 7 days after upload.",
 };
 
 function listHref(teamId: string | null, allPublished: boolean) {

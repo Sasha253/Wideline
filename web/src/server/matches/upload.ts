@@ -4,6 +4,7 @@ import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  DeleteObjectCommand,
   HeadObjectCommand,
   ListPartsCommand,
   UploadPartCommand,
@@ -165,7 +166,13 @@ function isNoSuchUpload(err: unknown): boolean {
   return name === "NoSuchUpload" || (err as { Code?: string } | null)?.Code === "NoSuchUpload";
 }
 
-async function abortQuietly(key: string, uploadId: string): Promise<void> {
+/**
+ * Aborts an open multipart upload; one already gone is fine. The parts of an
+ * upload that never completed are not raw footage (no file exists yet), so the
+ * 7-day rule (NFR32, Q-025) does not hold them: cancel, choosing a different
+ * file and deleting a match abort them at once.
+ */
+export async function abortUploadQuietly(key: string, uploadId: string): Promise<void> {
   try {
     await s3Internal().send(
       new AbortMultipartUploadCommand({ Bucket: bucket(), Key: key, UploadId: uploadId }),
@@ -278,7 +285,7 @@ export async function startUpload(
     });
     return info(video);
   } catch (err) {
-    await abortQuietly(key, created.UploadId);
+    await abortUploadQuietly(key, created.UploadId);
     // A concurrent start for the same match won the one-live-video index.
     if ((err as { code?: string }).code === "P2002") {
       throw new MatchError("upload_exists", FOOTAGE_EXISTS);
@@ -327,7 +334,11 @@ export async function presignParts(
   const count = partCount(Number(video.sizeBytes), video.partSize);
   if (partNumbers.some((n) => n > count)) throw new MatchError("invalid");
   const urls: Record<number, string> = {};
+  const size = Number(video.sizeBytes);
   for (const n of new Set(partNumbers)) {
+    const { start, end } = partRange(n, size, video.partSize);
+    // The signature covers content-length, so a part URL accepts exactly the
+    // planned part size and nothing bigger (S3 would take up to 5 GiB).
     urls[n] = await getSignedUrl(
       s3Public(),
       new UploadPartCommand({
@@ -335,6 +346,7 @@ export async function presignParts(
         Key: video.blobPath,
         UploadId: video.s3UploadId!,
         PartNumber: n,
+        ContentLength: end - start,
       }),
       { expiresIn: PART_URL_TTL_SEC },
     );
@@ -363,6 +375,7 @@ export async function completeUpload(
   });
   if (!video || video.status === "cancelled") throw new MatchError("upload_gone");
   if (video.status !== "uploading" || !video.s3UploadId) {
+    await afterComplete(ctx, matchId, video);
     return { status: video.status, alreadyComplete: true };
   }
   const size = Number(video.sizeBytes);
@@ -392,9 +405,16 @@ export async function completeUpload(
     // A concurrent complete finished the upload first: the object exists.
     if (!isNoSuchUpload(err)) throw err;
   }
-  const head = await s3Internal().send(
-    new HeadObjectCommand({ Bucket: bucket(), Key: video.blobPath }),
-  );
+  let head;
+  try {
+    head = await s3Internal().send(
+      new HeadObjectCommand({ Bucket: bucket(), Key: video.blobPath }),
+    );
+  } catch (err) {
+    // The match was deleted and its open upload aborted before this completed.
+    if (isNotFound(err) && !(await videoExists(ctx, videoId))) throw new MatchError("upload_gone");
+    throw err;
+  }
   if (head.ContentLength !== size) {
     log.error(
       { organisationId: ctx.organisationId, videoId, expected: size, actual: head.ContentLength },
@@ -430,32 +450,78 @@ export async function completeUpload(
     return n === 1;
   });
   if (!moved) {
-    const now2 = await ctx.db.video.findFirst({ where: { id: videoId }, select: { status: true } });
-    return { status: now2?.status ?? "probing", alreadyComplete: true };
+    const now2 = await ctx.db.video.findFirst({ where: { id: videoId }, select: VIDEO_SELECT });
+    if (!now2) {
+      // The match (and this row) was deleted while the upload completed, so
+      // its purge may already have listed the prefix: remove the object here.
+      await deleteObjectQuietly(video.blobPath);
+      log.info({ organisationId: ctx.organisationId, videoId, matchId }, "orphan upload removed");
+      throw new MatchError("upload_gone");
+    }
+    await afterComplete(ctx, matchId, now2);
+    return { status: now2.status, alreadyComplete: true };
   }
   log.info({ organisationId: ctx.organisationId, videoId, matchId, completed }, "upload complete");
-  await recordUsage({
-    organisationId: ctx.organisationId,
-    metric: "storage_bytes",
-    quantity: size,
-    sourceType: "Video",
-    sourceId: videoId,
-    metadata: { matchId },
-  });
-  await enqueueProbe({ organisationId: ctx.organisationId, videoId });
+  await afterComplete(ctx, matchId, { id: videoId, status: "probing", sizeBytes: video.sizeBytes });
   return { status: "probing", alreadyComplete: false };
 }
 
+const COMPLETED: readonly VideoStatus[] = ["probing", "accepted", "rejected"];
+
 /**
- * Enqueues the ffprobe check. A failure is logged and leaves the video in
- * probing; C18's admin console re-runs stuck and dead-lettered probes.
+ * After a completed upload: records storage_bytes and enqueues the probe.
+ * Both are idempotent (the usage row is unique per video; the probe job id is
+ * the video id), so a completed video's complete call re-attempts them: a
+ * failure after the commit is recovered by the client's retry.
+ */
+async function afterComplete(
+  ctx: AuthContext,
+  matchId: string,
+  video: { id: string; status: VideoStatus; sizeBytes: bigint },
+): Promise<void> {
+  if (!COMPLETED.includes(video.status)) return;
+  await recordUsage({
+    organisationId: ctx.organisationId,
+    metric: "storage_bytes",
+    quantity: Number(video.sizeBytes),
+    sourceType: "Video",
+    sourceId: video.id,
+    metadata: { matchId },
+  });
+  if (video.status === "probing") {
+    await enqueueProbe({ organisationId: ctx.organisationId, videoId: video.id });
+  }
+}
+
+/**
+ * Enqueues the ffprobe check with the video id as the job id, so a second send
+ * is a no-op. A failure is logged and leaves the video in probing; the client's
+ * retry of complete sends it again, and C18's admin console re-runs stuck and
+ * dead-lettered probes.
  */
 async function enqueueProbe(job: ProbeJob): Promise<void> {
   try {
     const boss = await getBoss();
-    await boss.send(QUEUES.probe, job);
+    await boss.send(QUEUES.probe, job, { id: job.videoId });
   } catch (err) {
     log.error({ err, ...job }, "probe enqueue failed");
+  }
+}
+
+async function videoExists(ctx: AuthContext, videoId: string): Promise<boolean> {
+  return (await ctx.db.video.count({ where: { id: videoId } })) > 0;
+}
+
+function isNotFound(err: unknown): boolean {
+  const e = err as { name?: string; $metadata?: { httpStatusCode?: number } } | null;
+  return e?.name === "NotFound" || e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404;
+}
+
+async function deleteObjectQuietly(key: string): Promise<void> {
+  try {
+    await s3Internal().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+  } catch (err) {
+    if (!isNotFound(err)) throw err;
   }
 }
 
@@ -465,7 +531,7 @@ async function cancelVideo(
   video: VideoRow,
   { moveMatch }: { moveMatch: boolean },
 ): Promise<void> {
-  if (video.s3UploadId) await abortQuietly(video.blobPath, video.s3UploadId);
+  if (video.s3UploadId) await abortUploadQuietly(video.blobPath, video.s3UploadId);
   await ctx.db.$transaction(async (tx) => {
     const { count } = await tx.video.updateMany({
       where: { id: video.id, status: "uploading" },

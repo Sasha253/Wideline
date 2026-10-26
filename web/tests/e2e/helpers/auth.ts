@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // The seeded platform admin (`make seed` prints the password).
-export const adminEmail = process.env.E2E_EMAIL ?? "admin@wideline.localhost";
-export const adminPassword = process.env.E2E_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD;
+export const adminEmail = process.env.E2E_EMAIL || "admin@wideline.localhost";
+export const adminPassword = process.env.E2E_PASSWORD || process.env.SEED_ADMIN_PASSWORD;
 
 /** Skips the current test when no admin password is configured. */
 export function requireAdminPassword() {

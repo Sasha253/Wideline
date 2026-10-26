@@ -206,7 +206,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** no. Accepted footage moves the match to Processing straight away. The match page shows the missing step as its main button ("Enter lineups", then "Set kickoff and half-time"), and lineups and markers stay editable until the match is in review.
 - **Recommended:** keep the default for C06, and decide in C08 whether the CV job waits for the lineup and markers (or the reviewer fills them in during review).
 - **Impact:** a hold would add a "Needs lineup" step between Uploading and Processing, a check in `onFootageAccepted()`, and one more line in the match status panel. No schema change.
-- **Answer:**
+- **Answer:** No: processing starts when footage is accepted; decide in C08 whether the CV job waits for lineups and markers. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework. Decision carried to C08.
 
 ## Q-024 · C06 · Adding an opposition team while creating a match
 
@@ -214,7 +215,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** a link under the team selects, "Add an opposition team", opens the C04 team form with `next=/matches/new`. After saving, the coach returns to the create-match form with the new team chosen as away. Anything already typed in the match form is lost.
 - **Recommended:** keep the default for the pilot. If coaches create matches on a phone after the final whistle, add an inline "New opposition team" option that creates the team in the same step.
 - **Impact:** the inline option needs a name and season field in the match form and a team insert in `createMatch`'s transaction. No schema change.
-- **Answer:**
+- **Answer:** Keep the link to the team form. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-025 · C06 · Deleting a match before its footage is 7 days old
 
@@ -222,7 +224,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** yes. Deleting a match removes the database rows at once and enqueues a purge on the `retention` queue. The retention worker deletes the raw file, and later HLS and clips, straight away. The deletion is audited (`match.deleted`).
 - **Recommended:** keep the default. MATCH08 is an explicit request from the club, and NFR32 protects the review window from accidental or automatic deletion. Routing the purge through the retention worker keeps one deleting process.
 - **Impact:** if footage must stay for the full 7 days, the purge job is sent with `startAfter` at `rawExpiresAt`, and the match stays hidden from the club until then. No schema change.
-- **Answer:**
+- **Answer:** Keep raw footage 7 days: the match disappears for the club at once, but its files stay until rawExpiresAt and are then deleted by the retention job. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
+- **Resolved:** differs from the default (purge at once). Rework in the C06 follow-up commit.
 
 ## Q-026 · C06 · Who may delete a match
 
@@ -230,7 +233,8 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** owners and admins only (`MATCH_DELETE_ROLES` = `ORG_ADMIN_ROLES` in `src/server/auth/session.ts`). Coaches do everything else on a match and see "Only owners and admins can delete a match."
 - **Recommended:** owners and admins. A deletion removes footage, lineups and every stat and clip from the match.
 - **Impact:** one constant, the Delete section's branch on the match page, and the role expectations in `page-guards.test.tsx`, `matches.test.ts` and `matches.spec.ts`.
-- **Answer:**
+- **Answer:** Owners and admins only delete a match. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework.
 
 ## Q-027 · C06 · Footage rules and re-film guidance
 
@@ -238,4 +242,5 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** these values are in `FOOTAGE_RULES` (`web/src/lib/footage-rules.ts`), and the guidance copy is marked "Draft for review" in the code. Wide-angle is judged from the display aspect ratio only, until CV can check the field of view.
 - **Recommended:** keep them, and check them against a sample export from each pilot club's camera (Veo, Pixellot, a phone on a tripod) before the first upload.
 - **Impact:** a threshold or copy change is a one-line constant change plus its unit test (`tests/unit/footage-rules.test.ts`). No schema change.
-- **Answer:**
+- **Answer:** Keep the draft rules, and check them against a sample export from each pilot club's camera before the first upload. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
+- **Resolved:** matches the default; no rework. Camera sample check added to the pilot checklist.

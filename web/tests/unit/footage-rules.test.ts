@@ -112,6 +112,19 @@ describe("footage rules", () => {
     );
   });
 
+  it("warns, and does not pass silently, when the frame rate is unknown", () => {
+    const v = check(probe({ rate: "0/0" }));
+    expect(v.verdict).toBe("accepted_with_warnings");
+    expect(v.issues).toEqual([
+      {
+        code: "fps_unknown",
+        severity: "warn",
+        message: "We could not read this video's frame rate.",
+        guidance: "Check that the camera records at 25 or 30 frames per second.",
+      },
+    ]);
+  });
+
   it("rejects footage under 5 minutes", () => {
     const v = check(probe({ duration: "250.5" }));
     expect(v.verdict).toBe("rejected");

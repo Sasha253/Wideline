@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { HeadObjectCommand, ListPartsCommand } from "@aws-sdk/client-s3";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -22,7 +22,7 @@ import {
 import { bucket, s3Internal } from "@/server/storage";
 import { deletePrefix } from "@/worker/retention";
 import { fixtures } from "./helpers/fixtures";
-import { match, setupClub, storageAvailable } from "./helpers/matches";
+import { jobsFor, match, setupClub, storageAvailable } from "./helpers/matches";
 
 // C06 acceptance (MATCH02, NFR26): an upload interrupted at about 50% resumes
 // without restarting. Against the compose stack's RustFS through presigned
@@ -34,6 +34,22 @@ vi.mock("@/server/queue", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/queue")>()),
   getBoss: async () => boss,
 }));
+
+// recordUsage, failing on demand: a failure after the upload committed.
+const meter = vi.hoisted(() => ({ failNext: false }));
+vi.mock("@/server/usage/meter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/usage/meter")>();
+  return {
+    ...actual,
+    recordUsage: async (...args: Parameters<typeof actual.recordUsage>) => {
+      if (meter.failNext) {
+        meter.failNext = false;
+        throw new Error("database went away");
+      }
+      return actual.recordUsage(...args);
+    },
+  };
+});
 
 const MiB = 1024 * 1024;
 // 17 MiB: parts of 8, 8 and 1 MiB, so part 1 is 47%.
@@ -47,6 +63,7 @@ const fileMeta = {
 };
 
 const hasStorage = await storageAvailable();
+if (!hasStorage) console.warn("upload-resume: skipped, no object storage answers (RustFS)");
 const f = fixtures();
 let club: Awaited<ReturnType<typeof setupClub>>;
 
@@ -94,7 +111,7 @@ function serviceFetch(ctx: AuthContext, matchId: string, puts: number[]): FetchL
 const instantClock: Clock = { now: () => Date.now(), sleep: async () => {} };
 const online: Connectivity = { isOnline: () => true, subscribe: () => () => {} };
 
-describe.skipIf(!hasStorage)("resumable upload against RustFS", () => {
+describe.skipIf(!hasStorage)("resumable upload against RustFS", { timeout: 60_000 }, () => {
   it("resumes from part 1 of 3 without sending it again, then completes once", async () => {
     const { id: matchId } = await match(club.coachCtx, club.own.id, club.opposition.id);
 
@@ -139,7 +156,8 @@ describe.skipIf(!hasStorage)("resumable upload against RustFS", () => {
     );
     expect(head.ContentLength).toBe(SIZE);
 
-    // Completing again changes nothing: one storage row, one probe job.
+    // Completing again changes nothing: one storage row, one probe job (the
+    // send is repeated with the same job id, which pg-boss ignores).
     expect(await completeUpload(club.coachCtx, matchId, started.videoId)).toEqual({
       status: "probing",
       alreadyComplete: true,
@@ -150,11 +168,14 @@ describe.skipIf(!hasStorage)("resumable upload against RustFS", () => {
     expect(usage).toHaveLength(1);
     expect(usage[0]).toMatchObject({ quantity: BigInt(SIZE), sourceType: "Video" });
     expect(usage[0]!.metadata).toEqual({ matchId });
-    expect(boss.send).toHaveBeenCalledTimes(1);
-    expect(boss.send).toHaveBeenCalledWith("probe", {
-      organisationId: club.org.id,
-      videoId: started.videoId,
-    });
+    expect(boss.send).toHaveBeenCalledTimes(2);
+    for (const call of boss.send.mock.calls as unknown[][]) {
+      expect(call).toEqual([
+        "probe",
+        { organisationId: club.org.id, videoId: started.videoId },
+        { id: started.videoId },
+      ]);
+    }
     const audits = await rawDb.auditLog.findMany({
       where: { targetId: started.videoId, action: { startsWith: "video." } },
     });
@@ -248,5 +269,84 @@ describe.skipIf(!hasStorage)("resumable upload against RustFS", () => {
     expect((await rawDb.video.findUniqueOrThrow({ where: { id: first.videoId } })).status).toBe(
       "cancelled",
     );
+  });
+
+  it("binds each part URL to the planned part size", async () => {
+    const { id: matchId } = await match(club.ctx, club.own.id, club.opposition.id);
+    const started = await startUpload(club.ctx, matchId, { ...fileMeta, lastModified: 6 });
+    const urls = await presignParts(club.ctx, matchId, {
+      videoId: started.videoId,
+      partNumbers: [1, 3],
+    });
+    for (const n of [1, 3]) {
+      const signed = new URL(urls[n]!).searchParams.get("X-Amz-SignedHeaders")!.split(";");
+      expect(signed).toContain("content-length");
+    }
+    // A bigger (or smaller) body than planned is refused; the planned size goes through.
+    const big = await fetch(urls[3]!, {
+      method: "PUT",
+      body: new Uint8Array(bytes.subarray(0, 2 * MiB)),
+    });
+    expect(big.status).toBe(403);
+    const short = await fetch(urls[1]!, {
+      method: "PUT",
+      body: new Uint8Array(bytes.subarray(0, MiB)),
+    });
+    expect(short.status).toBe(403);
+    expect((await uploadStatus(club.ctx, matchId))?.uploadedParts).toEqual([]);
+    await put(urls[3]!, bytes.subarray(16 * MiB));
+    expect((await uploadStatus(club.ctx, matchId))?.uploadedParts).toEqual([
+      { partNumber: 3, size: MiB },
+    ]);
+  });
+
+  it("records storage and enqueues the probe on a retried complete after a failure", async () => {
+    const { id: matchId } = await match(club.ctx, club.own.id, club.opposition.id);
+    const started = await startUpload(club.ctx, matchId, { ...fileMeta, lastModified: 7 });
+    const urls = await presignParts(club.ctx, matchId, {
+      videoId: started.videoId,
+      partNumbers: [1, 2, 3],
+    });
+    await put(urls[1]!, bytes.subarray(0, 8 * MiB));
+    await put(urls[2]!, bytes.subarray(8 * MiB, 16 * MiB));
+    await put(urls[3]!, bytes.subarray(16 * MiB));
+
+    // The upload commits, then recording usage fails: the client sees an error.
+    meter.failNext = true;
+    await expect(completeUpload(club.ctx, matchId, started.videoId)).rejects.toThrow(
+      "database went away",
+    );
+    expect((await rawDb.video.findUniqueOrThrow({ where: { id: started.videoId } })).status).toBe(
+      "probing",
+    );
+    const usage = () =>
+      rawDb.usageEvent.count({ where: { metric: "storage_bytes", sourceId: started.videoId } });
+    expect(await usage()).toBe(0);
+    expect(boss.send).not.toHaveBeenCalled();
+
+    // The client's retry finds it complete and recovers both, once.
+    expect(await completeUpload(club.ctx, matchId, started.videoId)).toEqual({
+      status: "probing",
+      alreadyComplete: true,
+    });
+    expect(await usage()).toBe(1);
+    expect(boss.send).toHaveBeenCalledWith(
+      "probe",
+      { organisationId: club.org.id, videoId: started.videoId },
+      { id: started.videoId },
+    );
+    await completeUpload(club.ctx, matchId, started.videoId);
+    expect(await usage()).toBe(1);
+  });
+
+  it("pg-boss keeps one probe job for a video id sent twice", async () => {
+    const queue = await vi.importActual<typeof import("@/server/queue")>("@/server/queue");
+    const real = await queue.getBoss();
+    const videoId = randomUUID();
+    const job = { organisationId: club.org.id, videoId };
+    await real.send(queue.QUEUES.probe, job, { id: videoId });
+    await real.send(queue.QUEUES.probe, job, { id: videoId });
+    expect(await jobsFor(queue.QUEUES.probe, "videoId", videoId)).toBe(1);
+    await real.stop({ graceful: false });
   });
 });

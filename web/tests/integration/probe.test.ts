@@ -31,7 +31,14 @@ vi.mock("@/server/queue", async (importOriginal) => ({
   getBoss: async () => boss,
 }));
 
-const ready = ffprobeAvailable() && (await storageAvailable());
+const hasFfprobe = ffprobeAvailable();
+const hasStorage = await storageAvailable();
+const ready = hasFfprobe && hasStorage;
+if (!ready) {
+  console.warn(
+    `probe: skipped, ${hasFfprobe ? "" : "no ffprobe or footage fixtures (make fixtures)"}${!hasFfprobe && !hasStorage ? " and " : ""}${hasStorage ? "" : "no object storage answers (RustFS)"}`,
+  );
+}
 const f = fixtures();
 let club: Awaited<ReturnType<typeof setupClub>>;
 
@@ -66,7 +73,7 @@ async function upload(ctx: AuthContext, matchId: string, path: string, name: str
   return info.videoId;
 }
 
-describe.skipIf(!ready)("probe", () => {
+describe.skipIf(!ready)("probe", { timeout: 60_000 }, () => {
   it("rejects 720p footage with guidance, sends the match back to Draft and keeps the file", async () => {
     const { id: matchId } = await match(club.coachCtx, club.own.id, club.opposition.id);
     const videoId = await upload(club.coachCtx, matchId, FOOTAGE_720P, "phone-export.mp4");

@@ -254,14 +254,21 @@ describe("delete", () => {
     });
     expect(audit?.metadata).toEqual({ lineups: 1, videos: 1, videoIds: [`vid-${id}`] });
     expect(JSON.stringify(audit?.metadata)).not.toMatch(/Thabo|Nkosi|match\.mp4|U15/);
-    expect(boss.send).toHaveBeenCalledWith("retention", {
-      kind: "match_deleted",
-      organisationId: club.org.id,
-      matchId: id,
-      uploads: [
-        { key: `orgs/${club.org.id}/matches/${id}/raw/vid-${id}.mp4`, uploadId: "upload-1" },
-      ],
-    });
+    // No upload ever completed, so nothing is raw footage yet: the purge starts at once.
+    expect(boss.send).toHaveBeenCalledWith(
+      "retention",
+      {
+        kind: "match_deleted",
+        organisationId: club.org.id,
+        matchId: id,
+        prefix: `orgs/${club.org.id}/matches/${id}/`,
+        rawExpiresAt: null,
+        uploads: [
+          { key: `orgs/${club.org.id}/matches/${id}/raw/vid-${id}.mp4`, uploadId: "upload-1" },
+        ],
+      },
+      { startAfter: expect.any(Date) },
+    );
   });
 
   it("refuses a coach (403) under the default roles: only owners and admins delete", async () => {

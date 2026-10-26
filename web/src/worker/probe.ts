@@ -28,14 +28,55 @@ const FFPROBE_TIMEOUT_MS = 120_000;
 const PROBE_URL_TTL_SEC = 15 * 60;
 
 /** ffprobe output as JSON, or null when the file cannot be read as video at all. */
-export type ProbeRunner = (url: string) => Promise<FfprobeOutput | null>;
+export type ProbeRunner = (url: string, videoId: string) => Promise<FfprobeOutput | null>;
+
+/**
+ * ffprobe's arguments. Only network protocols may be opened (no file:, concat:
+ * or subfile: tricks from a crafted file), the demuxer is forced to the
+ * QuickTime one (MP4 and MOV both), and probing reads a bounded amount.
+ */
+export function ffprobeArgs(url: string): string[] {
+  return [
+    "-v",
+    "error",
+    "-protocol_whitelist",
+    "http,https,tcp,tls",
+    "-f",
+    "mov",
+    "-probesize",
+    String(PROBE_SIZE_BYTES),
+    "-analyzeduration",
+    String(ANALYZE_DURATION_US),
+    "-print_format",
+    "json",
+    "-show_format",
+    "-show_streams",
+    url,
+  ];
+}
+
+const PROBE_SIZE_BYTES = 20 * 1024 * 1024;
+const ANALYZE_DURATION_US = 10 * 1_000_000;
+
+/**
+ * Takes the signed URL out of ffprobe's stderr before it reaches an error,
+ * a log or the dead-letter queue: the URL is a bearer credential for the
+ * footage. The exact URL becomes the video id; any other URL left (a redirect,
+ * a partly encoded copy) is cut down to its path, without the query string.
+ */
+export function redactProbeError(stderr: string, url: string, videoId: string): string {
+  return stderr
+    .split(url)
+    .join(`video ${videoId}`)
+    .replace(/(https?:\/\/[^\s?'"]*)\?[^\s'"]*/g, "$1?[redacted]");
+}
 
 /** Runs ffprobe with no shell, a 120 s timeout and JSON output. */
-export const runFfprobe: ProbeRunner = (url) =>
+export const runFfprobe: ProbeRunner = (url, videoId) =>
   new Promise((resolve, reject) => {
     execFile(
       "ffprobe",
-      ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", url],
+      ffprobeArgs(url),
       { timeout: FFPROBE_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {
@@ -43,7 +84,8 @@ export const runFfprobe: ProbeRunner = (url) =>
             resolve(null);
             return;
           }
-          reject(new Error(`ffprobe failed: ${String(stderr).slice(0, 300)}`));
+          const detail = redactProbeError(String(stderr), url, videoId).slice(0, 300);
+          reject(new Error(`ffprobe failed: ${detail}`));
           return;
         }
         try {
@@ -92,7 +134,7 @@ export async function handleProbe(
     new GetObjectCommand({ Bucket: bucket(), Key: video.blobPath }),
     { expiresIn: PROBE_URL_TTL_SEC },
   );
-  const output = await runner(url);
+  const output = await runner(url, videoId);
   const summary: ProbeSummary | null = output ? summariseProbe(output) : null;
   const validation: FootageValidation = evaluateFootage(summary, {
     halfLengthMinutes: video.match.halfLengthMinutes,

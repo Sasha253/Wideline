@@ -509,7 +509,8 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
 @media (min-width: 768px) {
   .wl-versus { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; column-gap: var(--space-4); }
   .wl-versus__v { margin-top: calc(var(--space-6) + var(--space-1)); }
-  .wl-lineup__row, .wl-lineup__head { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) calc(var(--space-12) * 2) minmax(0, 1.5fr); align-items: center; }
+  /* The Selection column never narrows below 144px, so "Substitute" and the select's chevron fit at 768px. */
+  .wl-lineup__row, .wl-lineup__head { grid-template-columns: minmax(0, 2fr) minmax(calc(var(--space-12) * 3), 1fr) calc(var(--space-12) * 2) minmax(0, 1.5fr); align-items: center; }
   .wl-lineup__row > legend, .wl-lineup__row > .wl-lineup__selection { grid-column: auto; }
   /* Labels go visually hidden: the head row names the columns. Same technique as .wl-skip. */
   .wl-lineup__row .wl-field > label { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }

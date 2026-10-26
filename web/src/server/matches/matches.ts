@@ -13,6 +13,7 @@ import { recordUsage, usageTotals } from "../usage/meter";
 import { requireSquadOrg } from "./access";
 import { CHOOSE_FROM_LIST, MatchError, ONE_SIDE_OWN } from "./errors";
 import { matchSchema, type MatchData, type MatchInput } from "./fields";
+import { abortUploadQuietly, matchPrefix } from "./upload";
 
 /**
  * Matches of the active organisation (MATCH01, MATCH07, MATCH08;
@@ -443,20 +444,38 @@ export async function updateMatch(
 /**
  * Deletes a match and everything derived from it (MATCH08). The rows go at
  * once in one transaction (lineups and videos cascade), audited with ids and
- * counts only. Object storage is purged by the retention worker
- * (src/worker/retention.ts), which aborts open uploads and deletes everything
- * under the match prefix: the one process that deletes footage (NFR32). That
- * it runs at once, before 7 days, is an open question (QUESTIONS.md, Q-025).
+ * counts only, so the match disappears for the club straight away. Object
+ * storage is purged by the retention worker (src/worker/retention.ts), the one
+ * process that deletes footage (NFR32), and not before the raw footage expires
+ * (Q-025): the job starts at the latest rawExpiresAt of the match's videos
+ * (upload + 7 days), or at once when no upload ever completed. The rows are
+ * gone by then, so the prefix and the expiry travel in the job.
+ *
+ * Open multipart uploads are aborted right after the commit. Their parts are
+ * not raw footage (no file was ever completed), so they need not wait; the job
+ * lists them too, and aborting twice is harmless.
+ *
+ * A concurrent completeUpload is serialised by the row lock the first update
+ * below takes: either the upload commits first and its rawExpiresAt is read
+ * here, or this delete commits first and completeUpload finds its row gone and
+ * removes the object it just completed.
  */
 export async function deleteMatch(ctx: AuthContext, matchId: string): Promise<void> {
   requireSquadOrg(ctx);
   const job = await ctx.db.$transaction(async (tx) => {
+    // Locks the open uploads' rows: waits for a completeUpload in flight.
+    await tx.video.updateMany({
+      where: { matchId, status: "uploading" },
+      data: { status: "cancelled" },
+    });
     const match = await tx.match.findFirst({
       where: { id: matchId },
       select: {
         id: true,
         _count: { select: { lineups: true } },
-        videos: { select: { id: true, blobPath: true, s3UploadId: true, status: true } },
+        videos: {
+          select: { id: true, blobPath: true, s3UploadId: true, rawExpiresAt: true },
+        },
       },
     });
     if (!match) throw new MatchError("not_found");
@@ -476,27 +495,43 @@ export async function deleteMatch(ctx: AuthContext, matchId: string): Promise<vo
       },
       asTransactionClient(tx),
     );
+    const expiries = match.videos.flatMap((v) =>
+      v.rawExpiresAt ? [v.rawExpiresAt.getTime()] : [],
+    );
     const retention: RetentionJob = {
       kind: "match_deleted",
       organisationId: ctx.organisationId,
       matchId,
+      prefix: matchPrefix(ctx.organisationId, matchId),
+      rawExpiresAt: expiries.length ? new Date(Math.max(...expiries)).toISOString() : null,
+      // Only an open upload keeps its S3 upload id (complete and cancel clear it).
       uploads: match.videos
-        .filter((v) => v.status === "uploading" && v.s3UploadId)
+        .filter((v) => v.s3UploadId)
         .map((v) => ({ key: v.blobPath, uploadId: v.s3UploadId! })),
     };
     return retention;
   });
+  for (const u of job.uploads) {
+    try {
+      await abortUploadQuietly(u.key, u.uploadId);
+    } catch (err) {
+      // The retention job aborts it again.
+      log.warn({ err, organisationId: job.organisationId, matchId }, "upload abort failed");
+    }
+  }
   await enqueueRetention(job);
 }
 
 /**
- * Enqueues the purge after the deletion commits. A failure is logged: the
- * rows are already gone, and C17's daily sweep removes prefixes with no match.
+ * Enqueues the purge after the deletion commits, to start when the raw
+ * footage expires. A failure is logged: the rows are already gone, and C17's
+ * daily sweep removes prefixes with no match.
  */
 async function enqueueRetention(job: RetentionJob): Promise<void> {
   try {
     const boss = await getBoss();
-    await boss.send(QUEUES.retention, job);
+    const startAfter = job.rawExpiresAt ? new Date(job.rawExpiresAt) : new Date();
+    await boss.send(QUEUES.retention, job, { startAfter });
   } catch (err) {
     log.error(
       { err, organisationId: job.organisationId, matchId: job.matchId },

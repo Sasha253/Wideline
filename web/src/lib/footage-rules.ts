@@ -47,6 +47,7 @@ export type FootageIssueCode =
   | "portrait"
   | "low_fps"
   | "fps_marginal"
+  | "fps_unknown"
   | "not_wide"
   | "duration_short"
   | "duration_long";
@@ -76,6 +77,7 @@ const GUIDANCE: Record<FootageIssueCode, string> = {
     "Turn the camera on its side (landscape) and mount it high on the halfway line, so the whole pitch is in the frame.",
   low_fps: "Set the camera to 25 or 30 frames per second.",
   fps_marginal: "Set the camera to 25 or 30 frames per second for the next match.",
+  fps_unknown: "Check that the camera records at 25 or 30 frames per second.",
   not_wide:
     "Use a wide-angle camera, or a phone's 0.5× lens, high on the halfway line. Both goals should be in the frame.",
   duration_short: "Check that you uploaded the whole match, not one half.",
@@ -131,7 +133,9 @@ export function evaluateFootage(
         ),
       );
     }
-    if (fps !== null && fps < R.minFps) {
+    if (fps === null) {
+      issues.push(issue("fps_unknown", "warn", "We could not read this video's frame rate."));
+    } else if (fps < R.minFps) {
       issues.push(
         issue(
           "low_fps",
@@ -139,7 +143,7 @@ export function evaluateFootage(
           `This video runs at ${formatFps(fps)} frames per second. Wideline needs at least 20.`,
         ),
       );
-    } else if (fps !== null && fps < R.goodFps) {
+    } else if (fps < R.goodFps) {
       issues.push(
         issue(
           "fps_marginal",

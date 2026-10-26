@@ -11,6 +11,7 @@ import {
   useFocusFirstInvalid,
   useFormAction,
 } from "@/components/forms";
+import { Missing } from "@/components/templates/DataTable";
 import type { ActionResult } from "@/lib/action-result";
 import { POSITIONS, positionLabel } from "@/lib/squad-fields";
 import { saveLineupAction } from "./actions";
@@ -92,8 +93,19 @@ export function LineupEditor({
                     <span className="body-strong">{r.name}</span>
                   </p>
                   <span className="wl-lineup__selection body">{SELECTION_LABELS[r.selection]}</span>
-                  <span className="data">{r.shirtNumber ?? ""}</span>
-                  <span className="body">{positionLabel(r.position) ?? ""}</span>
+                  {/* Below 768px there is no head row, so each value carries its label. */}
+                  <p className="body">
+                    <span className="caption mr-2 text-ink-muted md:sr-only">Shirt</span>
+                    {r.shirtNumber !== null ? (
+                      <span className="data">{r.shirtNumber}</span>
+                    ) : (
+                      <Missing />
+                    )}
+                  </p>
+                  <p className="body">
+                    <span className="caption mr-2 text-ink-muted md:sr-only">Position</span>
+                    {positionLabel(r.position) ?? <Missing />}
+                  </p>
                 </div>
               </li>
             ))}

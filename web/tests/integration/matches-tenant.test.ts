@@ -61,11 +61,13 @@ describe("tenant isolation for matches, lineups and videos", () => {
     ).toBe(0);
     await expect(
       b.ctx.db.video.update({ where: { id: videoId }, data: { kickoffMs: 1 } }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "P2025" });
     expect((await b.ctx.db.video.deleteMany({ where: { id: videoId } })).count).toBe(0);
     expect((await b.ctx.db.match.deleteMany({ where: { id: matchId } })).count).toBe(0);
     expect((await b.ctx.db.lineup.deleteMany({ where: { id: lineupId } })).count).toBe(0);
-    await expect(b.ctx.db.match.delete({ where: { id: matchId } })).rejects.toThrow();
+    await expect(b.ctx.db.match.delete({ where: { id: matchId } })).rejects.toMatchObject({
+      code: "P2025",
+    });
     const v = await rawDb.video.findUniqueOrThrow({ where: { id: videoId } });
     expect(v.kickoffMs).toBeNull();
     expect(await rawDb.match.count({ where: { id: matchId } })).toBe(1);
@@ -94,6 +96,8 @@ describe("tenant isolation for matches, lineups and videos", () => {
         data: {
           organisationId: b.org.id,
           matchId,
+          // Not a live status, so the one-live-video index cannot be what refuses it.
+          status: "cancelled",
           blobPath: "x",
           fileName: "x.mp4",
           contentType: "video/mp4",
@@ -102,7 +106,7 @@ describe("tenant isolation for matches, lineups and videos", () => {
           fingerprint: "fp",
         },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "P2003" });
   });
 
   it("refuses a Lineup replacement link across organisations (composite FK)", async () => {
@@ -114,7 +118,7 @@ describe("tenant isolation for matches, lineups and videos", () => {
     const bRow = await rawDb.lineup.findFirstOrThrow({ where: { matchId: bMatch.id } });
     await expect(
       rawDb.lineup.update({ where: { id: bRow.id }, data: { replacesLineupId: lineupId } }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "P2003" });
   });
 
   it("keeps one live video per match (partial unique index)", async () => {
@@ -131,7 +135,7 @@ describe("tenant isolation for matches, lineups and videos", () => {
           fingerprint: "fp2",
         },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "P2002" });
     // A cancelled attempt does not count.
     await rawDb.video.create({
       data: {
