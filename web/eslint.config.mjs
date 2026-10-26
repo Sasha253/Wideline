@@ -19,6 +19,11 @@ const RAW_DB_ALLOWED = [
   // explicit organisationId and touches only that organisation's rows.
   "src/server/entitlements/**",
   "src/server/usage/meter.ts",
+  // Processing jobs (C07): the worker's job rows and the platform-wide
+  // timing median. Every write takes an explicit organisationId; the median
+  // reads aggregate timings only, no tenant data.
+  "src/server/processing/jobs.ts",
+  "src/server/processing/timings.ts",
   "src/worker/**",
   "src/app/api/jobs/*/callback/**",
   "prisma/seed.ts",

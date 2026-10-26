@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
 import { Banner } from "@/components/forms";
 import { DetailPage, type DetailSection } from "@/components/templates/DetailPage";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink, Kbd } from "@/components/ui/Button";
 import { formatDeletionDate, formatTimeLeft } from "@/components/ui/expiry";
 import { ExpiryBanner, ExpiryLabel } from "@/components/ui/ExpiryBanner";
 import { FootageChip, MatchStatusChip } from "@/components/ui/StatusChip";
 import { TeamMarker } from "@/components/ui/TeamMarker";
+import { HlsPlayer } from "@/components/video/HlsPlayer";
 import {
   fixtureText,
   formatDate,
@@ -27,11 +28,14 @@ import { log } from "@/server/log";
 import { canDeleteMatch, isLocked, requireSquadOrgPage } from "@/server/matches/access";
 import { estimatedReadyAt } from "@/server/matches/estimate";
 import type { MatchDetail, SideCounts, VideoSummary } from "@/server/matches/matches";
+import { playableVideo } from "@/server/matches/playback";
 import { uploadStatus } from "@/server/matches/upload";
+import { processingSummary, type ProcessingSummary } from "@/server/processing/summary";
 import { metaText } from "../../squad/shared";
 import { doneMessage, expiresSoon, footageState, IssueList, rawExpiry } from "../shared";
 import { DeleteMatch } from "./DeleteMatch";
 import { loadMatch } from "./load";
+import { ProcessingPanel } from "./ProcessingPanel";
 import { StatusPoller } from "./StatusPoller";
 
 type Props = {
@@ -125,10 +129,11 @@ function FootageFacts({ video, now }: { video: VideoSummary; now: Date }) {
   return <FactList items={items} />;
 }
 
-function matchStatusText(match: MatchDetail, now: Date): string | null {
+function matchStatusText(match: MatchDetail, now: Date, readyAt?: Date | null): string | null {
   switch (match.status) {
     case "processing": {
-      const ready = match.video && estimatedReadyAt(match.video);
+      // C07: readyAt uses measured transcode timings; the C06 constants otherwise.
+      const ready = readyAt !== undefined ? readyAt : match.video && estimatedReadyAt(match.video);
       return ready && ready.getTime() > now.getTime()
         ? `Processing. Ready for review by about ${formatReadyBy(ready, now)}.`
         : "Processing is taking longer than usual. This page updates when it is ready.";
@@ -146,6 +151,37 @@ function matchStatusText(match: MatchDetail, now: Date): string | null {
   }
 }
 
+/** The own-mode player shortcuts (docs/build/design/C07.md, Surface 1). */
+function PlayerShortcuts() {
+  return (
+    <details className="mt-3">
+      <summary className="label">Keyboard shortcuts</summary>
+      <dl className="wl-facts mt-2">
+        <dt>
+          <Kbd>Space</Kbd> <Kbd>K</Kbd>
+        </dt>
+        <dd className="body">Play or pause</dd>
+        <dt>
+          <Kbd>←</Kbd> <Kbd>→</Kbd>
+        </dt>
+        <dd className="body">Move 5 s</dd>
+        <dt>
+          <Kbd>Home</Kbd> <Kbd>End</Kbd>
+        </dt>
+        <dd className="body">Go to the start or the end</dd>
+        <dt>
+          <Kbd>M</Kbd>
+        </dt>
+        <dd className="body">Mute or unmute</dd>
+        <dt>
+          <Kbd>F</Kbd>
+        </dt>
+        <dd className="body">Full screen</dd>
+      </dl>
+    </details>
+  );
+}
+
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 function sideText(c: SideCounts): string | null {
@@ -157,6 +193,8 @@ function sideText(c: SideCounts): string | null {
  * One match (MATCH05, MATCH07, MATCH08; docs/build/design/C06.md, Surface 6):
  * where it is, what to do next, the footage check, lineups and markers, and
  * delete for owners and admins. Another organisation's match is not found.
+ * C07 (docs/build/design/C07.md, Surfaces 2 and 3): the processing steps in
+ * the Footage card, and the Watch section with the HLS player.
  */
 export default async function MatchPage({ params, searchParams }: Props) {
   const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
@@ -181,6 +219,18 @@ export default async function MatchPage({ params, searchParams }: Props) {
       log.warn({ err, matchId: match.id }, "upload progress unavailable");
     }
   }
+
+  // C07: processing steps and the estimate, while Processing or Failed.
+  let processing: ProcessingSummary | null | "unavailable" = null;
+  if (accepted && (match.status === "processing" || match.status === "failed")) {
+    try {
+      processing = await processingSummary(ctx, match.id);
+    } catch (err) {
+      log.warn({ err, matchId: match.id }, "processing status unavailable");
+      processing = "unavailable";
+    }
+  }
+  const playable = accepted && !video.deletedAt ? await playableVideo(ctx, match.id) : null;
 
   const ownSides = (["home", "away"] as const).filter(
     (s) => !(s === "home" ? match.homeTeam : match.awayTeam).isOpposition,
@@ -259,7 +309,11 @@ export default async function MatchPage({ params, searchParams }: Props) {
       </>
     );
   } else {
-    const statusText = matchStatusText(match, now);
+    const statusText = matchStatusText(
+      match,
+      now,
+      processing && processing !== "unavailable" ? processing.readyAt : undefined,
+    );
     footage = (
       <>
         {warnings.length > 0 && (
@@ -271,6 +325,11 @@ export default async function MatchPage({ params, searchParams }: Props) {
           </>
         )}
         <FootageFacts video={video} now={now} />
+        {processing && (
+          <ProcessingPanel
+            job={processing === "unavailable" ? "unavailable" : processing.transcode}
+          />
+        )}
         {statusText && <p className="body mt-4">{statusText}</p>}
       </>
     );
@@ -282,6 +341,42 @@ export default async function MatchPage({ params, searchParams }: Props) {
     text: sideText(match.lineups[s]),
   }));
   const anyLineup = sides.some((s) => s.text !== null);
+
+  const transcodeFailed =
+    match.status === "failed" ||
+    (processing !== null &&
+      processing !== "unavailable" &&
+      processing.transcode?.status === "failed");
+  const muted = (text: string) => <p className="body max-w-3xl text-ink-muted">{text}</p>;
+  let watch: ReactNode;
+  if (!accepted) {
+    watch = muted("You can watch the match here once the footage is accepted.");
+  } else if (video.deletedAt) {
+    watch = muted(
+      "The footage for this match has been deleted. Footage is kept for 7 days after upload.",
+    );
+  } else if (playable) {
+    watch = (
+      <>
+        <HlsPlayer
+          source={{ kind: "hls", url: `/api/matches/${match.id}/hls/master.m3u8` }}
+          title={`Match video: ${fixture}`}
+          keyboard="own"
+        />
+        <PlayerShortcuts />
+        <p className="caption mt-2 text-ink-muted">
+          Only people in your club with access to matches can watch. Footage is deleted 7 days after
+          upload.
+        </p>
+      </>
+    );
+  } else if (transcodeFailed) {
+    watch = muted(
+      "Playback is not available because processing failed. Wideline staff have been told.",
+    );
+  } else {
+    watch = muted("Playback is ready once processing has prepared the video.");
+  }
 
   const sections: DetailSection[] = [
     {
@@ -300,6 +395,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
         </div>
       ),
     },
+    { id: "watch", title: "Watch", content: watch },
     {
       id: "lineups",
       title: "Lineups",

@@ -23,9 +23,15 @@ import {
 // C06 acceptance (MATCH03, MATCH04): footage under 1080p is rejected with
 // guidance. The worker's probe handler with real ffprobe on generated footage
 // (`make fixtures`), uploaded to RustFS through the real upload service.
+// C07: accepted footage gets one transcode ProcessingJob and one pg-boss send
+// with its bossJobId; a retried probe sends the same id again.
 // Skipped without object storage, ffprobe or the fixtures (CI; see STATUS.md).
 
-const boss = vi.hoisted(() => ({ send: vi.fn(async () => "job-id") }));
+const boss = vi.hoisted(() => ({
+  send: vi.fn<(queue: string, data: unknown, options?: object) => Promise<string | null>>(
+    async () => "job-id",
+  ),
+}));
 vi.mock("@/server/queue", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/queue")>()),
   getBoss: async () => boss,
@@ -100,6 +106,8 @@ describe.skipIf(!ready)("probe", { timeout: 60_000 }, () => {
     expect(
       await rawDb.usageEvent.count({ where: { metric: "video_seconds", sourceId: videoId } }),
     ).toBe(0);
+    // C07: rejected footage is not transcoded.
+    expect(await rawDb.processingJob.count({ where: { videoId } })).toBe(0);
   });
 
   it("accepts 1080p footage, saves its metadata and moves the match to Processing", async () => {
@@ -130,11 +138,35 @@ describe.skipIf(!ready)("probe", { timeout: 60_000 }, () => {
     expect(usage).toHaveLength(1);
     expect(usage[0]).toMatchObject({ quantity: BigInt(330), sourceType: "Video" });
 
-    // A retried job finds the video already probed and changes nothing.
+    // C07: one transcode job, sent once with its own id as the pg-boss id.
+    const jobs = await rawDb.processingJob.findMany({ where: { videoId } });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      type: "transcode",
+      status: "queued",
+      attempts: 0,
+      matchId,
+      organisationId: club.org.id,
+    });
+    const sends = () => boss.send.mock.calls.filter(([q]) => q === "transcode");
+    expect(sends()).toEqual([
+      [
+        "transcode",
+        { organisationId: club.org.id, videoId, processingJobId: jobs[0]!.id },
+        { id: jobs[0]!.bossJobId, expireInSeconds: 5 * 3600 },
+      ],
+    ]);
+
+    // A retried job finds the video already probed and changes nothing, but
+    // sends the transcode job again with the same id (a no-op in pg-boss), in
+    // case the first send failed.
     expect(await handleProbe({ organisationId: club.org.id, videoId })).toBe("skipped");
     expect(
       await rawDb.usageEvent.count({ where: { metric: "video_seconds", sourceId: videoId } }),
     ).toBe(1);
+    expect(await rawDb.processingJob.count({ where: { videoId } })).toBe(1);
+    expect(sends()).toHaveLength(2);
+    expect(sends()[1]![2]).toEqual({ id: jobs[0]!.bossJobId, expireInSeconds: 5 * 3600 });
   });
 
   it("only handles a video of the job's organisation", async () => {

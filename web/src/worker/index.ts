@@ -1,10 +1,10 @@
 /**
  * Transcode worker entry point: a long-running process that consumes pg-boss
  * queues (probe, transcode, clips) and dispatches CV jobs. Same codebase as the
- * web app, separate container. C06 adds probe and retention; transcode, CV and
- * clips arrive in C07 to C09.
+ * web app, separate container. C06 adds probe and retention, C07 transcode; CV
+ * and clips arrive in C08 and C09.
  */
-import type { ConsentWithdrawnJob, ProbeJob, RetentionJob } from "../server/queue";
+import type { ConsentWithdrawnJob, ProbeJob, RetentionJob, TranscodeJob } from "../server/queue";
 
 export {};
 
@@ -16,6 +16,7 @@ const { getBoss, QUEUES, DEAD_LETTER_QUEUE } = await import("../server/queue");
 
 const { handleProbe } = await import("./probe");
 const { handleRetention } = await import("./retention");
+const { handleTranscode } = await import("./transcode");
 
 const boss = await getBoss();
 
@@ -27,6 +28,20 @@ await boss.work<ProbeJob>(QUEUES.probe, async (jobs) => {
     log.info({ jobId: job.id, videoId: job.data.videoId, outcome }, "probe job done");
   }
 });
+
+// C07 (MATCH06): the HLS ladder, one job at a time per worker (ffmpeg uses
+// every core). A throw is recorded on the ProcessingJob and fails the job:
+// pg-boss retries it, then dead-letters it after 3 attempts (NFR30).
+const transcodeOptions = { includeMetadata: true, batchSize: 1, localConcurrency: 1 } as const;
+await boss.work<TranscodeJob, unknown, typeof transcodeOptions>(
+  QUEUES.transcode,
+  transcodeOptions,
+  async (jobs) => {
+    for (const job of jobs) {
+      await handleTranscode(job.data, { retryCount: job.retryCount, retryLimit: job.retryLimit });
+    }
+  },
+);
 
 // C06 (MATCH08, NFR32): purge a deleted match's storage. C17 adds its sweep here.
 await boss.work<RetentionJob>(QUEUES.retention, async (jobs) => {

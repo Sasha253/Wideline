@@ -28,6 +28,7 @@ import { log } from "../log";
 import { getBoss, QUEUES, type ProbeJob } from "../queue";
 import { asTransactionClient } from "../squad/tx";
 import { bucket, s3Internal, s3Public } from "../storage";
+import { matchPrefix } from "./keys";
 import { recordUsage } from "../usage/meter";
 import { requireSquadOrg } from "./access";
 import { MatchError } from "./errors";
@@ -73,10 +74,7 @@ export function fingerprintOf(file: { name: string; size: number; lastModified: 
   return createHash("sha256").update(fingerprintSource(file)).digest("hex");
 }
 
-/** orgs/{organisationId}/matches/{matchId}/: everything stored for a match. */
-export function matchPrefix(organisationId: string, matchId: string): string {
-  return `orgs/${organisationId}/matches/${matchId}/`;
-}
+export { matchPrefix };
 
 function rawKey(organisationId: string, matchId: string, videoId: string, ext: string): string {
   return `${matchPrefix(organisationId, matchId)}raw/${videoId}.${ext}`;

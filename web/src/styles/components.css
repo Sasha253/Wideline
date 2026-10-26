@@ -519,3 +519,55 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
 @media (min-width: 768px) and (max-width: 1279px) {
   .wl-marker { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
 }
+
+/* Video player and processing panel for C07 (docs/build/design/C07.md). Not in the design system; built from tokens.
+   The design names the block .wl-player, which PlayerCard already uses, so the player is .wl-videoplayer. */
+.wl-videoplayer { display: flex; flex-direction: column; background: var(--surface-sunken); border-radius: var(--radius-md); overflow: hidden; }
+.wl-videoplayer:fullscreen { border-radius: 0; background: var(--surface-sunken); }
+.wl-videoplayer__screen { position: relative; aspect-ratio: 16 / 9; background: var(--surface-sunken); }
+.wl-videoplayer__screen > video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.wl-videoplayer:fullscreen .wl-videoplayer__screen { aspect-ratio: auto; flex: 1; min-height: 0; }
+/* The buffering note, bottom left of the picture. */
+.wl-videoplayer__status { position: absolute; inset: auto auto var(--space-3) var(--space-3); display: inline-flex; gap: var(--space-1); align-items: center; padding: var(--space-1) var(--space-2); background: var(--surface-raised); color: var(--ink); border-radius: var(--radius-sm); }
+.wl-videoplayer__status svg { width: 16px; height: 16px; }
+/* The error, signed-out and cannot-play panel over the picture. */
+.wl-videoplayer__message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-4); text-align: center; background: var(--surface-sunken); color: var(--ink); }
+.wl-videoplayer__message > svg { width: 20px; height: 20px; }
+.wl-videoplayer__controls { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-3); background: var(--surface-raised); border-top: 1px solid var(--line); }
+.wl-videoplayer__bar { display: flex; align-items: center; gap: var(--space-1); }
+.wl-videoplayer__time { margin-inline: var(--space-2); white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
+.wl-videoplayer__spacer { flex: 1; }
+/* The seek slider. The played part (--wl-seek, set inline) is data, not a design value. */
+.wl-videoplayer__seek { appearance: none; -webkit-appearance: none; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; }
+.wl-videoplayer__seek:focus { outline: none; }
+.wl-videoplayer__seek::-webkit-slider-runnable-track { height: var(--space-1); border-radius: var(--radius-sm); background: linear-gradient(to right, var(--pitch) var(--wl-seek, 0%), var(--line-strong) var(--wl-seek, 0%)); }
+.wl-videoplayer__seek::-moz-range-track { height: var(--space-1); border-radius: var(--radius-sm); background: linear-gradient(to right, var(--pitch) var(--wl-seek, 0%), var(--line-strong) var(--wl-seek, 0%)); }
+.wl-videoplayer__seek::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: var(--space-4); height: var(--space-4); border-radius: var(--radius-pill); background: var(--pitch); border: 2px solid var(--surface-raised); margin-top: calc((var(--space-1) - var(--space-4)) / 2); transition: transform 150ms ease-out; }
+.wl-videoplayer__seek::-moz-range-thumb { width: var(--space-4); height: var(--space-4); border-radius: var(--radius-pill); background: var(--pitch); border: 2px solid var(--surface-raised); box-sizing: border-box; }
+.wl-videoplayer__seek:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wl-videoplayer__seek:focus-visible::-moz-range-thumb { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wl-videoplayer__seek:disabled { cursor: not-allowed; opacity: .45; }
+/* Bar buttons: transparent icon buttons; pressed has fill, a bar and the state in its label. */
+.wl-iconbtn.wl-videoplayer__btn { border-color: transparent; background: transparent; transition: background-color 150ms ease-out; }
+.wl-iconbtn.wl-videoplayer__btn:hover { background: var(--surface-sunken); }
+.wl-iconbtn.wl-videoplayer__btn[aria-pressed="true"] { background: var(--pitch-soft); color: var(--ink); box-shadow: inset 0 -2px 0 var(--pitch); }
+.wl-iconbtn.wl-videoplayer__btn:disabled, .wl-videoplayer__quality:disabled { cursor: not-allowed; opacity: .45; }
+.wl-videoplayer__qualitytext { white-space: nowrap; }
+.wl-videoplayer__menuwrap { position: relative; }
+.wl-popover.wl-videoplayer__menu { bottom: calc(100% + var(--space-1)); right: 0; top: auto; min-width: calc(var(--space-12) * 4); }
+/* The empty 18px slot that lines items up with the checked one. */
+.wl-videoplayer__menuslot { display: inline-block; width: 18px; height: 18px; flex: none; }
+/* Processing steps: failed and retrying rows; done rows use [data-done="true"]. */
+.wl-checklist [data-state="failed"] svg { color: var(--danger); }
+.wl-checklist [data-state="retrying"] svg { color: var(--warning); }
+@media (prefers-reduced-motion: reduce) {
+  .wl-videoplayer__seek::-webkit-slider-thumb, .wl-iconbtn.wl-videoplayer__btn { transition: none; }
+}
+@media (max-width: 767px) {
+  /* 44px touch targets; the quality trigger is icon only (its text stays for screen readers). */
+  .wl-videoplayer__quality { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .wl-videoplayer__qualitytext { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+}
+@media (min-width: 768px) {
+  .wl-videoplayer__bar { gap: var(--space-2); }
+}

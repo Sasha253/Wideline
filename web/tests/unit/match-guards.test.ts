@@ -2,9 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// C06 (AUTH06): every route handler under /api/matches is wrapped in withRole,
-// and every page under /matches checks the role and the organisation type
-// (academies and clubs only) before it renders. Static checks over src/app.
+// C06 (AUTH06): every route handler under /api/matches (C07: the HLS playback
+// routes too) is wrapped in withRole, and every page under /matches checks the
+// role and the organisation type (academies and clubs only) before it renders.
+// Static checks over src/app.
 
 const appDir = join(import.meta.dirname, "../../src/app");
 
@@ -29,8 +30,10 @@ function handlers(src: string): { name: string; body: string }[] {
 }
 
 describe("match route handlers", () => {
-  it("finds the upload, parts, complete and video-url routes", () => {
+  it("finds the upload, parts, complete, video-url and HLS playback routes", () => {
     expect(routes.map((f) => relative(appDir, f)).sort()).toEqual([
+      "api/matches/[matchId]/hls/[rendition]/[file]/route.ts",
+      "api/matches/[matchId]/hls/master.m3u8/route.ts",
       "api/matches/[matchId]/upload/complete/route.ts",
       "api/matches/[matchId]/upload/parts/route.ts",
       "api/matches/[matchId]/upload/route.ts",
@@ -46,7 +49,7 @@ describe("match route handlers", () => {
       expect(found.length).toBeGreaterThan(0);
       expect(src).not.toMatch(/export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b/);
       for (const { name, body } of found) {
-        expect(body, `${name} must use withRole`).toMatch(/=\s*withRole<[^>]*>\(MATCH_ROLES,/);
+        expect(body, `${name} must use withRole`).toMatch(/=\s*withRole<[^>]*>\(\s*MATCH_ROLES,/);
         expect(body, `${name} must check the organisation type`).toMatch(/requireSquadOrg\(ctx\)/);
       }
     },

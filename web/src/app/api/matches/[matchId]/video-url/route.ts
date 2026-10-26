@@ -3,8 +3,9 @@ import { requireSquadOrg } from "@/server/matches/access";
 import { errorResponse } from "@/server/matches/http";
 import { signedRawUrl } from "@/server/matches/markers";
 
-// GET: a 15-minute signed URL for the accepted raw footage, for the marker
-// tool's player (MATCH05, NFR17). C07 replaces it with HLS playback.
+// GET: a 15-minute signed URL for the accepted raw footage (MATCH05, NFR17).
+// C07: only the marker tool's fallback while the transcode runs; once HLS is
+// ready the player uses /api/matches/[matchId]/hls/master.m3u8.
 
 type Params = { matchId: string };
 

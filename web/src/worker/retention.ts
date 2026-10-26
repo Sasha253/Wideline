@@ -11,8 +11,9 @@ import { recordUsage, storageBytesForMatch } from "../server/usage/meter";
 /**
  * The retention queue (NFR32, MATCH08): the one process that deletes footage.
  * C06 handles match_deleted: abort the match's open multipart uploads, delete
- * every object under orgs/{org}/matches/{match}/ (raw footage now; HLS and
- * clips from C07 and C09), and net its storage off the usage meter. C17 adds
+ * every object under orgs/{org}/matches/{match}/ (raw footage, the C07 HLS
+ * ladder under hls/, clips from C09), and net its storage off the usage meter
+ * (the Rendition rows carry metadata.matchId, so they net off too). C17 adds
  * the daily raw-footage and clip sweep to this queue.
  *
  * Raw footage is kept 7 days after upload, even when its match is deleted

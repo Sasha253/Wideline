@@ -1,7 +1,7 @@
 "use client";
 
 import { Pause, Play } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   Banner,
   Field,
@@ -13,9 +13,14 @@ import {
   useFocusFirstInvalid,
   useFormAction,
 } from "@/components/forms";
-import { Skeleton } from "@/components/states/Skeleton";
 import { Workspace } from "@/components/templates/Workspace";
 import { Button, Kbd } from "@/components/ui/Button";
+import {
+  HlsPlayer,
+  type HlsPlayerHandle,
+  type PlayerSource,
+  type PlayerState,
+} from "@/components/video/HlsPlayer";
 import type { ActionResult } from "@/lib/action-result";
 import { formatVideoTime } from "@/lib/labels";
 import {
@@ -52,8 +57,6 @@ const KEYS: Record<string, MarkerKey> = {
   "4": "fullTimeMs",
 };
 
-type Playback = "loading" | "ready" | "cannot_play" | "failed";
-
 const toText = (m: Markers): Record<MarkerKey, string> =>
   Object.fromEntries(
     MARKER_KEYS.map((k) => [k, m[k] === null ? "" : formatVideoTime(m[k]!)]),
@@ -65,31 +68,43 @@ function parsed(values: Record<MarkerKey, string>): Partial<Markers> {
   ) as Partial<Markers>;
 }
 
+/** Inputs whose keys the marker shortcuts leave alone. The seek slider is not one. */
+function isTextInput(target: HTMLElement): boolean {
+  if (target.tagName === "INPUT") return (target as HTMLInputElement).type !== "range";
+  return target.tagName === "SELECT" || target.tagName === "TEXTAREA";
+}
+
 /**
  * The kickoff and half-time marker tool (MATCH05; docs/build/design/C06.md,
- * Surface 5): a native player on a 15-minute signed URL, four markers set from
- * the current time or typed, and keyboard shortcuts with visible buttons.
- * Typed entry is the fallback when the browser cannot play the file. C07
- * swaps the player for HLS.
+ * Surface 5): the match player, four markers set from the current time or
+ * typed, and keyboard shortcuts with visible buttons. Typed entry is the
+ * fallback when the browser cannot play the file. C07
+ * (docs/build/design/C07.md, Surface 4): HlsPlayer in host mode, driven
+ * through its handle; HLS once the transcode is ready, the raw file on a
+ * 15-minute signed URL until then.
  */
 export function MarkerTool({
   matchId,
+  hlsUrl,
+  fileUrl,
   contentType,
   halfLengthMinutes,
   initial,
   locked,
 }: {
   matchId: string;
+  /** The master playlist route once HLS is ready, else null. */
+  hlsUrl: string | null;
+  /** The raw file's signed URL, used until HLS is ready. */
+  fileUrl: string | null;
   contentType: string;
   halfLengthMinutes: number;
   initial: Markers;
   locked: boolean;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<HlsPlayerHandle>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const [url, setUrl] = useState<string | null>(null);
-  const [playback, setPlayback] = useState<Playback>("loading");
-  const [refetched, setRefetched] = useState(false);
+  const [playback, setPlayback] = useState<PlayerState>("loading");
   const [currentMs, setCurrentMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [values, setValues] = useState(() => toText(initial));
@@ -103,6 +118,7 @@ export function MarkerTool({
     return (typed ? parseClock(typed) : null) !== initial[k];
   });
 
+  // Signs the raw file again: the player's refresh when the URL expires.
   const fetchUrl = useCallback(async (): Promise<string | null> => {
     try {
       const res = await fetch(`/api/matches/${matchId}/video-url`, { cache: "no-store" });
@@ -113,23 +129,12 @@ export function MarkerTool({
     }
   }, [matchId]);
 
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      const probe = document.createElement("video");
-      if (!probe.canPlayType(contentType)) {
-        if (live) setPlayback("cannot_play");
-        return;
-      }
-      const u = await fetchUrl();
-      if (!live) return;
-      if (u) setUrl(u);
-      else setPlayback("failed");
-    })();
-    return () => {
-      live = false;
-    };
-  }, [contentType, fetchUrl]);
+  // Stable across renders, so the player never reloads on a re-render.
+  const source = useMemo<PlayerSource | null>(() => {
+    if (hlsUrl) return { kind: "hls", url: hlsUrl };
+    if (fileUrl) return { kind: "file", url: fileUrl, contentType, refresh: fetchUrl };
+    return null;
+  }, [hlsUrl, fileUrl, contentType, fetchUrl]);
 
   const okKey = state?.ok ? state.key : undefined;
 
@@ -140,52 +145,18 @@ export function MarkerTool({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  async function onVideoError() {
-    const v = videoRef.current;
-    const code = v?.error?.code;
-    if (code === 3 || code === 4) {
-      setPlayback("cannot_play");
-      return;
-    }
-    // Most likely the signed URL expired: sign again once, and carry on where it was.
-    if (refetched) {
-      setPlayback("failed");
-      return;
-    }
-    setRefetched(true);
-    const at = v?.currentTime ?? 0;
-    const wasPaused = v?.paused ?? true;
-    const fresh = await fetchUrl();
-    if (!fresh || !v) {
-      setPlayback("failed");
-      return;
-    }
-    setUrl(fresh);
-    v.addEventListener(
-      "loadedmetadata",
-      () => {
-        v.currentTime = at;
-        if (!wasPaused) void v.play();
-      },
-      { once: true },
-    );
-  }
-
-  const canPlay = playback === "ready" || playback === "loading";
   const usable = playback === "ready";
 
   function seekBy(deltaMs: number) {
-    const v = videoRef.current;
-    if (!v || !usable) return;
-    v.currentTime = Math.max(0, v.currentTime + deltaMs / 1000);
-    setCurrentMs(Math.round(v.currentTime * 1000));
+    const player = playerRef.current;
+    if (!player || !usable) return;
+    player.seekBy(deltaMs);
+    // The readout follows at once, not after the seek lands (C06).
+    setCurrentMs(player.currentMs);
   }
 
   function togglePlay() {
-    const v = videoRef.current;
-    if (!v || !usable) return;
-    if (v.paused) void v.play();
-    else v.pause();
+    if (usable) playerRef.current?.toggle();
   }
 
   function setMarker(key: MarkerKey) {
@@ -196,15 +167,14 @@ export function MarkerTool({
 
   function goTo(key: MarkerKey) {
     const ms = parseClock(values[key]);
-    const v = videoRef.current;
-    if (ms === null || !v || !usable) return;
-    v.currentTime = ms / 1000;
+    if (ms === null || !usable) return;
+    playerRef.current?.seekTo(ms);
     setCurrentMs(ms);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
-    if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+    if (isTextInput(target)) return;
     if (!usable || e.metaKey || e.ctrlKey || e.altKey) return;
     const actions: Record<string, () => void> = {
       k: togglePlay,
@@ -248,39 +218,39 @@ export function MarkerTool({
     return null;
   };
 
+  const broken = playback === "cannot_play" || playback === "failed" || !source;
   const videoPane = (
     <>
-      {canPlay && url ? (
-        <div className="wl-video">
-          {playback === "loading" && <Skeleton shape="video" className="w-full" />}
-          <video
-            ref={videoRef}
-            src={url}
-            controls
-            preload="metadata"
-            playsInline
-            aria-label="Match video"
-            hidden={playback === "loading"}
-            onLoadedMetadata={() => setPlayback("ready")}
-            onTimeUpdate={(e) => setCurrentMs(Math.round(e.currentTarget.currentTime * 1000))}
-            onSeeked={(e) => setCurrentMs(Math.round(e.currentTarget.currentTime * 1000))}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onError={() => void onVideoError()}
+      {source?.kind === "file" && !broken && (
+        <p className="caption mb-2 text-ink-muted">
+          Playing the original file while we prepare smoother playback.
+        </p>
+      )}
+      {source && (
+        <div hidden={broken}>
+          <HlsPlayer
+            ref={playerRef}
+            source={source}
+            title="Match video"
+            keyboard="host"
+            onTimeUpdate={setCurrentMs}
+            onStateChange={setPlayback}
+            onPlayingChange={setPlaying}
           />
         </div>
-      ) : canPlay ? (
-        <Skeleton shape="video" className="w-full" />
-      ) : playback === "cannot_play" ? (
+      )}
+      {playback === "cannot_play" ? (
         <Banner tone="warn">
           This browser cannot play your video file. Type the times instead: play the file on your
           computer or camera, and note the time at each whistle.
         </Banner>
       ) : (
-        <Banner tone="danger">
-          The video stopped loading. Reload the page to carry on. Unsaved times are kept until you
-          leave.
-        </Banner>
+        broken && (
+          <Banner tone="danger">
+            The video stopped loading. Reload the page to carry on. Unsaved times are kept until you
+            leave.
+          </Banner>
+        )
       )}
       {usable && (
         <>

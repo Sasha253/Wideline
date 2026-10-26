@@ -5,7 +5,15 @@ import { evaluateFootage, type FootageValidation, type ProbeSummary } from "../l
 import { rawDb } from "../server/db/raw";
 import { log } from "../server/log";
 import { isUnreadableFile, summariseProbe, type FfprobeOutput } from "../server/matches/probe";
-import type { ProbeJob } from "../server/queue";
+import { createTranscodeJob, jobLog, transcodeJobFor } from "../server/processing/jobs";
+import { redactProbeError } from "../server/processing/redact";
+import {
+  getBoss,
+  QUEUES,
+  TRANSCODE_JOB_OPTIONS,
+  type ProbeJob,
+  type TranscodeJob,
+} from "../server/queue";
 import { bucket, s3Internal } from "../server/storage";
 import { recordUsage } from "../server/usage/meter";
 
@@ -21,6 +29,9 @@ import { recordUsage } from "../server/usage/meter";
  * retried job changes nothing twice (NFR06). A file ffprobe cannot read is a
  * rejection; anything else that fails throws, so pg-boss retries it and then
  * dead-letters it after 3 attempts. Logs carry ids only.
+ *
+ * C07: accepted footage also gets its transcode ProcessingJob in the same
+ * transaction, and the pg-boss job is sent after the commit.
  */
 
 const FFPROBE_TIMEOUT_MS = 120_000;
@@ -58,18 +69,8 @@ export function ffprobeArgs(url: string): string[] {
 const PROBE_SIZE_BYTES = 20 * 1024 * 1024;
 const ANALYZE_DURATION_US = 10 * 1_000_000;
 
-/**
- * Takes the signed URL out of ffprobe's stderr before it reaches an error,
- * a log or the dead-letter queue: the URL is a bearer credential for the
- * footage. The exact URL becomes the video id; any other URL left (a redirect,
- * a partly encoded copy) is cut down to its path, without the query string.
- */
-export function redactProbeError(stderr: string, url: string, videoId: string): string {
-  return stderr
-    .split(url)
-    .join(`video ${videoId}`)
-    .replace(/(https?:\/\/[^\s?'"]*)\?[^\s'"]*/g, "$1?[redacted]");
-}
+// Moved to src/server/processing/redact.ts (C07) so the transcode job shares it.
+export { redactProbeError };
 
 /** Runs ffprobe with no shell, a 120 s timeout and JSON output. */
 export const runFfprobe: ProbeRunner = (url, videoId) =>
@@ -98,11 +99,30 @@ export const runFfprobe: ProbeRunner = (url, videoId) =>
   });
 
 /**
- * C07 hook: accepted footage goes on to transcoding. C06 only logs; C07
- * enqueues the transcode job here.
+ * Accepted footage goes on to transcoding (C07): sends the video's transcode
+ * job, created in the probe's transaction, with its ProcessingJob.bossJobId
+ * as the pg-boss id. Sending the same id again is a no-op, so this is safe to
+ * repeat: a probe retry after a failed send calls it again from the skipped
+ * path. Footage accepted before C07 has no job row; nothing is sent.
  */
 export async function onFootageAccepted(job: ProbeJob & { matchId: string }): Promise<void> {
-  log.info(job, "footage accepted: transcode is C07");
+  const row = await transcodeJobFor(job.organisationId, job.videoId);
+  if (!row) {
+    log.warn(job, "footage accepted with no transcode job");
+    return;
+  }
+  if (row.status !== "queued" || row.attempts > 0) return;
+  const boss = await getBoss();
+  const payload: TranscodeJob = {
+    organisationId: row.organisationId,
+    videoId: job.videoId,
+    processingJobId: row.id,
+  };
+  const sent = await boss.send(QUEUES.transcode, payload, {
+    id: row.bossJobId,
+    ...TRANSCODE_JOB_OPTIONS,
+  });
+  jobLog("enqueued", row, { duplicate: sent === null });
 }
 
 export type ProbeOutcome = "accepted" | "rejected" | "skipped";
@@ -126,6 +146,11 @@ export async function handleProbe(
   });
   if (!video || video.status !== "probing") {
     log.info({ organisationId, videoId }, "probe skipped: video not waiting for a probe");
+    // C07: a retried probe whose first run committed but failed to send the
+    // transcode job repairs it here (the send is idempotent).
+    if (video?.status === "accepted") {
+      await onFootageAccepted({ organisationId, videoId, matchId: video.matchId });
+    }
     return "skipped";
   }
 
@@ -141,7 +166,7 @@ export async function handleProbe(
   });
   const accepted = validation.verdict !== "rejected";
 
-  const changed = await rawDb.$transaction(async (tx) => {
+  const result = await rawDb.$transaction(async (tx) => {
     const { count } = await tx.video.updateMany({
       where: { id: videoId, organisationId, status: "probing" },
       data: {
@@ -156,7 +181,7 @@ export async function handleProbe(
         validation,
       },
     });
-    if (count === 0) return false;
+    if (count === 0) return null;
     await tx.match.updateMany({
       where: { id: video.matchId, organisationId, status: "uploading" },
       data: { status: accepted ? "processing" : "draft" },
@@ -174,9 +199,13 @@ export async function handleProbe(
         tx,
       );
     }
-    return true;
+    // C07: the transcode job, committed with the acceptance and sent after it.
+    return accepted
+      ? await createTranscodeJob(tx, { organisationId, matchId: video.matchId, videoId })
+      : { job: null, created: false };
   });
-  if (!changed) return "skipped";
+  if (!result) return "skipped";
+  if (result.job && result.created) jobLog("queued", result.job);
 
   log.info(
     {

@@ -21,7 +21,9 @@ import { rawDb } from "../db/raw";
  *   probe accepts it (sourceType "Video", metadata.matchId); a negative
  *   `storage_bytes` when a deleted match's storage is purged (sourceType
  *   "MatchDeletion", sourceId the match id; src/worker/retention.ts).
- * - C07: `storage_bytes` for the HLS renditions (sourceType "Rendition").
+ * - C07: `storage_bytes` for the HLS renditions (sourceType "Rendition",
+ *   sourceId "{videoId}:{rendition}", metadata.matchId; src/worker/transcode.ts),
+ *   netted off by the match_deleted purge.
  * - C08: `gpu_cost_cents` per cv_job, with the provider's currency (NFR04).
  * - C09: `storage_bytes` for each cut clip.
  * - C17: negative `storage_bytes` when retention deletes a file.

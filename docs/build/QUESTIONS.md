@@ -244,3 +244,43 @@ These questions do not block the build. Each one has a default that the build is
 - **Impact:** a threshold or copy change is a one-line constant change plus its unit test (`tests/unit/footage-rules.test.ts`). No schema change.
 - **Answer:** Keep the draft rules, and check them against a sample export from each pilot club's camera before the first upload. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
 - **Resolved:** matches the default; no rework. Camera sample check added to the pilot checklist.
+
+## Q-028 · C07 · Video quality on phones and mobile data
+
+- **Question:** Should the match player start phones on a lower quality, or warn about mobile data use, since data is expensive in South Africa? A 90-minute match is about 0.9 GB at 480p and about 3.4 GB at 1080p.
+- **Default taken:** the quality menu starts on **Auto**, which hls.js caps to the player's size (about 480p on a 375px phone) and to the connection speed. There is no data-use note, and the chosen quality is not remembered between visits.
+- **Recommended:** keep the default. Auto already keeps phones near 480p, and a note would add copy to every watch screen. Revisit if pilot coaches or scouts report data costs.
+- **Impact:** a data note is one caption under the player (`HlsPlayer` or the Watch section). A lower start level is one hls.js option (`startLevel`, or `maxAutoLevel` on touch devices) plus its component test. No schema change.
+- **Answer:**
+
+## Q-029 · C07 · HLS bitrate ladder and the storage budget
+
+- **Question:** Is the HLS bitrate ladder (1080p at 5 Mbps, 720p at 2.8 Mbps, 480p at 1.2 Mbps; about 6.5 GB per 90-minute match for 7 days) right for the pilot's storage budget (NFR05)?
+- **Default taken:** build all three renditions as `RENDITIONS` in `web/src/server/transcode/ladder.ts`.
+- **Recommended:** keep three renditions, and lower the 1080p rate to 4 Mbps if storage cost per match runs over budget.
+- **Impact:** one constant change plus its unit test; existing HLS is unaffected until re-transcoded.
+- **Answer:**
+
+## Q-030 · C07 · Match audio in the HLS renditions
+
+- **Question:** Should the HLS renditions keep the match audio, which may carry children's voices and touchline talk, or be video-only?
+- **Default taken:** keep audio (AAC 96k) when the source has it.
+- **Recommended:** keep audio for reviewers (whistles help), and confirm with the privacy lawyer alongside the reviewer-footage question.
+- **Impact:** dropping audio is a flag in `ffmpegArgs()`; already-transcoded matches keep audio until they expire at 7 days.
+- **Answer:**
+
+## Q-031 · C07 · Showing a failed transcode to the club
+
+- **Question:** When a transcode fails 3 times, should the match move to the Failed status the club sees, or stay in Processing while Wideline staff retry quietly?
+- **Default taken:** move processing to failed and show the existing "Processing failed. Wideline staff have been told and will try again." copy.
+- **Recommended:** keep the default, and add the admin retry in C18.
+- **Impact:** removing one transition and one `updateMany` in the failure path, and the copy on the detail page.
+- **Answer:**
+
+## Q-032 · C07 · Debian ffmpeg with libx264 (GPL)
+
+- **Question:** The Debian ffmpeg build uses libx264 (GPL-2+). It runs as a separate process on our servers and is never distributed. Is that acceptable, given that the PRD bans only AGPL?
+- **Default taken:** use Debian ffmpeg with libx264, and correct the `LICENSES.md` row.
+- **Recommended:** accept it. GPL, unlike AGPL, puts no obligations on server-side use without distribution.
+- **Impact:** otherwise switch to an LGPL ffmpeg build with openh264 or a hardware encoder: a Dockerfile change, with lower quality per bit.
+- **Answer:**

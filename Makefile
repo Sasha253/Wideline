@@ -41,8 +41,9 @@ seed: ## Seed the organisation, admin user, teams and a match
 
 test: test-web test-cv ## Run all tests
 
-fixtures: ## Generate the C06 test footage (ffmpeg in the web container; kept if present)
+fixtures: ## Generate the C06 test footage and the C07 HLS fixture (ffmpeg in the web container; kept if present)
 	$(WEB) sh tests/fixtures/make-footage.sh
+	$(WEB) pnpm tsx scripts/make-hls-fixture.ts
 
 test-web: fixtures ## Web unit and integration tests (needs the stack running)
 	$(WEB) pnpm test
@@ -55,11 +56,16 @@ PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.1-noble
 # Sign in as the seeded admin from .env unless E2E_EMAIL / E2E_PASSWORD are given.
 E2E_EMAIL ?= $(shell sed -n 's/^SEED_ADMIN_EMAIL=//p' .env 2>/dev/null)
 E2E_PASSWORD ?= $(shell sed -n 's/^SEED_ADMIN_PASSWORD=//p' .env 2>/dev/null)
-export E2E_EMAIL E2E_PASSWORD
+# C07: the playback spec puts the HLS fixture in object storage with the keys from .env.
+E2E_S3_ACCESS_KEY_ID ?= $(shell sed -n 's/^S3_ACCESS_KEY_ID=//p' .env 2>/dev/null)
+E2E_S3_SECRET_ACCESS_KEY ?= $(shell sed -n 's/^S3_SECRET_ACCESS_KEY=//p' .env 2>/dev/null)
+E2E_S3_BUCKET ?= $(shell sed -n 's/^S3_BUCKET=//p' .env 2>/dev/null)
+export E2E_EMAIL E2E_PASSWORD E2E_S3_ACCESS_KEY_ID E2E_S3_SECRET_ACCESS_KEY E2E_S3_BUCKET
 LOOPBACK_TO_CADDY := require("net").createServer(c=>{const s=require("net").connect(80,"caddy");c.on("error",()=>s.destroy());s.on("error",()=>c.destroy());c.pipe(s).pipe(c)}).listen(80,"127.0.0.1")
 PLAYWRIGHT_RUN = docker run --rm --ipc=host --network wideline_default \
 	  -v "$(CURDIR)/web:/work" -w /work \
 	  -e CI= -e E2E_BASE_URL=http://wideline.localhost -e E2E_EMAIL -e E2E_PASSWORD -e E2E_DATABASE_URL \
+	  -e E2E_S3_ACCESS_KEY_ID -e E2E_S3_SECRET_ACCESS_KEY -e E2E_S3_BUCKET \
 	  $(PLAYWRIGHT_IMAGE) sh -c 'node -e '"'"'$(LOOPBACK_TO_CADDY)'"'"' & sleep 1; \
 	    node node_modules/@playwright/test/cli.js test $(1) $(ARGS)'
 

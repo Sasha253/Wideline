@@ -11,7 +11,7 @@ Add a row before adding a dependency to the CV path.
 |---|---|---|---|
 | jsonschema | Validating the worker contract | MIT | In use |
 | structlog | Structured logs | MIT or Apache-2.0 | In use |
-| ffmpeg (system binary, invoked as a process) | Frame sampling, probing, transcoding | LGPL-2.1+ build from Debian | In use |
+| ffmpeg (system binary, invoked as a process) | Frame sampling, probing, transcoding | GPL-2.0+: the Debian build includes libx264 (GPL-2+), used for the C07 HLS ladder. Run as a separate process on our servers and never distributed, so no copyleft obligation applies; it is not AGPL | In use |
 | RF-DETR (Roboflow) | Detection (Phase 5) | Apache-2.0 | Planned |
 | supervision (Roboflow) | ByteTrack tracking (Phase 5) | MIT | Planned |
 | COCO-pretrained RF-DETR weights | Starting weights (Phase 5) | Apache-2.0 | Planned; check the weights' own terms before shipping |

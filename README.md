@@ -158,6 +158,34 @@ docs/                PRD
   only process that deletes footage (NFR32). The S3 clients compute checksums
   only when required, or presigned part URLs carry a checksum of an empty body.
   Production bucket CORS must allow PUT from the app origin and expose ETag.
+- **Transcode and playback** (MATCH06, NFR03, NFR17, NFR25, NFR31; C07):
+  accepted footage gets a transcode `ProcessingJob` (tenant table; one per
+  video by a partial unique index) in the probe's transaction, and the
+  `transcode` pg-boss job is sent with `ProcessingJob.bossJobId` as its id, so
+  a resend is a no-op. The worker (`src/worker/transcode.ts`) runs one ffmpeg
+  process (`src/server/transcode/ladder.ts`: 1080p, 720p and 480p, never
+  upscaled; fMP4, 4 s segments, a keyframe every 2 s) into a temp dir
+  (`TRANSCODE_TMP_DIR`, about twice the HLS size free), uploads to
+  `orgs/{org}/matches/{match}/hls/{videoId}/{master.m3u8, {rendition}/index.m3u8,
+  init.mp4, seg_NNNNN.m4s}` (under the match prefix, so the `match_deleted`
+  purge removes it), then in one transaction sets `Video.hlsManifestPath`,
+  marks the job succeeded with its timings, and records `storage_bytes` once
+  per rendition (sourceType `Rendition`, `metadata.matchId`). A failed attempt
+  goes back to queued; the third marks the job and the match failed and
+  pg-boss dead-letters it. Every job state change is one log line,
+  `msg: "processing job"`, with ids, attempt and timings, so filtering by
+  `processingJobId` rebuilds its history (`src/server/processing/jobs.ts`).
+  Playback (`src/server/matches/playback.ts`) never puts a bucket URL in a
+  playlist: `/api/matches/[matchId]/hls/master.m3u8` and
+  `/hls/[rendition]/index.m3u8` are read from storage and rewritten to app
+  routes (`Cache-Control: no-store, private`), and `init.mp4` and segments
+  answer 302 to a GET presigned for `HLS_SEGMENT_URL_TTL_SEC` (default 60 s);
+  every request checks the session and `MATCH_ROLES`. The player is
+  `src/components/video/HlsPlayer.tsx` (hls.js loaded on mount, native HLS on
+  Safari). `/video-url` (15 minutes, raw file) stays only as the marker tool's
+  fallback while the transcode runs. Production bucket CORS must also allow GET
+  from the app origin (Caddy does this locally), since the browser follows the
+  302 to the bucket.
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and

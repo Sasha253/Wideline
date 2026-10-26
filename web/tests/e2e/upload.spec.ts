@@ -7,7 +7,9 @@ import { DEMO, switchTo, unique } from "./helpers/orgs";
 // C06 acceptance (MATCH02, NFR26): an upload interrupted at about 50% resumes
 // without sending again what arrived; a reload resumes from the same point;
 // 720p footage is rejected with guidance; accepted footage takes markers
-// (docs/build/design/C06.md, Surfaces 3, 5 and 6).
+// (docs/build/design/C06.md, Surfaces 3, 5 and 6). C07: accepted footage shows
+// the processing steps, and the marker tool's player (HlsPlayer, on the raw
+// file until the transcode finishes) takes the keyboard.
 //
 // Needs the compose stack: RustFS behind Caddy (CORS for the browser PUTs) and
 // the worker for the ffprobe check. The footage comes from `make fixtures`.
@@ -206,6 +208,10 @@ test("accepted footage takes kickoff and half-time markers, typed as mm:ss", asy
     await expect(page.getByText(/Footage accepted/)).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 90_000 });
   await expect(page.getByText("1920 × 1080")).toBeVisible();
+  // C07: the processing steps in the Footage card.
+  await expect(page.getByRole("heading", { level: 3, name: "Processing" })).toBeVisible();
+  await expect(page.getByText(/^Preparing playback · /)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Watch" })).toBeVisible();
   // No lineup yet on the own side: that is the next step.
   await expect(page.getByRole("link", { name: "Enter lineups" }).first()).toBeVisible();
 
@@ -213,6 +219,19 @@ test("accepted footage takes kickoff and half-time markers, typed as mm:ss", asy
   await expect(
     page.getByRole("heading", { level: 1, name: "Kickoff and half-time" }),
   ).toBeVisible();
+  // C07: the player in host mode. Once it is ready the transport row shows;
+  // → moves 1 s and 1 sets kickoff to the current time, from the keyboard.
+  const forward = page.getByRole("button", { name: /^Forward 1 s/ });
+  await expect(forward).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("group", { name: "Match video" })).toBeVisible();
+  await forward.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("1");
+  await expect(page.getByRole("textbox", { name: "Kickoff", exact: true })).toHaveValue(
+    /^0:0[12]\.\d$/,
+  );
+  await expect(page.getByText(/^Kickoff set to 0:0[12]\.\d\.$/)).toBeAttached();
   await page.getByRole("textbox", { name: "Kickoff", exact: true }).fill("0:05");
   await page.getByRole("textbox", { name: "Half-time", exact: true }).fill("0:04");
   await page.getByRole("button", { name: "Save markers" }).click();

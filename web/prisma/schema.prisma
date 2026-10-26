@@ -41,7 +41,8 @@ generator client {
   provider        = "prisma-client"
   output          = "../src/generated/prisma"
   // C04: the partial unique index on Player squad numbers (see Player); C06:
-  // one live Video per match (see Video).
+  // one live Video per match (see Video); C07: one transcode job per video
+  // (see ProcessingJob).
   previewFeatures = ["partialIndexes"]
 }
 
@@ -113,6 +114,8 @@ model Organisation {
   consentRequests ConsentRequest[]
   // C06: match footage (MATCH02 to MATCH05).
   videos          Video[]
+  // C07: transcode, clips and CV jobs (MATCH06, NFR31).
+  processingJobs  ProcessingJob[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -582,8 +585,10 @@ model Match {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  lineups Lineup[]
-  videos  Video[]
+  lineups        Lineup[]
+  videos         Video[]
+  // C07: one transcode job per video; clips (C09) and cv (C08) later.
+  processingJobs ProcessingJob[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playedAt])
@@ -685,18 +690,81 @@ model Video {
   halfTimeMs          Int?
   secondHalfKickoffMs Int?
   fullTimeMs          Int?
-  // C07.
+  // C07: object key of the HLS master playlist,
+  // orgs/{organisationId}/matches/{matchId}/hls/{id}/master.m3u8. Set by the
+  // transcode worker once every rendition is uploaded.
   hlsManifestPath     String?
   // Set when the raw file is deleted (C17).
   deletedAt           DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
+  processingJobs ProcessingJob[]
+
   @@unique([organisationId, id])
   // Written as Postgres stores it (IN becomes = ANY), so migrate diff stays empty.
   @@unique([matchId], map: "Video_match_live_key", where: raw("status = ANY (ARRAY['uploading'::\"VideoStatus\", 'probing'::\"VideoStatus\", 'accepted'::\"VideoStatus\"])"))
   @@index([organisationId])
   @@index([matchId])
+}
+
+enum ProcessingJobType {
+  // C07: raw footage to the HLS ladder (MATCH06).
+  transcode
+  // C09: event clips.
+  clips
+  // C08: the GPU computer-vision run.
+  cv
+}
+
+enum ProcessingJobStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
+// C07 (MATCH06, NFR31): one row per processing job, so its state, attempts,
+// timings and last error are queryable; the structured log carries its full
+// history (src/server/processing/jobs.ts). pg-boss runs the job under
+// bossJobId, created with the row, so sending it again is a no-op. Tenant
+// table: in TENANT_SCOPED. CHECKs "ProcessingJob_attempts_range",
+// "ProcessingJob_times_ordered" and "ProcessingJob_failed_has_error" live in
+// raw SQL (migration c07_processing_jobs).
+model ProcessingJob {
+  id             String              @id @default(cuid())
+  organisationId String
+  organisation   Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId        String
+  match          Match               @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  videoId        String?
+  video          Video?              @relation(fields: [organisationId, videoId], references: [organisationId, id], onDelete: Cascade)
+  type           ProcessingJobType
+  status         ProcessingJobStatus @default(queued)
+  bossJobId      String              @unique @db.Uuid
+  // Attempts started so far; pg-boss retries up to maxAttempts (NFR30).
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  queuedAt       DateTime            @default(now())
+  startedAt      DateTime?
+  lastAttemptAt  DateTime?
+  finishedAt     DateTime?
+  // Redacted (no signed URLs) and at most 500 characters. Never shown to a club.
+  errorMessage   String?
+  // Transcode: renditions (bytes, segments), encodeMs, uploadMs, realtimeFactor.
+  metadata       Json                @default("{}")
+  // PRD columns for the C08 CV job (NFR04).
+  modelVersion   String?
+  gpuProvider    String?
+  costCents      Int?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([organisationId, id])
+  // One transcode job per video.
+  @@unique([videoId], map: "ProcessingJob_transcode_video_key", where: raw("type = 'transcode'::\"ProcessingJobType\""))
+  @@index([organisationId, matchId])
+  @@index([type, status, finishedAt])
 }
 
 // ---------------------------------------------------------------------------

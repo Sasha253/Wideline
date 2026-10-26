@@ -6,6 +6,8 @@ import { ButtonLink } from "@/components/ui/Button";
 import { CLUB_ROLES, requirePageRole } from "@/server/auth/session";
 import { isLocked, requireSquadOrgPage } from "@/server/matches/access";
 import { lockedMessage } from "@/server/matches/errors";
+import { signedRawUrl } from "@/server/matches/markers";
+import { playableVideo } from "@/server/matches/playback";
 import { loadMatch } from "../load";
 import { MarkerTool } from "./MarkerTool";
 
@@ -16,6 +18,7 @@ const CONTENT_TYPES: Record<string, string> = { mp4: "video/mp4", mov: "video/qu
 /**
  * The kickoff and half-time marker tool (MATCH05; docs/build/design/C06.md,
  * Surface 5). Needs accepted footage; locked once the match is in review.
+ * C07: plays HLS once the transcode is ready, the raw file until then.
  */
 export default async function MarkersPage({ params }: { params: Promise<{ matchId: string }> }) {
   const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
@@ -24,6 +27,8 @@ export default async function MarkersPage({ params }: { params: Promise<{ matchI
   const video = match.video?.status === "accepted" && !match.video.deletedAt ? match.video : null;
   const locked = isLocked(match.status);
   const ext = video?.fileName.split(".").pop()?.toLowerCase() ?? "mp4";
+  const hlsReady = !!video && !!(await playableVideo(ctx, match.id));
+  const raw = video && !hlsReady ? await signedRawUrl(ctx, match.id) : null;
 
   return (
     <>
@@ -62,6 +67,8 @@ export default async function MarkersPage({ params }: { params: Promise<{ matchI
           )}
           <MarkerTool
             matchId={match.id}
+            hlsUrl={hlsReady ? `/api/matches/${match.id}/hls/master.m3u8` : null}
+            fileUrl={raw?.url ?? null}
             contentType={CONTENT_TYPES[ext] ?? "video/mp4"}
             halfLengthMinutes={match.halfLengthMinutes}
             initial={video.markers}

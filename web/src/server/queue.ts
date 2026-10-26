@@ -52,6 +52,25 @@ export type RetentionJob = {
   rawExpiresAt?: string | null;
 };
 
+/**
+ * The transcode payload (C07): ids only. The handler re-reads the
+ * ProcessingJob and the Video. Sent with ProcessingJob.bossJobId as the
+ * pg-boss job id, so sending it again (a probe retry repairing a failed
+ * enqueue) is a no-op.
+ */
+export type TranscodeJob = {
+  organisationId: string;
+  videoId: string;
+  processingJobId: string;
+};
+
+/**
+ * Send options for transcode jobs. pg-boss expires an active job after 15
+ * minutes by default; a 90-minute match takes longer than that to encode, so
+ * the expiry sits above ffmpeg's own 4 h timeout (src/worker/transcode.ts).
+ */
+export const TRANSCODE_JOB_OPTIONS = { expireInSeconds: 5 * 3600 } as const;
+
 /** The consent-withdrawn payload: ids only, never names (children's data). */
 export type ConsentWithdrawnJob = {
   organisationId: string;
@@ -76,15 +95,24 @@ async function start(): Promise<PgBoss> {
   return boss;
 }
 
+/**
+ * Every queue's retry policy: MAX_ATTEMPTS in total, 30 s apart with backoff,
+ * then the dead-letter queue. Exported so a test can build a throwaway queue
+ * with the same policy and no delay.
+ */
+export function queuePolicy(retryDelay = 30) {
+  return {
+    retryLimit: MAX_ATTEMPTS - 1,
+    retryDelay,
+    retryBackoff: retryDelay > 0,
+    deadLetter: DEAD_LETTER_QUEUE,
+  };
+}
+
 export async function ensureQueues(boss: PgBoss): Promise<void> {
   await boss.createQueue(DEAD_LETTER_QUEUE);
   for (const name of Object.values(QUEUES)) {
-    await boss.createQueue(name, {
-      retryLimit: MAX_ATTEMPTS - 1,
-      retryDelay: 30,
-      retryBackoff: true,
-      deadLetter: DEAD_LETTER_QUEUE,
-    });
+    await boss.createQueue(name, queuePolicy());
   }
 }
 
