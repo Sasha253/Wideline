@@ -173,6 +173,18 @@
 .wl-input { height: 40px; width: 100%; padding: 0 var(--space-3); border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--surface-sunken); color: var(--ink); font: inherit; }
 .wl-input[aria-invalid="true"] { border-color: var(--danger); }
 .wl-input[readonly] { color: var(--ink-muted); }
+/* The macOS native menu is translucent, so page text blurs through behind the options.
+   Where the browser supports a customizable select, draw an opaque picker instead. */
+@supports (appearance: base-select) {
+  select.wl-input, select.wl-input::picker(select) { appearance: base-select; }
+  select.wl-input { display: flex; align-items: center; }
+  select.wl-input::picker(select) { margin-top: var(--space-1); padding: var(--space-1) 0; background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop); }
+  select.wl-input option { padding: var(--space-2) var(--space-3); }
+  select.wl-input option:hover, select.wl-input option:focus-visible { background: var(--surface-sunken); }
+  select.wl-input option::checkmark { color: var(--pitch); }
+  select.wl-input optgroup { color: var(--ink-muted); font-weight: 600; }
+  select.wl-input optgroup option { color: var(--ink); font-weight: 400; }
+}
 textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding: var(--space-2) var(--space-3); resize: vertical; }
 .wl-field { display: flex; flex-direction: column; gap: var(--space-1); }
 .wl-field__hint { color: var(--ink-muted); }
@@ -217,6 +229,10 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
 .wl-sidebar__account { margin-top: auto; padding-top: var(--space-4); border-top: 1px solid var(--line); }
 .wl-brand { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: none; white-space: nowrap; }
 .wl-sidebar .wl-brand { align-self: flex-start; }
+/* Logo 1b: pitch mark beside a tracked uppercase wordmark. Size follows font-size. */
+.wl-logo { display: inline-flex; align-items: center; gap: 0.4em; font-family: var(--font-display); font-weight: 700; line-height: 1; color: var(--ink); }
+.wl-logo__mark { width: 1.35em; height: auto; flex: none; }
+.wl-logo__word { text-transform: uppercase; letter-spacing: 0.08em; }
 .wl-topbar { position: relative; z-index: 15; display: flex; align-items: center; gap: var(--space-3); min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-2) var(--space-4); background: var(--surface-sunken); border-bottom: 1px solid var(--line); }
 .wl-main { min-width: 0; padding-bottom: var(--space-6); }
 /* A text link on its own line, with the 44px target (account block, wordmark on phones). */
@@ -319,6 +335,8 @@ textarea.wl-input { height: auto; min-height: calc(var(--space-12) * 2); padding
   .wl-shell { grid-template-columns: calc(var(--space-12) * 2) minmax(0, 1fr); }
   .wl-sidebar { padding: var(--space-4) var(--space-2); }
   .wl-sidebar .wl-brand { align-self: center; }
+  .wl-sidebar .wl-logo__word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .wl-sidebar .wl-logo__mark { width: 40px; }
   .wl-nav__item { flex-direction: column; justify-content: center; gap: var(--space-1); min-height: calc(var(--space-12) + var(--space-2)); padding: var(--space-2) var(--space-1); text-align: center; }
   .wl-only-sidebar, .wl-only-phone { display: none; }
 }

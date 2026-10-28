@@ -11,6 +11,7 @@ import { CONSENT_WORDING_VERSION } from "@/server/consent/wording";
 import { requireSquadOrgPage } from "@/server/squad/access";
 import { getPlayer, PlayerError } from "@/server/squad/players";
 import { PrintButton } from "./PrintButton";
+import { Logo } from "@/components/ui/Logo";
 
 type Props = { params: Promise<{ playerId: string }> };
 
@@ -91,7 +92,9 @@ export default async function PrintConsentPage({ params }: Props) {
 
       <ThemeScope theme="light" className="mt-8">
         <article className="wl-paper" aria-labelledby={titleId}>
-          <p className="font-display heading-2">Wideline</p>
+          <p className="heading-2">
+            <Logo />
+          </p>
           <p className="eyebrow text-ink-muted">{club}</p>
           <h1 id={titleId} className="heading-1 mt-4 break-words">
             Consent for {name}

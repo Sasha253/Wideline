@@ -35,7 +35,8 @@ export async function processingSummary(
 ): Promise<ProcessingSummary | null> {
   requireSquadOrg(ctx);
   const video = await ctx.db.video.findFirst({
-    where: { matchId, status: "accepted" },
+    // A deleted video in its 7-day hold is not processing (as playableVideo).
+    where: { matchId, status: "accepted", deletedAt: null },
     select: { id: true, probedAt: true, durationSec: true },
   });
   if (!video) return null;

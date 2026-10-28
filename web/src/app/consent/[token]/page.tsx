@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/labels";
 import { guardianView, type GuardianView } from "@/server/consent/guardian";
 import { CONSENT_WORDING_VERSION } from "@/server/consent/wording";
 import { guardianDecisionAction, guardianWithdrawAction } from "./actions";
+import { Logo } from "@/components/ui/Logo";
 
 type SearchParams = {
   step?: string;
@@ -80,7 +81,9 @@ function Frame({ club, children }: { club: string | null; children: ReactNode })
   return (
     <>
       <div className="wl-guardian__head">
-        <p className="font-display heading-2">Wideline</p>
+        <p className="heading-2">
+          <Logo />
+        </p>
         {club && <p className="eyebrow text-ink-muted break-words">{club}</p>}
       </div>
       <div className="wl-decision">

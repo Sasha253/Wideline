@@ -39,7 +39,8 @@ import { formatVideoTime } from "@/lib/labels";
  * when a player mounts, or natively where the browser plays HLS itself
  * (Safari). The marker tool's fallback plays the raw file. Custom controls
  * from tokens: seek slider, play, mute, time in `data`, captions (WebVTT
- * tracks and HLS subtitles), quality and full screen, with keyboard control.
+ * <track>s from the captions prop; HLS subtitle renditions are not served,
+ * see rewriteMasterPlaylist), quality and full screen, with keyboard control.
  *
  * Playlists come from session-checked app routes and segments from 60 s
  * presigned URLs (src/server/matches/playback.ts). A 403 on a fragment, or a
@@ -90,6 +91,17 @@ export function seekValueText(currentMs: number, durationMs: number): string {
   return `${formatVideoTime(currentMs, 0)} of ${formatVideoTime(durationMs, 0)}`;
 }
 
+/**
+ * The quality trigger's visible text and accessible name. The name always
+ * contains the visible text (WCAG 2.5.3): "Quality: Auto · 720p" while Auto
+ * shows the level it picked. The " · 720p" part is hidden below md, which
+ * leaves the name still containing the visible "Auto".
+ */
+export function qualityTrigger(levelName: string, picked: string | null) {
+  const detail = picked ? ` · ${picked}` : "";
+  return { name: levelName, detail, label: `Quality: ${levelName}${detail}` };
+}
+
 /** The quality levels hls.js parsed, highest first, one per height. */
 function qualities(levels: Level[]): Quality[] {
   const seen = new Set<number>();
@@ -99,7 +111,7 @@ function qualities(levels: Level[]): Quality[] {
     .sort((a, b) => b.height - a.height);
 }
 
-/** Text tracks the captions control can switch: captions and subtitles. */
+/** Text tracks the captions control can switch: the captions prop's WebVTT tracks. */
 function captionTracks(video: HTMLVideoElement | null): TextTrack[] {
   if (!video) return [];
   return Array.from(video.textTracks).filter(
@@ -302,7 +314,7 @@ export function HlsPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source.kind, source.url, reloadKey, fail, reloadOnce]);
 
-  // Caption tracks: the captions prop and any HLS subtitle tracks hls.js adds.
+  // Caption tracks: the captions prop's <track>s, as the browser loads them.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -488,6 +500,7 @@ export function HlsPlayer({
   // Levels come from hls.js only: native HLS and the file source have none.
   const showQuality = levels.length > 1;
   const levelName = level < 0 ? "Auto" : (levels.find((q) => q.index === level)?.name ?? "Auto");
+  const quality = qualityTrigger(levelName, level < 0 && playing ? autoLevel : null);
 
   return (
     <div
@@ -645,6 +658,7 @@ export function HlsPlayer({
               <PlayerMenu
                 heading="Captions"
                 label="Captions"
+                title={shortcut("Captions", "C")}
                 text={null}
                 icon={Captions}
                 disabled={!ready}
@@ -670,13 +684,11 @@ export function HlsPlayer({
           {showQuality && (
             <PlayerMenu
               heading="Quality"
-              label={`Quality: ${levelName}`}
+              label={quality.label}
               text={
                 <>
-                  {levelName}
-                  {level < 0 && autoLevel && playing && (
-                    <span className="hidden md:inline">{` · ${autoLevel}`}</span>
-                  )}
+                  {quality.name}
+                  {quality.detail && <span className="hidden md:inline">{quality.detail}</span>}
                 </>
               }
               icon={Settings2}
@@ -716,9 +728,10 @@ export function HlsPlayer({
  * (docs/build/design/D02.md popovers). Opening moves focus to the current
  * item; ↑ and ↓ move between items; choosing closes and returns focus.
  */
-function PlayerMenu({
+export function PlayerMenu({
   heading,
   label,
+  title,
   text,
   icon: Icon,
   disabled,
@@ -730,6 +743,8 @@ function PlayerMenu({
 }: {
   heading: string;
   label: string;
+  /** The icon trigger's tooltip, e.g. "Captions (C)"; defaults to the label. */
+  title?: string;
   text: React.ReactNode;
   icon: typeof Settings2;
   disabled: boolean;
@@ -767,7 +782,7 @@ function PlayerMenu({
           className="wl-iconbtn wl-videoplayer__btn"
           aria-label={label}
           aria-pressed={pressed}
-          title={label}
+          title={title ?? label}
           disabled={disabled}
           {...triggerProps}
         >

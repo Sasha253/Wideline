@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { EmptyState } from "@/components/states/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
 
 /** An unexpected failure on a guardian screen (docs/build/design/C05.md, Surface 1, "Closed views"). */
 export default function GuardianError({
@@ -19,7 +20,9 @@ export default function GuardianError({
   return (
     <>
       <div className="wl-guardian__head">
-        <p className="font-display heading-2">Wideline</p>
+        <p className="heading-2">
+          <Logo />
+        </p>
       </div>
       <div className="wl-decision">
         <EmptyState

@@ -60,7 +60,13 @@ E2E_PASSWORD ?= $(shell sed -n 's/^SEED_ADMIN_PASSWORD=//p' .env 2>/dev/null)
 E2E_S3_ACCESS_KEY_ID ?= $(shell sed -n 's/^S3_ACCESS_KEY_ID=//p' .env 2>/dev/null)
 E2E_S3_SECRET_ACCESS_KEY ?= $(shell sed -n 's/^S3_SECRET_ACCESS_KEY=//p' .env 2>/dev/null)
 E2E_S3_BUCKET ?= $(shell sed -n 's/^S3_BUCKET=//p' .env 2>/dev/null)
-export E2E_EMAIL E2E_PASSWORD E2E_S3_ACCESS_KEY_ID E2E_S3_SECRET_ACCESS_KEY E2E_S3_BUCKET
+# The DB-dependent specs (playback, consent expiry, global teardown) reach
+# postgres on the compose network with the credentials from .env.
+E2E_PG_USER := $(shell sed -n 's/^POSTGRES_USER=//p' .env 2>/dev/null)
+E2E_PG_PASSWORD := $(shell sed -n 's/^POSTGRES_PASSWORD=//p' .env 2>/dev/null)
+E2E_PG_DB := $(shell sed -n 's/^POSTGRES_DB=//p' .env 2>/dev/null)
+E2E_DATABASE_URL ?= $(if $(E2E_PG_USER),postgresql://$(E2E_PG_USER):$(E2E_PG_PASSWORD)@postgres:5432/$(E2E_PG_DB))
+export E2E_EMAIL E2E_PASSWORD E2E_S3_ACCESS_KEY_ID E2E_S3_SECRET_ACCESS_KEY E2E_S3_BUCKET E2E_DATABASE_URL
 LOOPBACK_TO_CADDY := require("net").createServer(c=>{const s=require("net").connect(80,"caddy");c.on("error",()=>s.destroy());s.on("error",()=>c.destroy());c.pipe(s).pipe(c)}).listen(80,"127.0.0.1")
 PLAYWRIGHT_RUN = docker run --rm --ipc=host --network wideline_default \
 	  -v "$(CURDIR)/web:/work" -w /work \

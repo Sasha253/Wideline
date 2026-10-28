@@ -1,5 +1,6 @@
 import { countryOptions, SA_PROVINCES } from "@/lib/labels";
 import { ApplyForm } from "./ApplyForm";
+import { Logo } from "@/components/ui/Logo";
 
 export const metadata = { title: "Join the pilot" };
 
@@ -7,7 +8,9 @@ export const metadata = { title: "Join the pilot" };
 export default function ApplyPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
-      <p className="font-display heading-2">Wideline</p>
+      <p className="heading-2">
+        <Logo />
+      </p>
       <ApplyForm countries={countryOptions()} provinces={SA_PROVINCES} />
     </main>
   );

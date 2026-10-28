@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
 import { Banner } from "@/components/forms";
 import { DetailPage, type DetailSection } from "@/components/templates/DetailPage";
-import { ButtonLink, Kbd } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Button";
 import { formatDeletionDate, formatTimeLeft } from "@/components/ui/expiry";
 import { ExpiryBanner, ExpiryLabel } from "@/components/ui/ExpiryBanner";
 import { FootageChip, MatchStatusChip } from "@/components/ui/StatusChip";
 import { TeamMarker } from "@/components/ui/TeamMarker";
-import { HlsPlayer } from "@/components/video/HlsPlayer";
+import { HlsPlayer, type PlayerCaptions } from "@/components/video/HlsPlayer";
+import { PlayerShortcuts } from "@/components/video/PlayerShortcuts";
 import {
   fixtureText,
   formatDate,
@@ -149,37 +150,6 @@ function matchStatusText(match: MatchDetail, now: Date, readyAt?: Date | null): 
     default:
       return null;
   }
-}
-
-/** The own-mode player shortcuts (docs/build/design/C07.md, Surface 1). */
-function PlayerShortcuts() {
-  return (
-    <details className="mt-3">
-      <summary className="label">Keyboard shortcuts</summary>
-      <dl className="wl-facts mt-2">
-        <dt>
-          <Kbd>Space</Kbd> <Kbd>K</Kbd>
-        </dt>
-        <dd className="body">Play or pause</dd>
-        <dt>
-          <Kbd>←</Kbd> <Kbd>→</Kbd>
-        </dt>
-        <dd className="body">Move 5 s</dd>
-        <dt>
-          <Kbd>Home</Kbd> <Kbd>End</Kbd>
-        </dt>
-        <dd className="body">Go to the start or the end</dd>
-        <dt>
-          <Kbd>M</Kbd>
-        </dt>
-        <dd className="body">Mute or unmute</dd>
-        <dt>
-          <Kbd>F</Kbd>
-        </dt>
-        <dd className="body">Full screen</dd>
-      </dl>
-    </details>
-  );
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -356,14 +326,17 @@ export default async function MatchPage({ params, searchParams }: Props) {
       "The footage for this match has been deleted. Footage is kept for 7 days after upload.",
     );
   } else if (playable) {
+    // v0 generates no captions; WebVTT tracks go here when it does.
+    const captions: PlayerCaptions = [];
     watch = (
       <>
         <HlsPlayer
           source={{ kind: "hls", url: `/api/matches/${match.id}/hls/master.m3u8` }}
           title={`Match video: ${fixture}`}
           keyboard="own"
+          captions={captions}
         />
-        <PlayerShortcuts />
+        <PlayerShortcuts captions={captions.length > 0} />
         <p className="caption mt-2 text-ink-muted">
           Only people in your club with access to matches can watch. Footage is deleted 7 days after
           upload.

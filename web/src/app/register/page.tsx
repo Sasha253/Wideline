@@ -4,6 +4,7 @@ import { getUserContext } from "@/server/auth/session";
 import { getOwnScoutProfile } from "@/server/scouts/profile";
 import { RegisterForm } from "./RegisterForm";
 import { TermsText } from "./TermsText";
+import { Logo } from "@/components/ui/Logo";
 
 export const metadata = { title: "Register as a scout" };
 
@@ -19,7 +20,9 @@ export default async function RegisterPage() {
 
   return (
     <main id="main" className="mx-auto max-w-xl px-4 py-8 md:px-6 md:py-12">
-      <p className="font-display heading-2">Wideline</p>
+      <p className="heading-2">
+        <Logo />
+      </p>
       <RegisterForm
         signedIn={ctx ? { name: ctx.user.name, email: ctx.user.email } : null}
         countries={countryOptions()}

@@ -10,6 +10,7 @@ import {
   progressMs,
   RENDITION_NAMES,
   RENDITIONS,
+  transcodeThreads,
 } from "@/server/transcode/ladder";
 
 // C07 (MATCH06, NFR03): the HLS ladder and ffmpeg's arguments. One process,
@@ -83,6 +84,22 @@ describe("ffmpegArgs", () => {
     expect(after(silent, "-var_stream_map")).toBe("v:0,name:720p v:1,name:480p");
     expect(silent).not.toContain("-c:a");
     expect(silent).not.toContain("0:a:0");
+  });
+
+  it("caps encoder and filter threads (TRANSCODE_THREADS, default 2)", () => {
+    const capped = ffmpegArgs(URL_SIGNED, "/o", ladderFor(1080), true, 3);
+    expect(after(capped, "-threads")).toBe("3");
+    expect(after(capped, "-filter_complex_threads")).toBe("3");
+    // -threads is an output option: it must come after the input.
+    expect(capped.indexOf("-threads")).toBeGreaterThan(capped.indexOf("-i"));
+
+    const byDefault = ffmpegArgs(URL_SIGNED, "/o", ladderFor(1080), true, transcodeThreads({}));
+    expect(after(byDefault, "-threads")).toBe("2");
+
+    expect(transcodeThreads({ TRANSCODE_THREADS: "4" })).toBe(4);
+    for (const bad of ["", "0", "-1", "1.5", "lots"]) {
+      expect(transcodeThreads({ TRANSCODE_THREADS: bad })).toBe(2);
+    }
   });
 
   it("scales a one-rendition ladder without a split", () => {

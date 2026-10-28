@@ -111,10 +111,11 @@ function renditionOf(entry: string): RenditionName {
 }
 
 /**
- * The master playlist with every variant (and any EXT-X-MEDIA rendition, such
- * as subtitles) pointing at its app route. Throws PlaylistError for any entry
- * that is not a known rendition's index.m3u8: a playlist can never point at
- * raw footage or another key.
+ * The master playlist with every variant pointing at its app route. Only the
+ * video renditions are accepted: any other entry, including an EXT-X-MEDIA
+ * URI (so HLS subtitle renditions are not supported; captions come from
+ * WebVTT <track>s on the player), throws PlaylistError. A playlist can never
+ * point at raw footage or another key.
  */
 export function rewriteMasterPlaylist(text: string, matchId: string): string {
   const to = (entry: string) => `${base(matchId)}/${renditionOf(entry)}/${MEDIA_PLAYLIST}`;

@@ -93,13 +93,16 @@ export function contentTypeFor(file: string): string {
  * H.264 (x264 veryfast, yuv420p for every browser) with a keyframe every 2 s
  * and no scene-cut keyframes, so segments line up across renditions; AAC 96k
  * when the source has audio. Output goes to `outDir`, one directory per
- * rendition; progress is written to stdout as key=value lines.
+ * rendition; progress is written to stdout as key=value lines. `threads`
+ * caps the encoder and filter threads (TRANSCODE_THREADS), since three x264
+ * encoders on every core can exhaust a small Docker VM's memory.
  */
 export function ffmpegArgs(
   url: string,
   outDir: string,
   ladder: readonly Rendition[],
   hasAudio: boolean,
+  threads: number = transcodeThreads(),
 ): string[] {
   const n = ladder.length;
   const split =
@@ -125,6 +128,8 @@ export function ffmpegArgs(
     "mov",
     "-i",
     url,
+    "-filter_complex_threads",
+    String(threads),
     "-filter_complex",
     split,
   ];
@@ -153,6 +158,8 @@ export function ffmpegArgs(
     `expr:gte(t,n_forced*${KEYFRAME_SEC})`,
     "-sc_threshold",
     "0",
+    "-threads",
+    String(threads),
   );
   if (hasAudio) args.push("-c:a", "aac", "-b:a", `${AUDIO_KBPS}k`, "-ac", "2");
   args.push(
@@ -180,6 +187,15 @@ export function ffmpegArgs(
     `${outDir}/%v/${MEDIA_PLAYLIST}`,
   );
   return args;
+}
+
+/** Default ffmpeg thread cap when TRANSCODE_THREADS is unset or invalid. */
+export const DEFAULT_TRANSCODE_THREADS = 2;
+
+/** ffmpeg's thread cap from TRANSCODE_THREADS: a positive integer, else the default. */
+export function transcodeThreads(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.TRANSCODE_THREADS);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_TRANSCODE_THREADS;
 }
 
 /**

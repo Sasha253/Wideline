@@ -3,6 +3,7 @@ import { googleSignInEnabled } from "@/server/auth/auth";
 import { safeNextPath } from "@/lib/safe-next";
 import { getUserContext } from "@/server/auth/session";
 import { LoginForm } from "./LoginForm";
+import { Logo } from "@/components/ui/Logo";
 
 export const metadata = { title: "Sign in" };
 
@@ -27,7 +28,9 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4 py-12">
-      <p className="font-display text-[28px] font-semibold leading-none">Wideline</p>
+      <p className="text-[28px]">
+        <Logo />
+      </p>
       <h1 className="heading-2 mt-6">Sign in</h1>
       <p className="mt-1 text-ink-muted">Wideline is invite-only during the pilot.</p>
       <LoginForm next={safeNext} googleEnabled={googleSignInEnabled()} initialError={error} />

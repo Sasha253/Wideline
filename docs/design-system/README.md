@@ -87,7 +87,7 @@ Real copy to reuse:
   - `check` confirm, `x` reject, `pencil` edit, `plus` add missed event.
   - `clock` expiry, `shield-check` consent given, `shield-off` withdrawn.
   - `star` favourite clip, `flag` dispute, `upload` upload.
-- No Wideline logo exists yet. Until one does, set the name as a wordmark in `display` at 600 weight in `ink`.
+- The logo is design 1b, "The wide channel": a pitch seen from above with the near touchline lit in `pitch`, beside the name as a tracked uppercase wordmark (`display`, 700 weight, 0.08em letter-spacing, `ink`). Use `Logo` or `LogoMark` from `web/src/components/ui/Logo.tsx`; never retype the name as plain text. The favicon is `web/src/app/icon.svg`.
 
 ## Accessibility
 

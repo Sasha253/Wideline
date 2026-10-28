@@ -6,6 +6,7 @@ export { Cover } from "./Cover";
 export { expiryLevel, formatDeletionDate, formatTimeLeft, type ExpiryLevel } from "./expiry";
 export { ExpiryBanner, ExpiryLabel } from "./ExpiryBanner";
 export { iconProps } from "./icons";
+export { Logo, LogoMark } from "./Logo";
 export { initials, PlayerCard, type PlayerStat } from "./PlayerCard";
 export { PlayerCardMenu } from "./PlayerCardMenu";
 export { ReviewEventRow, type EventWho } from "./ReviewEventRow";

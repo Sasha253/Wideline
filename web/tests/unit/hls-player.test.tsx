@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { HlsPlayer, seekValueText } from "@/components/video/HlsPlayer";
+import { Captions, Settings2 } from "lucide-react";
+import { HlsPlayer, PlayerMenu, qualityTrigger, seekValueText } from "@/components/video/HlsPlayer";
 
 // C07 (MATCH06, NFR25; docs/build/design/C07.md, Surface 1): the player's
 // server-rendered markup. A labelled group, a seek slider with a spoken
@@ -64,5 +65,62 @@ describe("HlsPlayer", () => {
   it("speaks the seek value as current of duration, minutes not capped at 59", () => {
     expect(seekValueText(754_000, 5_530_000)).toBe("12:34 of 92:10");
     expect(seekValueText(6_751_000, 7_082_000)).toBe("112:31 of 118:02");
+  });
+
+  it("names the quality trigger with its visible text, including the level Auto picked", () => {
+    expect(qualityTrigger("Auto", "720p")).toEqual({
+      name: "Auto",
+      detail: " · 720p",
+      label: "Quality: Auto · 720p",
+    });
+    expect(qualityTrigger("Auto", null).label).toBe("Quality: Auto");
+    expect(qualityTrigger("1080p", null).label).toBe("Quality: 1080p");
+    // WCAG 2.5.3: the accessible name contains every piece of visible text.
+    const q = qualityTrigger("Auto", "480p");
+    expect(q.label).toContain(`${q.name}${q.detail}`);
+  });
+
+  it("gives the multi-track captions trigger the shortcut title, and the quality trigger its full name", () => {
+    const captions = renderToStaticMarkup(
+      <PlayerMenu
+        heading="Captions"
+        label="Captions"
+        title="Captions (C)"
+        text={null}
+        icon={Captions}
+        disabled={false}
+        items={[
+          { value: -1, label: "Off" },
+          { value: 0, label: "English" },
+          { value: 1, label: "Afrikaans" },
+        ]}
+        current={-1}
+        pressed={false}
+        onChoose={() => {}}
+      />,
+    );
+    expect(captions).toMatch(/<button[^>]*aria-label="Captions"[^>]*title="Captions \(C\)"/);
+
+    const q = qualityTrigger("Auto", "720p");
+    const quality = renderToStaticMarkup(
+      <PlayerMenu
+        heading="Quality"
+        label={q.label}
+        text={
+          <>
+            {q.name}
+            <span className="hidden md:inline">{q.detail}</span>
+          </>
+        }
+        icon={Settings2}
+        disabled={false}
+        items={[{ value: -1, label: "Auto" }]}
+        current={-1}
+        onChoose={() => {}}
+      />,
+    );
+    expect(quality).toContain('aria-label="Quality: Auto · 720p"');
+    expect(quality).toContain("Auto<span");
+    expect(quality).toContain(" · 720p</span>");
   });
 });

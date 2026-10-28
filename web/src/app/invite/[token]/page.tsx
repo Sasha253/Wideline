@@ -6,6 +6,7 @@ import { formatDate, ROLE_LABELS, roleInText } from "@/lib/labels";
 import { findInvitationByToken, type InvitationView } from "@/server/auth/invitations";
 import { getUserContext } from "@/server/auth/session";
 import { AcceptForm } from "./AcceptForm";
+import { Logo } from "@/components/ui/Logo";
 
 export const metadata = { title: "Invitation" };
 
@@ -175,7 +176,9 @@ function Frame({
 }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4 py-12">
-      <p className="font-display heading-2">Wideline</p>
+      <p className="heading-2">
+        <Logo />
+      </p>
       <p className="eyebrow mt-6 text-ink-muted">Invitation</p>
       <h1 className="heading-2 mt-1 break-words">{title}</h1>
       <p className="body mt-2 text-ink-muted">{children}</p>

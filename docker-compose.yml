@@ -18,6 +18,9 @@ x-web-env: &web-env
     S3_INTERNAL_ENDPOINT: http://rustfs:9000
     SMTP_HOST: mailpit
     SMTP_PORT: "1025"
+    # ffmpeg thread cap for the transcode worker (C07). Three x264 encoders on
+    # every core can exhaust a small Docker VM's memory.
+    TRANSCODE_THREADS: ${TRANSCODE_THREADS:-2}
 
 services:
   caddy:
@@ -122,6 +125,8 @@ services:
       context: ./web
       target: dev
     command: pnpm worker:dev
+    # Bounded so a 1080p encode cannot starve web and postgres of memory.
+    mem_limit: ${TRANSCODE_MEM_LIMIT:-2g}
     volumes:
       - ./web:/app
       # Anonymous: refreshed from the image on every `make up` (-V), so the

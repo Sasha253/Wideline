@@ -219,8 +219,9 @@ make migrate-new name=add_something   # create a migration from schema changes
 make fixtures                         # C06 test footage (ffmpeg; test-web and test-e2e run it)
 make test-web                         # Vitest inside the web container
 make test-e2e E2E_PASSWORD=…          # Playwright against the running stack
-# add E2E_DATABASE_URL=postgresql://…@postgres:5432/… for the e2e checks that
-# set database state directly (an expired invitation); they skip without it
+# E2E_DATABASE_URL (postgresql://…@postgres:5432/…) is derived from POSTGRES_*
+# in .env for the e2e checks that set database state directly; override it
+# on the command line if needed
 make test-cv                          # pytest for the worker (needs uv)
 make lint                             # ESLint, Prettier, tsc, ruff, mypy
 ```

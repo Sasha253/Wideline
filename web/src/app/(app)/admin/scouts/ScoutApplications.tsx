@@ -140,7 +140,7 @@ function LinkForm({
     >
       <input type="hidden" name="affiliationId" value={affiliation.id} />
       <input type="hidden" name="name" value={item.name} />
-      <label className={stacked ? "block" : "wl-link-select block w-full xl:min-w-0 xl:flex-1"}>
+      <label className={stacked ? "block" : "wl-link-select block w-full xl:flex-1"}>
         <span className="sr-only">Wideline organisation for {affiliation.name}</span>
         <select name="organisationId" defaultValue={affiliation.selected} className="wl-input">
           <option value="">Not matched</option>

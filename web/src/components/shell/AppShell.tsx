@@ -7,6 +7,7 @@ import type { UserContext } from "@/server/auth/session";
 import { AccountMenu } from "./AccountMenu";
 import { NavLinks } from "./NavLinks";
 import { OrgSwitcher, type SwitcherOrganisation } from "./OrgSwitcher";
+import { Logo } from "@/components/ui/Logo";
 
 /**
  * The authenticated shell (docs/build/design/D02.md, Surface 1): a sidebar from 992px,
@@ -38,7 +39,7 @@ export function AppShell({ ctx, children }: { ctx: UserContext; children: ReactN
 
       <aside className="wl-sidebar" aria-label="Sidebar">
         <Link href="/" className="wl-brand heading-2">
-          Wideline
+          <Logo />
         </Link>
         {hasOrg && (
           <div>
@@ -63,7 +64,7 @@ export function AppShell({ ctx, children }: { ctx: UserContext; children: ReactN
 
       <header className="wl-topbar">
         <Link href="/" className="wl-brand heading-2">
-          Wideline
+          <Logo />
         </Link>
         {hasOrg ? switcher("topbar") : <div className="flex-1" />}
         <AccountMenu user={user} variant="topbar" />

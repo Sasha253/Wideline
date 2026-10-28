@@ -11,7 +11,9 @@ import { deletePrefix, putHlsFixture, storageConfigured } from "./helpers/storag
 // to 3): a match with prepared footage plays in the Watch section. Playback
 // starts in under 3 s from pressing Play, the time display moves, the keyboard
 // drives the player, the quality menu lists the ladder, and the page passes
-// axe and lays out at 375, 768 and 1280.
+// axe and lays out at 375, 768 and 1280. A seek to a far point lands in under
+// 1 s (NFR03). The playlist and segment routes check the session (NFR17), and
+// a refused segment reloads the source once so playback resumes.
 //
 // The match is seeded as a finished transcode leaves it: an accepted Video
 // row with its manifest and a succeeded ProcessingJob (E2E_DATABASE_URL), and
@@ -182,17 +184,82 @@ test("a prepared match plays in under 3 s with keyboard control and a quality me
   }
 });
 
-test("the playlist route checks the session and is never cached", async ({ page }) => {
+test("the playlist and segment routes check the session and are never cached", async ({ page }) => {
   test.skip(!matchPath, "Needs the seeded match from the first test");
   const id = matchPath.split("/").pop()!;
-  // Same organisation: 200, never cached.
+  const segment = `/api/matches/${id}/hls/720p/seg_00000.m4s`;
+  // Same organisation: the playlist is 200, never cached.
   const own = await page.request.get(`/api/matches/${id}/hls/master.m3u8`);
   expect(own.status()).toBe(200);
   expect(own.headers()["cache-control"]).toBe("no-store, private");
-  // Signed out: 401.
+  // A segment is 302 to a 60 s presigned URL on the storage host, never cached.
+  const seg = await page.request.get(segment, { maxRedirects: 0 });
+  expect(seg.status()).toBe(302);
+  expect(seg.headers()["cache-control"]).toBe("no-store, private");
+  const location = new URL(seg.headers()["location"]!);
+  expect(location.host).toBe("s3.wideline.localhost");
+  expect(location.searchParams.get("X-Amz-Expires")).toBe("60");
+  // Signed out: 401 for both.
   const anon = await page.context().browser()!.newContext();
   const base = process.env.E2E_BASE_URL ?? "http://wideline.localhost";
-  const res = await anon.request.get(`${base}/api/matches/${id}/hls/master.m3u8`);
-  expect(res.status()).toBe(401);
+  expect((await anon.request.get(`${base}/api/matches/${id}/hls/master.m3u8`)).status()).toBe(401);
+  expect((await anon.request.get(`${base}${segment}`, { maxRedirects: 0 })).status()).toBe(401);
   await anon.close();
+});
+
+/** Opens the seeded match and waits until the player can play. */
+async function openPlayer(page: Page) {
+  await page.goto(matchPath);
+  const group = player(page);
+  await expect(group.getByRole("button", { name: "Play", exact: true })).toBeEnabled({
+    timeout: 15_000,
+  });
+  return group;
+}
+
+test("a seek to a far point lands in under 1 s", async ({ page }) => {
+  test.skip(!matchPath, "Needs the seeded match from the first test");
+  await openPlayer(page);
+  // NFR03: from setting the position to the video's `seeked` event. One retry,
+  // to another far point, allows for a cold cache on the first segment fetch.
+  const seek = (to: number) =>
+    page.evaluate(async (at) => {
+      const video = document.querySelector<HTMLVideoElement>(".wl-videoplayer video")!;
+      const seeked = new Promise<number>((resolve) =>
+        video.addEventListener("seeked", () => resolve(performance.now()), { once: true }),
+      );
+      const start = performance.now();
+      video.currentTime = at;
+      return (await seeked) - start;
+    }, to);
+  let seekMs = await seek(16);
+  if (seekMs >= 1000) {
+    console.log(`first seek took ${Math.round(seekMs)} ms; retrying`);
+    seekMs = await seek(8);
+  }
+  console.log(`seek landed ${Math.round(seekMs)} ms after it was asked for`);
+  expect(seekMs).toBeLessThan(1000);
+});
+
+test("playback resumes after a segment is refused once", async ({ page }) => {
+  test.skip(!matchPath, "Needs the seeded match from the first test");
+  // The first request for the second segment, in any rendition, gets 403 as an
+  // expired presigned URL would; the player reloads the source at the same
+  // position and carries on.
+  let refused = 0;
+  await page.route("**/api/matches/*/hls/*/seg_00001.m4s", async (route) => {
+    if (refused === 0) {
+      refused += 1;
+      await route.fulfill({ status: 403, body: "" });
+      return;
+    }
+    await route.continue();
+  });
+  const group = await openPlayer(page);
+  await group.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(group.locator(".wl-videoplayer__time")).toHaveText(/^0:(0[6-9]|1\d|20) \/ 0:20$/, {
+    timeout: 20_000,
+  });
+  expect(refused).toBe(1);
+  await expect(group.getByText("The video stopped loading.")).toHaveCount(0);
 });
