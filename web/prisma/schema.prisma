@@ -103,24 +103,30 @@ model Organisation {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
-  memberships     Membership[]
-  teams           Team[]
-  players         Player[]
-  matches         Match[]
-  lineups         Lineup[]
-  auditLogs       AuditLog[]
-  invitations     Invitation[]
+  memberships       Membership[]
+  teams             Team[]
+  players           Player[]
+  matches           Match[]
+  lineups           Lineup[]
+  auditLogs         AuditLog[]
+  invitations       Invitation[]
   // C05: consent records and guardian links (CONS01 to CONS04).
-  consents        Consent[]
-  consentRequests ConsentRequest[]
+  consents          Consent[]
+  consentRequests   ConsentRequest[]
   // C06: match footage (MATCH02 to MATCH05).
-  videos          Video[]
+  videos            Video[]
   // C07: transcode, clips and CV jobs (MATCH06, NFR31).
-  processingJobs  ProcessingJob[]
+  processingJobs    ProcessingJob[]
   // C08: CV output (CV01, CV09; NFR08 gate at ingest).
-  tracks          Track[]
-  trackPoints     TrackPoint[]
-  events          Event[]
+  tracks            Track[]
+  trackPoints       TrackPoint[]
+  events            Event[]
+  // C09: clips (CV11), favourites (the clip's organisation), pitch
+  // calibrations (CV05) and Lab ground truth.
+  clips             Clip[]
+  clipFavourites    ClipFavourite[]
+  pitchCalibrations PitchCalibration[]
+  benchmarkTags     BenchmarkTag[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -158,6 +164,9 @@ model User {
   // every consent a user recorded or requested, in any organisation.
   consentsRecorded       Consent[]        @relation("ConsentRecordedBy")
   consentRequestsCreated ConsentRequest[] @relation("ConsentRequestCreatedBy")
+  // C09. Refused by the scoped client (USER_PRIVATE_RELATIONS): a scout's
+  // favourites span organisations.
+  clipFavourites         ClipFavourite[]
 }
 
 // Better Auth: database sessions, so a session can be revoked server-side.
@@ -604,6 +613,9 @@ model Match {
   tracks         Track[]
   trackPoints    TrackPoint[]
   events         Event[]
+  // C09: clips (CV11) and Lab ground truth (BenchmarkTag).
+  clips          Clip[]
+  benchmarkTags  BenchmarkTag[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playedAt])
@@ -664,12 +676,12 @@ enum VideoStatus {
 // "Video_markers_ordered" (kickoff < half-time <= second-half kickoff < full
 // time, among those set, all >= 0).
 model Video {
-  id                  String       @id @default(cuid())
+  id                  String            @id @default(cuid())
   organisationId      String
-  organisation        Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  organisation        Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   matchId             String
-  match               Match        @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
-  status              VideoStatus  @default(uploading)
+  match               Match             @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  status              VideoStatus       @default(uploading)
   // Object key of the raw file: orgs/{organisationId}/matches/{matchId}/raw/{id}.{ext}.
   blobPath            String
   // As chosen in the browser. Shown to the club; never in logs or audit rows.
@@ -684,7 +696,7 @@ model Video {
   fingerprint         String
   // A plain column, no relation.
   uploadedByUserId    String?
-  uploadStartedAt     DateTime     @default(now())
+  uploadStartedAt     DateTime          @default(now())
   uploadedAt          DateTime?
   // uploadedAt + 7 days (MATCH07). C17's retention job deletes the raw file then.
   rawExpiresAt        DateTime?
@@ -698,7 +710,7 @@ model Video {
   codec               String?
   rotation            Int?
   // evaluateFootage() result: { verdict, issues[] } (src/lib/footage-rules.ts).
-  validation          Json         @default("{}")
+  validation          Json              @default("{}")
   // MATCH05, the four half-time offsets: video milliseconds of kickoff,
   // half-time, second-half kickoff and full time.
   kickoffMs           Int?
@@ -711,8 +723,13 @@ model Video {
   hlsManifestPath     String?
   // Set when the raw file is deleted (C17).
   deletedAt           DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  // C09 (CV05): the calibration the match's stored positions are in. Set at
+  // ingest (the venue's manual calibration, or a fallback made from this
+  // video) and when a platform admin calibrates in the Lab.
+  pitchCalibrationId  String?
+  pitchCalibration    PitchCalibration? @relation(fields: [organisationId, pitchCalibrationId], references: [organisationId, id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   processingJobs ProcessingJob[]
 
@@ -783,6 +800,8 @@ model ProcessingJob {
 
   tracks Track[]
   events Event[]
+  // C09: the clips a clips job cut.
+  clips  Clip[]
 
   @@unique([organisationId, id])
   // One job per video and type (C08; C07 had a transcode-only partial unique).
@@ -847,6 +866,10 @@ model Track {
   playerId        String?
   player          Player?          @relation(fields: [organisationId, playerId], references: [organisationId, id], onDelete: Cascade)
   linkConfidence  Float?
+  // C09 (CV08): metres covered, from distanceCovered() in src/lib/positions.ts
+  // at ingest; recomputed when the match is re-projected. Orientation-free.
+  // CHECK "Track_distance_nonneg" in raw SQL.
+  distanceM       Float?
   linkedBy        TrackLinkSource?
   // A plain column, no relation (C11 reviewer links).
   linkedByUserId  String?
@@ -918,11 +941,153 @@ model Event {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
+  // C09 (CV11): the event's clip, once cut.
+  clip Clip?
+
   @@unique([organisationId, id])
   @@unique([jobId, sourceKey])
   @@index([organisationId, matchId, status])
   @@index([trackId])
   @@index([playerId])
+}
+
+// C09 (CV05): where a calibration came from. `auto` is reserved for a later
+// automatic estimator (Q-042); v0 writes fallback and manual.
+enum CalibrationSource {
+  fallback
+  auto
+  manual
+}
+
+// C09: where a Lab ground-truth tag came from. SoccerNet labels are for
+// benchmarking only and never shipped (LICENSES.md).
+enum BenchmarkTagSource {
+  hand
+  synthetic
+  soccernet
+}
+
+// C09 (CV05, Q-042): a homography from video pixels to pitch metres (105 x 68,
+// camera-fixed: x = 0 at the goal on the camera's left, y = 0 on the near
+// touchline, Q-043). A manual one is reused for later matches of the
+// organisation at the same venue and camera; at most one current manual per
+// (organisationId, venueKey, cameraKey): partial unique
+// "PitchCalibration_current_manual_key". Fallback ones belong to their video
+// only. CHECK "PitchCalibration_confidence_range" in raw SQL.
+model PitchCalibration {
+  id                 String            @id @default(cuid())
+  organisationId     String
+  organisation       Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  // Lower-cased, trimmed, whitespace-collapsed Match.venue; null: never reused.
+  venueKey           String?
+  // "{width}x{height}" of the probed video.
+  cameraKey          String
+  // 3 x 3, video pixels to pitch metres.
+  homography         Json
+  imageWidth         Int
+  imageHeight        Int
+  confidence         Float
+  source             CalibrationSource
+  // Manual only: how many landmarks were placed, and the RMS error in metres.
+  pointCount         Int?
+  reprojectionErrorM Float?
+  // Plain columns, no relation: the calibration outlives the video and the user.
+  sourceVideoId      String?
+  calibratedByUserId String?
+  supersededAt       DateTime?
+  createdAt          DateTime          @default(now())
+
+  videos Video[]
+
+  @@unique([organisationId, id])
+  // Written as Postgres stores it, so migrate diff stays empty.
+  @@unique([organisationId, venueKey, cameraKey], map: "PitchCalibration_current_manual_key", where: raw("((\"supersededAt\" IS NULL) AND (source = 'manual'::\"CalibrationSource\") AND (\"venueKey\" IS NOT NULL))"))
+  @@index([organisationId, venueKey, cameraKey])
+}
+
+// C09 (CV11): one clip per event, cut from the raw footage by the clips job
+// (src/worker/clips.ts) to orgs/{org}/matches/{match}/clips/{eventId}.mp4.
+// baseExpiresAt is Video.uploadedAt + 14 days and never changes; expiresAt is
+// null while any ClipFavourite exists and baseExpiresAt otherwise, kept by
+// the ClipFavourite triggers (raw SQL). C17 deletes the file at expiresAt and
+// sets deletedAt; the row and its event stay. CHECKs "Clip_window" and
+// "Clip_size_nonneg"; partial index "Clip_expiry_idx" for C17's sweep.
+model Clip {
+  id              String         @id @default(cuid())
+  organisationId  String
+  organisation    Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId         String
+  match           Match          @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  // One clip per event: @@unique([organisationId, eventId]).
+  eventId         String
+  event           Event          @relation(fields: [organisationId, eventId], references: [organisationId, id], onDelete: Cascade)
+  // The clips job that cut it. Jobs only go with their match, which cascades
+  // the clips first (as Event.job).
+  processingJobId String?
+  processingJob   ProcessingJob? @relation(fields: [organisationId, processingJobId], references: [organisationId, id], onDelete: NoAction, onUpdate: NoAction)
+  blobPath        String
+  // Video milliseconds.
+  startMs         Int
+  endMs           Int
+  sizeBytes       BigInt
+  width           Int
+  height          Int
+  baseExpiresAt   DateTime
+  expiresAt       DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  favourites ClipFavourite[]
+
+  @@unique([organisationId, id])
+  @@unique([organisationId, eventId])
+  @@index([organisationId, matchId])
+  @@index([expiresAt], map: "Clip_expiry_idx", where: raw("(\"deletedAt\" IS NULL)"))
+}
+
+// C09 (CV11), for C11 and C13: a user's favourite clip. organisationId is the
+// clip's organisation, which may differ from a favouriting scout's. Any
+// favourite clears Clip.expiresAt and removing the last restores it (triggers
+// "ClipFavourite_after_insert" and "ClipFavourite_after_delete"); a clip whose
+// file is deleted cannot be favourited ("ClipFavourite_before_insert"). Write
+// through src/server/clips/favourites.ts.
+model ClipFavourite {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  clipId         String
+  clip           Clip         @relation(fields: [organisationId, clipId], references: [organisationId, id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([clipId, userId])
+  @@unique([organisationId, id])
+  @@index([userId])
+}
+
+// C09 (Q-046): the Lab's ground truth, hand-tagged (or synthetic or
+// SoccerNet) events of a match, imported as CSV (src/server/lab/tags.ts).
+// Times are video ms. CHECK "BenchmarkTag_time_nonneg" in raw SQL.
+model BenchmarkTag {
+  id              String             @id @default(cuid())
+  organisationId  String
+  organisation    Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId         String
+  match           Match              @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  type            EventType
+  timestampMs     Int
+  teamSide        TeamSide?
+  onTarget        Boolean?
+  source          BenchmarkTagSource
+  importBatchId   String
+  // A plain column, no relation.
+  createdByUserId String?
+  createdAt       DateTime           @default(now())
+
+  @@unique([organisationId, id])
+  @@index([organisationId, matchId, type])
 }
 
 enum GpuInstanceStatus {

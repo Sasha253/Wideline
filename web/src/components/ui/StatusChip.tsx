@@ -9,6 +9,7 @@ import {
   Eye,
   LoaderCircle,
   Plus,
+  RotateCcw,
   TriangleAlert,
   Upload,
   UserMinus,
@@ -19,6 +20,7 @@ import type {
   ClubStatus,
   MatchStatus,
   OrganisationStatus,
+  ProcessingJobStatus,
   ScoutStatus,
   VideoStatus,
 } from "@/generated/prisma/enums";
@@ -133,6 +135,34 @@ export const FOOTAGE_STATES: Record<FootageState, Preset> = {
   rejected: { tone: "danger", icon: X, label: "Rejected" },
   cancelled: { tone: "neutral", icon: CircleOff, label: "Cancelled" },
 };
+
+/**
+ * A processing job's state (docs/build/design/C09.md, "Chip preset"): queued
+ * after a failed attempt reads Retrying. LoaderCircle is static.
+ */
+export type JobChipState = ProcessingJobStatus | "retrying";
+
+export const JOB_STATES: Record<JobChipState, Preset> = {
+  queued: { tone: "neutral", icon: CircleDashed, label: "Queued" },
+  retrying: { tone: "warn", icon: RotateCcw, label: "Retrying" },
+  running: { tone: "neutral", icon: LoaderCircle, label: "Running" },
+  succeeded: { tone: "ok", icon: Check, label: "Succeeded" },
+  failed: { tone: "danger", icon: CircleAlert, label: "Failed" },
+};
+
+export function jobChipState(status: ProcessingJobStatus, attempts: number): JobChipState {
+  return status === "queued" && attempts >= 1 ? "retrying" : status;
+}
+
+export function JobStatusChip({
+  status,
+  attempts,
+}: {
+  status: ProcessingJobStatus;
+  attempts: number;
+}) {
+  return <StatusChip {...JOB_STATES[jobChipState(status, attempts)]} />;
+}
 
 export function EventStatusChip({ state }: { state: EventReviewState }) {
   return <StatusChip {...EVENT_STATES[state]} />;

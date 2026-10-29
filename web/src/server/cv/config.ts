@@ -5,7 +5,7 @@ import { z } from "zod";
  * CV job settings (C08), parsed from the environment on first use. The web
  * app's env() (src/server/env.ts) checks the secret and the dispatch mode at
  * startup; this is the worker-safe read of the same variables plus the
- * dispatcher's own. NFR07's 10 and 30 minutes are constants in watchdog.ts,
+ * dispatcher's own (C09 adds the pipeline mode and the synthetic seed). NFR07's 10 and 30 minutes are constants in watchdog.ts,
  * not settings.
  */
 
@@ -43,6 +43,28 @@ const schema = z.object({
     .string()
     .regex(/^[A-Z]{3}$/)
     .default("USD"),
+  // C09: the pipeline mode the worker runs, passed as WIDELINE_CV_MODE.
+  // synthetic everywhere until the GPU image and provider exist (B-001,
+  // Q-033); model with the docker provider only for CPU experiments
+  // (CV_ALLOW_LOCAL_MODEL=1).
+  CV_PIPELINE_MODE: z.enum(["synthetic", "model"]).default("synthetic"),
+  CV_ALLOW_LOCAL_MODEL: z
+    .enum(["0", "1", "true", "false"])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+  // The synthetic scene's seed (WIDELINE_CV_SYNTHETIC_SEED); the worker's
+  // default, 7, matches the committed golden run and its truth CSV.
+  CV_SYNTHETIC_SEED: z.coerce.number().int().nonnegative().optional(),
+});
+
+const refined = schema.superRefine((v, ctx) => {
+  if (v.CV_PIPELINE_MODE === "model" && v.CV_DISPATCH === "docker" && !v.CV_ALLOW_LOCAL_MODEL) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["CV_PIPELINE_MODE"],
+      message: "model mode needs a GPU provider; set CV_ALLOW_LOCAL_MODEL=1 to run it in docker",
+    });
+  }
 });
 
 export type CvConfig = z.infer<typeof schema>;
@@ -50,7 +72,7 @@ export type CvConfig = z.infer<typeof schema>;
 let cached: CvConfig | undefined;
 
 export function cvConfig(): CvConfig {
-  cached ??= schema.parse(process.env);
+  cached ??= refined.parse(process.env);
   return cached;
 }
 

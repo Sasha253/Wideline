@@ -5,14 +5,25 @@ description = "Wideline computer-vision worker"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "jsonschema>=4.23",
+    # C09: numpy (BSD-3) for frames and maths, scipy (BSD-3) for the
+    # assignment step of the vendored ByteTrack. Add nothing else to the core.
+    "numpy>=2.2",
+    "scipy>=1.15",
     "structlog>=25.1",
 ]
 
-# Real-model dependencies (Phase 5). Kept optional so CI and the synthetic
-# detector stay light. Licences are tracked in /LICENSES.md; no AGPL code
-# (e.g. ultralytics) may be added here or anywhere in the CV path.
+# Real-model dependencies (C09). Kept optional so CI, the default image and
+# synthetic mode stay light and Apache/MIT/BSD only. Pinned exactly. Their
+# transitive licences are not cleared yet (B-001): only the hand-built GPU
+# image installs them (`make cv-image-gpu`). Licences are tracked in
+# /LICENSES.md; no AGPL code (e.g. ultralytics) may be added here or anywhere
+# in the CV path.
 [project.optional-dependencies]
-model = []
+model = [
+    "rfdetr==1.11.2",
+    "torch==2.15.0",
+    "torchvision==0.29.2",
+]
 
 [dependency-groups]
 dev = [
@@ -44,3 +55,8 @@ packages = ["wideline_cv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# scipy ships no type stubs; only linear_sum_assignment is used (vendored ByteTrack).
+[[tool.mypy.overrides]]
+module = ["scipy.*"]
+ignore_missing_imports = true

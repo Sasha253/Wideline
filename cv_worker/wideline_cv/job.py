@@ -2,11 +2,14 @@
 
 The dispatcher starts the container with WIDELINE_JOB, a JSON object of ids
 and signed URLs: jobId, matchId, instanceId, attempt, videoUrl, resultUrl,
-callbackUrl, callbackToken, sampledFps, durationSec and fps. The worker:
+callbackUrl, callbackToken, sampledFps, durationSec and fps; C09 adds width
+and height (the probed video size), calibration (the stored homography for
+the venue and camera, or null) and stillUrl. The worker:
 
 1. sends a heartbeat to the callback every minute (a 410 means the job is no
    longer live, so it stops);
-2. runs the pipeline;
+2. runs the pipeline (C09: wideline_cv.pipeline, synthetic or model mode),
+   which also PUTs a calibration still to stillUrl when the spec has one;
 3. checks the result against the contract;
 4. PUTs it to resultUrl and reports kind=succeeded with its sha256;
 5. on any error, reports kind=failed with a short message instead.
@@ -19,7 +22,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import threading
 import urllib.error
 import urllib.request
@@ -28,12 +30,12 @@ from typing import Any
 
 import structlog
 
-from . import stub_pipeline
+from . import pipeline
 from .contract import validate
+from .redact import clean as _clean
 
 HEARTBEAT_SECONDS = 60.0
 HTTP_TIMEOUT = 30.0
-ERROR_MAX = 500
 
 Pipeline = Callable[[dict[str, Any], Callable[[], bool]], dict[str, Any]]
 
@@ -42,12 +44,6 @@ log = structlog.get_logger()
 
 class JobGone(Exception):
     """The app answered 410: the instance or the job is no longer live."""
-
-
-def _clean(text: str) -> str:
-    """Error text without URLs' query strings, capped."""
-    cleaned = re.sub(r"(https?://[^\s?'\"]*)\?[^\s'\"]*", r"\1?[redacted]", text).strip()
-    return cleaned[:ERROR_MAX] or "worker failed"
 
 
 def _post(spec: dict[str, Any], body: dict[str, Any]) -> int:
@@ -112,7 +108,7 @@ class Heartbeat:
 
 def run_job(
     raw_spec: str,
-    pipeline: Pipeline = stub_pipeline.run,
+    pipeline: Pipeline = pipeline.run,
     heartbeat_seconds: float = HEARTBEAT_SECONDS,
 ) -> int:
     """Runs one job. Returns 0 when the result was delivered, 1 otherwise."""

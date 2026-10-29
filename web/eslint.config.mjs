@@ -32,6 +32,13 @@ const RAW_DB_ALLOWED = [
   "src/server/processing/alerts.ts",
   "src/worker/**",
   "src/app/api/jobs/*/callback/**",
+  // C09: clips (keys, expiry, cutting and favourites; favourites take the
+  // clip's organisationId explicitly, since a scout favourites another
+  // organisation's clip) and the Lab's tag import and benchmark aggregates,
+  // which take the platform admin's AuthContext and filter by its
+  // organisationId.
+  "src/server/clips/**",
+  "src/server/lab/**",
   "prisma/seed.ts",
   "scripts/**",
   "tests/**",

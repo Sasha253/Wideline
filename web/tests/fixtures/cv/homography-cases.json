@@ -1,0 +1,481 @@
+{
+  "description": "Shared homography cases for cv_worker/tests/test_calibration.py and web/tests/unit/homography.test.ts (C09). Each case fits image pixels (1920 x 1080 video) to pitch metres; homography is normalised so its last entry is 1; errorM is the RMS reprojection error in metres; probes are image points and where the fit puts them.",
+  "cases": [
+    {
+      "name": "four corners",
+      "points": [
+        {
+          "landmark": "corner_near_left",
+          "image": [
+            40.0,
+            1040.0
+          ],
+          "pitch": [
+            0,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_near_right",
+          "image": [
+            1880.0,
+            1040.0
+          ],
+          "pitch": [
+            105.0,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_far_right",
+          "image": [
+            1560.0,
+            240.0
+          ],
+          "pitch": [
+            105.0,
+            68
+          ]
+        },
+        {
+          "landmark": "corner_far_left",
+          "image": [
+            360.0,
+            240.0
+          ],
+          "pitch": [
+            0,
+            68
+          ]
+        }
+      ],
+      "homography": [
+        [
+          0.104166666667,
+          0.041666666667,
+          -47.5
+        ],
+        [
+          0.0,
+          -0.10119047619,
+          105.238095238095
+        ],
+        [
+          0.0,
+          0.000793650794,
+          1.0
+        ]
+      ],
+      "errorM": 0.0,
+      "probes": [
+        {
+          "image": [
+            960.0,
+            700.0
+          ],
+          "pitch": [
+            52.5,
+            22.117347
+          ]
+        },
+        {
+          "image": [
+            400.0,
+            500.0
+          ],
+          "pitch": [
+            10.738636,
+            39.119318
+          ]
+        },
+        {
+          "image": [
+            1500.0,
+            400.0
+          ],
+          "pitch": [
+            95.195783,
+            49.156627
+          ]
+        }
+      ]
+    },
+    {
+      "name": "eight landmarks, exact",
+      "points": [
+        {
+          "landmark": "corner_near_left",
+          "image": [
+            40.0,
+            1040.0
+          ],
+          "pitch": [
+            0,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_near_right",
+          "image": [
+            1880.0,
+            1040.0
+          ],
+          "pitch": [
+            105.0,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_far_right",
+          "image": [
+            1560.0,
+            240.0
+          ],
+          "pitch": [
+            105.0,
+            68
+          ]
+        },
+        {
+          "landmark": "corner_far_left",
+          "image": [
+            360.0,
+            240.0
+          ],
+          "pitch": [
+            0,
+            68
+          ]
+        },
+        {
+          "landmark": "centre_spot",
+          "image": [
+            960.0,
+            555.79
+          ],
+          "pitch": [
+            52.5,
+            34
+          ]
+        },
+        {
+          "landmark": "left_box_near_front",
+          "image": [
+            390.92,
+            814.78
+          ],
+          "pitch": [
+            16.5,
+            13.84
+          ]
+        },
+        {
+          "landmark": "left_box_far_front",
+          "image": [
+            517.23,
+            354.28
+          ],
+          "pitch": [
+            16.5,
+            54.16
+          ]
+        },
+        {
+          "landmark": "right_box_near_front",
+          "image": [
+            1529.08,
+            814.78
+          ],
+          "pitch": [
+            88.5,
+            13.84
+          ]
+        }
+      ],
+      "homography": [
+        [
+          0.104167021349,
+          0.041667014431,
+          -47.500448587585
+        ],
+        [
+          -1.5706e-08,
+          -0.101190815703,
+          105.23827989965
+        ],
+        [
+          4e-11,
+          0.000793655264,
+          1.0
+        ]
+      ],
+      "errorM": 0.000169,
+      "probes": [
+        {
+          "image": [
+            960.0,
+            700.0
+          ],
+          "pitch": [
+            52.49998,
+            22.117258
+          ]
+        },
+        {
+          "image": [
+            400.0,
+            500.0
+          ],
+          "pitch": [
+            10.738524,
+            39.119261
+          ]
+        },
+        {
+          "image": [
+            1500.0,
+            400.0
+          ],
+          "pitch": [
+            95.195818,
+            49.156577
+          ]
+        }
+      ]
+    },
+    {
+      "name": "eight landmarks, 2 px of noise",
+      "points": [
+        {
+          "landmark": "corner_near_left",
+          "image": [
+            40.69,
+            1041.64
+          ],
+          "pitch": [
+            0,
+            0
+          ]
+        },
+        {
+          "landmark": "halfway_near",
+          "image": [
+            960.66,
+            1037.39
+          ],
+          "pitch": [
+            52.5,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_far_right",
+          "image": [
+            1561.81,
+            240.89
+          ],
+          "pitch": [
+            105.0,
+            68
+          ]
+        },
+        {
+          "landmark": "corner_far_left",
+          "image": [
+            358.93,
+            241.16
+          ],
+          "pitch": [
+            0,
+            68
+          ]
+        },
+        {
+          "landmark": "centre_spot",
+          "image": [
+            960.73,
+            556.38
+          ],
+          "pitch": [
+            52.5,
+            34
+          ]
+        },
+        {
+          "landmark": "left_box_near_front",
+          "image": [
+            390.97,
+            815.88
+          ],
+          "pitch": [
+            16.5,
+            13.84
+          ]
+        },
+        {
+          "landmark": "right_goal_area_far_front",
+          "image": [
+            1573.85,
+            458.0
+          ],
+          "pitch": [
+            99.5,
+            43.16
+          ]
+        },
+        {
+          "landmark": "right_box_near_front",
+          "image": [
+            1528.12,
+            815.98
+          ],
+          "pitch": [
+            88.5,
+            13.84
+          ]
+        }
+      ],
+      "homography": [
+        [
+          0.10338473155,
+          0.041095330343,
+          -47.008836124899
+        ],
+        [
+          -0.000232115745,
+          -0.100990663737,
+          105.143201713192
+        ],
+        [
+          -2.866125e-06,
+          0.00078089211,
+          1.0
+        ]
+      ],
+      "errorM": 0.0793,
+      "probes": [
+        {
+          "image": [
+            960.0,
+            700.0
+          ],
+          "pitch": [
+            52.470143,
+            22.169509
+          ]
+        },
+        {
+          "image": [
+            400.0,
+            500.0
+          ],
+          "pitch": [
+            10.71959,
+            39.268005
+          ]
+        },
+        {
+          "image": [
+            1500.0,
+            400.0
+          ],
+          "pitch": [
+            95.184178,
+            49.232358
+          ]
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "name": "three points",
+      "points": [
+        {
+          "landmark": "corner_near_left",
+          "image": [
+            40.0,
+            1040.0
+          ],
+          "pitch": [
+            0,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_near_right",
+          "image": [
+            1880.0,
+            1040.0
+          ],
+          "pitch": [
+            105.0,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_far_right",
+          "image": [
+            1560.0,
+            240.0
+          ],
+          "pitch": [
+            105.0,
+            68
+          ]
+        }
+      ],
+      "error": "too_few"
+    },
+    {
+      "name": "four points on one line",
+      "points": [
+        {
+          "landmark": "corner_near_left",
+          "image": [
+            40.0,
+            1040.0
+          ],
+          "pitch": [
+            0,
+            0
+          ]
+        },
+        {
+          "landmark": "halfway_near",
+          "image": [
+            960.0,
+            1040.0
+          ],
+          "pitch": [
+            52.5,
+            0
+          ]
+        },
+        {
+          "landmark": "corner_near_right",
+          "image": [
+            1880.0,
+            1040.0
+          ],
+          "pitch": [
+            105.0,
+            0
+          ]
+        },
+        {
+          "landmark": "x",
+          "image": [
+            565.71,
+            1040.0
+          ],
+          "pitch": [
+            30.0,
+            0.0
+          ]
+        }
+      ],
+      "error": "degenerate"
+    }
+  ]
+}

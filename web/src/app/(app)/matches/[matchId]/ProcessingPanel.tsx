@@ -12,8 +12,10 @@ import type { ProcessingStep } from "@/server/processing/summary";
 /**
  * The processing steps in the Footage card (MATCH07; docs/build/design/C07.md,
  * Surface 2): Preparing playback from the transcode job and, from C08,
- * Finding events from the CV job. The two run at the same time. Every state is
- * an icon, a word and a caption; colour only reinforces (NFR27). Nothing spins.
+ * Finding events from the CV job. The two run at the same time. C09 adds
+ * Cutting clips, from the clips job the CV ingest creates
+ * (docs/build/design/C09.md, Surface 6). Every state is an icon, a word and a
+ * caption; colour only reinforces (NFR27). Nothing spins.
  */
 
 type Step = {
@@ -145,10 +147,81 @@ export function eventsStep(job: ProcessingStep | null): Step {
   }
 }
 
+/** The clips job (C09): one short clip per event, kept 14 days unless favourited. */
+export function clipsStep(job: ProcessingStep | null): Step {
+  const name = "Cutting clips";
+  if (!job || (job.status === "queued" && job.attempts === 0)) {
+    return {
+      icon: CircleDashed,
+      name,
+      state: "Waiting to start",
+      caption: "Starts once events are found.",
+    };
+  }
+  const max = job.maxAttempts;
+  switch (job.status) {
+    case "running":
+      return job.attempts <= 1
+        ? {
+            icon: LoaderCircle,
+            name,
+            state: "In progress",
+            caption: "Cutting a short clip around each event.",
+          }
+        : {
+            icon: LoaderCircle,
+            name,
+            tone: "retrying",
+            state: `In progress, attempt ${job.attempts} of ${max}`,
+            caption:
+              job.attempts === 2
+                ? "The first try did not finish, so we are trying again."
+                : "Earlier tries did not finish, so we are trying again.",
+          };
+    case "queued":
+      return {
+        icon: RotateCcw,
+        name,
+        tone: "retrying",
+        state: `Trying again soon, attempt ${job.attempts + 1} of ${max}`,
+        caption: "The last try did not finish. We try again in a minute.",
+      };
+    case "succeeded":
+      return {
+        icon: Check,
+        name,
+        done: true,
+        state: "Clips ready",
+        caption:
+          job.clips === 0
+            ? "No events were found, so there are no clips."
+            : "Each clip is kept for 14 days unless it is marked as a favourite.",
+      };
+    case "failed":
+      // Settled without a try: an earlier step failed, and its step says so.
+      if (job.attempts === 0) {
+        return { icon: CircleDashed, name, state: "Not started", caption: null };
+      }
+      return {
+        icon: CircleAlert,
+        name,
+        tone: "failed",
+        state: "Failed",
+        caption: `We tried ${max} times. Wideline staff have been told and will try again.`,
+      };
+  }
+}
+
 export function ProcessingPanel({
   steps,
 }: {
-  steps: { transcode: ProcessingStep | null; cv: ProcessingStep | null } | "unavailable";
+  steps:
+    | {
+        transcode: ProcessingStep | null;
+        cv: ProcessingStep | null;
+        clips?: ProcessingStep | null;
+      }
+    | "unavailable";
 }) {
   return (
     <>
@@ -159,7 +232,11 @@ export function ProcessingPanel({
         </p>
       ) : (
         <ol className="wl-checklist mt-2" role="list">
-          {[playbackStep(steps.transcode), eventsStep(steps.cv)].map((s) => (
+          {[
+            playbackStep(steps.transcode),
+            eventsStep(steps.cv),
+            clipsStep(steps.clips ?? null),
+          ].map((s) => (
             <li key={s.name} data-done={s.done ? "true" : undefined} data-state={s.tone}>
               <s.icon {...iconProps} />
               <div>

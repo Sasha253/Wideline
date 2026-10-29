@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleCvCallback } from "@/server/cv/callback";
 import { rawDb } from "@/server/db/raw";
+import { createClipsJob } from "@/server/processing/jobs";
 import { moveToAwaitingReviewIfReady } from "@/server/processing/readiness";
 import { handleCvJob, type CvDeps } from "@/worker/cv";
 import { fixtures } from "./helpers/fixtures";
@@ -61,6 +62,8 @@ function deps(provider: FakeGpuProvider, worker: Worker, extra: Partial<CvDeps> 
       acted = true;
       await worker(JSON.parse(provider.started.at(-1)!.env.WIDELINE_JOB!));
     },
+    // C09: the clips job is sent after the ingest; no pg-boss here.
+    sendClips: async () => {},
     ...extra,
   };
 }
@@ -89,8 +92,11 @@ describe("handleCvJob", () => {
     const provider = new FakeGpuProvider();
     const { worker, loadResult } = reportAndLoad(job);
     const data = { organisationId: club.org.id, videoId, processingJobId: job.id };
+    const sendClips = vi.fn(async () => {});
 
-    expect(await handleCvJob(data, meta, deps(provider, worker, { loadResult }))).toBe("succeeded");
+    expect(await handleCvJob(data, meta, deps(provider, worker, { loadResult, sendClips }))).toBe(
+      "succeeded",
+    );
 
     // One instance, started with ids and signed URLs only.
     expect(provider.started).toHaveLength(1);
@@ -98,18 +104,26 @@ describe("handleCvJob", () => {
     expect(Object.keys(spec).sort()).toEqual(
       [
         "attempt",
+        "calibration",
         "callbackToken",
         "callbackUrl",
         "durationSec",
         "fps",
+        "height",
         "instanceId",
         "jobId",
         "matchId",
         "resultUrl",
         "sampledFps",
+        "stillUrl",
         "videoUrl",
+        "width",
       ].sort(),
     );
+    // C09: no stored calibration for this venue yet; the still goes next to the result.
+    expect(spec.calibration).toBeNull();
+    expect(spec.stillUrl).toContain(`matches/${matchId}/cv/${job.id}/attempt-1/still.png`);
+    expect(provider.started[0]!.env.WIDELINE_CV_MODE).toBe("synthetic");
     expect(spec.callbackUrl).toMatch(new RegExp(`/api/jobs/${job.id}/callback$`));
     expect(spec.resultUrl).toContain(`matches/${matchId}/cv/${job.id}/attempt-1/result.json`);
 
@@ -144,6 +158,10 @@ describe("handleCvJob", () => {
       gpuProvider: "fake",
     });
     expect(await rawDb.event.count({ where: { matchId } })).toBe(1);
+    // C09: the ingest made the clips job, and the handler sent it.
+    const clips = await rawDb.processingJob.findFirstOrThrow({ where: { videoId, type: "clips" } });
+    expect(clips.status).toBe("queued");
+    expect(sendClips).toHaveBeenCalledWith(expect.objectContaining({ id: clips.id }));
     // The transcode has not finished, so the match waits in Processing.
     expect((await rawDb.match.findUniqueOrThrow({ where: { id: matchId } })).status).toBe(
       "processing",
@@ -215,13 +233,43 @@ describe("handleCvJob", () => {
   });
 });
 
+/** The video's clips job (C09), as the cv ingest creates it. */
+async function clipsJobOf(matchId: string, videoId: string) {
+  const { job } = await rawDb.$transaction((tx) =>
+    createClipsJob(tx, { organisationId: club.org.id, matchId, videoId }),
+  );
+  return job;
+}
+
+const done = {
+  status: "succeeded" as const,
+  attempts: 1,
+  startedAt: new Date(),
+  finishedAt: new Date(),
+};
+
 describe("readiness", () => {
-  it("moves the match on when the transcode finishes after the cv job", async () => {
+  it("waits for the clips job too (C09)", async () => {
     const { matchId, videoId, transcodeId, job } = await setup();
-    await rawDb.processingJob.update({
-      where: { id: job.id },
-      data: { status: "succeeded", attempts: 1, startedAt: new Date(), finishedAt: new Date() },
-    });
+    await clipsJobOf(matchId, videoId);
+    for (const id of [job.id, transcodeId]) {
+      await rawDb.processingJob.update({ where: { id }, data: done });
+    }
+    const moved = await rawDb.$transaction((tx) =>
+      moveToAwaitingReviewIfReady(tx, { organisationId: club.org.id, matchId, videoId }),
+    );
+    expect(moved).toBe(false);
+    expect((await rawDb.match.findUniqueOrThrow({ where: { id: matchId } })).status).toBe(
+      "processing",
+    );
+  });
+
+  it("moves the match on when the transcode finishes after the cv and clips jobs", async () => {
+    const { matchId, videoId, transcodeId, job } = await setup();
+    const clips = await clipsJobOf(matchId, videoId);
+    for (const id of [job.id, clips.id]) {
+      await rawDb.processingJob.update({ where: { id }, data: done });
+    }
     await rawDb.$transaction(async (tx) => {
       await tx.processingJob.update({
         where: { id: transcodeId },
@@ -236,9 +284,10 @@ describe("readiness", () => {
     );
   });
 
-  it("never misses the move when both jobs finish at the same time", async () => {
+  it("never misses the move when the jobs finish at the same time", async () => {
     for (let i = 0; i < 5; i++) {
       const { matchId, videoId, transcodeId, job } = await setup();
+      const clips = await clipsJobOf(matchId, videoId);
       const finish = (id: string) =>
         rawDb.$transaction(async (tx) => {
           await tx.processingJob.update({
@@ -253,7 +302,7 @@ describe("readiness", () => {
           await new Promise((r) => setTimeout(r, 20));
           return moveToAwaitingReviewIfReady(tx, { organisationId: club.org.id, matchId, videoId });
         });
-      const moved = await Promise.all([finish(transcodeId), finish(job.id)]);
+      const moved = await Promise.all([finish(transcodeId), finish(job.id), finish(clips.id)]);
       expect(moved.filter(Boolean)).toHaveLength(1);
       expect((await rawDb.match.findUniqueOrThrow({ where: { id: matchId } })).status).toBe(
         "awaiting_review",

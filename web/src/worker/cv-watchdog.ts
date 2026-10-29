@@ -8,13 +8,25 @@ import {
 } from "../server/cv/instances";
 import { gpuProvider } from "../server/cv/providers";
 import type { GpuProvider } from "../server/cv/providers/types";
-import { decideWatchdog, RESEND_AFTER_MS, type WatchdogJob } from "../server/cv/watchdog";
+import {
+  CLIPS_RESEND_AFTER_MS,
+  decideWatchdog,
+  RESEND_AFTER_MS,
+  type WatchdogJob,
+} from "../server/cv/watchdog";
 import { rawDb } from "../server/db/raw";
 import { log } from "../server/log";
 import { fromStatusesFor } from "../server/matches/status";
 import { alertPlatformAdmins } from "../server/processing/alerts";
-import { findJob, jobLog, markAttemptFailed } from "../server/processing/jobs";
+import {
+  createClipsJob,
+  findJob,
+  jobLog,
+  markAttemptFailed,
+  type JobRef,
+} from "../server/processing/jobs";
 import { QUEUES } from "../server/queue";
+import { sendClipsJob } from "./clips";
 import { sendCvJob } from "./probe";
 
 /**
@@ -29,6 +41,12 @@ import { sendCvJob } from "./probe";
  * from 5 minutes to 24 hours after it failed, so older failures from before
  * the alert existed never flood the inbox. The clock and the provider are
  * injectable.
+ *
+ * C09: a clips job queued for 10 minutes without starting is sent again, and
+ * a succeeded cv job with no clips job (a match ingested before C09, or an
+ * ingest whose clips job was lost) gets one, created and sent; both log
+ * "repaired". Without this, the new required job would keep those matches in
+ * Processing.
  */
 
 export type WatchdogDeps = {
@@ -36,6 +54,8 @@ export type WatchdogDeps = {
   now?: () => Date;
   boss?: Pick<PgBoss, "getJobById">;
   resend?: typeof sendCvJob;
+  /** C09: sends a clips job; the default goes through pg-boss. */
+  sendClips?: (job: JobRef) => Promise<void>;
 };
 
 export type WatchdogSummary = {
@@ -44,6 +64,8 @@ export type WatchdogSummary = {
   resent: number;
   reconciled: number;
   realerted: number;
+  clipsResent: number;
+  clipsBackfilled: number;
 };
 
 /** An unsent alert is retried only for failures this recent (NFR30). */
@@ -53,12 +75,15 @@ export async function handleCvWatchdog(deps: WatchdogDeps = {}): Promise<Watchdo
   const provider = deps.provider ?? gpuProvider();
   const now = (deps.now ?? (() => new Date()))();
   const resend = deps.resend ?? sendCvJob;
+  const sendClips = deps.sendClips ?? sendClipsJob;
   const summary: WatchdogSummary = {
     destroyed: 0,
     failedToStart: 0,
     resent: 0,
     reconciled: 0,
     realerted: 0,
+    clipsResent: 0,
+    clipsBackfilled: 0,
   };
 
   const instances = await rawDb.gpuInstance.findMany({
@@ -128,6 +153,47 @@ export async function handleCvWatchdog(deps: WatchdogDeps = {}): Promise<Watchdo
     summary.resent += 1;
   }
 
+  // C09: lost clips sends, queued and never started for 10 minutes.
+  const stuckClips = await rawDb.processingJob.findMany({
+    where: {
+      type: "clips",
+      status: "queued",
+      attempts: 0,
+      queuedAt: { lte: new Date(now.getTime() - CLIPS_RESEND_AFTER_MS) },
+      match: { status: "processing" },
+    },
+    select: { id: true, organisationId: true },
+    take: 100,
+  });
+  for (const s of stuckClips) {
+    const job = await findJob(s.organisationId, s.id);
+    if (!job) continue;
+    await sendClips(job);
+    jobLog("repaired", job, { reason: "resent" });
+    summary.clipsResent += 1;
+  }
+
+  // C09: succeeded cv jobs with no clips job (ingested before C09).
+  const orphans = await rawDb.$queryRaw<
+    { organisationId: string; matchId: string; videoId: string }[]
+  >`
+    SELECT cv."organisationId", cv."matchId", cv."videoId"
+      FROM "ProcessingJob" cv
+      JOIN "Match" m ON m."id" = cv."matchId" AND m."organisationId" = cv."organisationId"
+     WHERE cv."type" = 'cv' AND cv."status" = 'succeeded' AND cv."videoId" IS NOT NULL
+       AND m."status" = 'processing'
+       AND NOT EXISTS (
+         SELECT 1 FROM "ProcessingJob" c
+          WHERE c."videoId" = cv."videoId" AND c."type" = 'clips')
+     LIMIT 50`;
+  for (const o of orphans) {
+    const { job, created } = await rawDb.$transaction((tx) => createClipsJob(tx, o));
+    if (created) jobLog("queued", job);
+    await sendClips(job);
+    jobLog("repaired", job, { reason: "backfilled" });
+    summary.clipsBackfilled += 1;
+  }
+
   // Jobs pg-boss gave up on while the row still says queued or running.
   const boss = deps.boss;
   if (boss) {
@@ -176,7 +242,7 @@ export async function handleCvWatchdog(deps: WatchdogDeps = {}): Promise<Watchdo
   // Alerts whose email failed: the final-failure path gave its claim back.
   const unalerted = await rawDb.processingJob.findMany({
     where: {
-      type: { in: ["cv", "transcode"] },
+      type: { in: ["cv", "transcode", "clips"] },
       status: "failed",
       alertedAt: null,
       finishedAt: {
@@ -200,7 +266,9 @@ export async function handleCvWatchdog(deps: WatchdogDeps = {}): Promise<Watchdo
     summary.failedToStart ||
     summary.resent ||
     summary.reconciled ||
-    summary.realerted
+    summary.realerted ||
+    summary.clipsResent ||
+    summary.clipsBackfilled
   ) {
     log.info({ event: "cv_watchdog", ...summary }, "cv watchdog");
   }

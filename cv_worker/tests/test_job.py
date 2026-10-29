@@ -1,4 +1,5 @@
-"""C08: the dispatched job runner against a local fake of the app and the bucket."""
+"""C08, C09: the dispatched job runner against a local fake of the app and the bucket.
+The default pipeline is the synthetic one (C09)."""
 
 from __future__ import annotations
 
@@ -11,9 +12,9 @@ from typing import Any
 
 import pytest
 
-from wideline_cv import stub_pipeline
 from wideline_cv.contract import ResultInvalid, validate
 from wideline_cv.job import run_job
+from wideline_cv.pipeline import run as pipeline_run
 
 
 class Fake:
@@ -58,7 +59,7 @@ def fake() -> Iterator[tuple[Fake, str]]:
     server.shutdown()
 
 
-def spec(base: str) -> str:
+def spec(base: str, **extra: Any) -> str:
     return json.dumps(
         {
             "jobId": "job_1",
@@ -70,13 +71,17 @@ def spec(base: str) -> str:
             "callbackUrl": f"{base}/api/jobs/job_1/callback",
             "callbackToken": "tok",
             "sampledFps": 5,
-            "durationSec": 5400.0,
+            "durationSec": 20.0,
             "fps": 25.0,
+            "width": 1920,
+            "height": 1080,
+            "calibration": None,
+            **extra,
         }
     )
 
 
-def test_stub_result_is_valid_and_delivered(fake: tuple[Fake, str]) -> None:
+def test_synthetic_result_is_valid_and_delivered(fake: tuple[Fake, str]) -> None:
     state, base = fake
     assert run_job(spec(base), heartbeat_seconds=60) == 0
     [(path, body, ctype)] = state.puts
@@ -85,7 +90,9 @@ def test_stub_result_is_valid_and_delivered(fake: tuple[Fake, str]) -> None:
     result = json.loads(body)
     validate(result)
     assert result["jobId"] == "job_1" and result["matchId"] == "match_1"
-    assert result["video"]["durationSec"] == 5400.0
+    assert result["video"]["durationSec"] == 20.0
+    assert result["modelVersions"]["detector"] == "synthetic-1"
+    assert result["tracks"]
     [(cb, auth)] = state.callbacks
     assert auth == "Bearer tok"
     assert cb == {
@@ -113,7 +120,7 @@ def test_invalid_result_is_not_uploaded(fake: tuple[Fake, str]) -> None:
     state, base = fake
 
     def bad(s: dict[str, Any], stop: object) -> dict[str, Any]:
-        result = stub_pipeline.run(s, lambda: False)
+        result = pipeline_run({**s, "stillUrl": None}, lambda: False)
         del result["warnings"]
         return result
 
@@ -133,7 +140,7 @@ def test_heartbeat_410_stops_the_job(fake: tuple[Fake, str]) -> None:
                 seen.set()
                 break
             threading.Event().wait(0.01)
-        return stub_pipeline.run(s, should_stop)
+        return {"never": "validated"}
 
     assert run_job(spec(base), pipeline=slow, heartbeat_seconds=0.05) == 1
     assert seen.is_set()
@@ -141,8 +148,29 @@ def test_heartbeat_410_stops_the_job(fake: tuple[Fake, str]) -> None:
     assert all(cb["kind"] == "heartbeat" for cb, _ in state.callbacks)
 
 
+def test_the_still_is_uploaded(fake: tuple[Fake, str]) -> None:
+    state, base = fake
+    url = f"{base}/still.png?X-Amz-Signature=secret"
+    assert run_job(spec(base, stillUrl=url), heartbeat_seconds=60) == 0
+    still = next(p for p in state.puts if p[0].startswith("/still.png"))
+    assert still[2] == "image/png"
+    assert still[1][:4] == bytes([0x89]) + b"PNG"
+    result = json.loads(next(p for p in state.puts if p[0].startswith("/result.json"))[1])
+    assert "calibration still not saved" not in result["warnings"]
+
+
+def test_a_failed_still_upload_is_a_warning(fake: tuple[Fake, str]) -> None:
+    state, base = fake
+    # Nothing listens on port 9: the PUT fails, the job still succeeds.
+    url = "http://127.0.0.1:9/still.png?sig=secret"
+    assert run_job(spec(base, stillUrl=url), heartbeat_seconds=60) == 0
+    result = json.loads(next(p for p in state.puts if p[0].startswith("/result.json"))[1])
+    assert "calibration still not saved" in result["warnings"]
+    assert state.callbacks[-1][0]["kind"] == "succeeded"
+
+
 def test_validate_rejects_a_missing_field() -> None:
-    result = stub_pipeline.run(
+    result = pipeline_run(
         {"jobId": "j", "matchId": "m", "durationSec": 10, "fps": 25}, lambda: False
     )
     validate(result)

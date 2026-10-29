@@ -17,6 +17,7 @@ export {
   FlagStateChip,
   FootageChip,
   InvitationStatusChip,
+  JobStatusChip,
   MatchStatusChip,
   OrganisationStatusChip,
   ScoutStatusChip,
@@ -25,6 +26,7 @@ export {
   type EventReviewState,
   type FootageState,
   type InvitationState,
+  type JobChipState,
 } from "./StatusChip";
 export { TeamMarker, type Side } from "./TeamMarker";
 export { ThemeScope, ThemeScript } from "./theme";

@@ -125,6 +125,19 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
   ],
   ["Lab layout", () => import("@/app/(app)/lab/layout"), session.LAB_ROLES],
   ["/lab", () => import("@/app/(app)/lab/page"), session.LAB_ROLES],
+  // C09: the Lab's benchmark, match benchmark and calibration pages.
+  ["/lab/matches", () => import("@/app/(app)/lab/matches/page"), session.LAB_ROLES],
+  [
+    "/lab/matches/[matchId]",
+    () => import("@/app/(app)/lab/matches/[matchId]/page"),
+    session.LAB_ROLES,
+  ],
+  [
+    "/lab/matches/[matchId]/calibration",
+    () => import("@/app/(app)/lab/matches/[matchId]/calibration/page"),
+    session.LAB_ROLES,
+  ],
+  ["/lab/benchmark", () => import("@/app/(app)/lab/benchmark/page"), session.LAB_ROLES],
 ];
 
 beforeEach(() => {

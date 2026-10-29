@@ -86,6 +86,7 @@ export function SubmitButton({
   pendingLabel,
   className,
   children,
+  pending: pendingProp = false,
   ...rest
 }: {
   variant?: ButtonVariant;
@@ -95,6 +96,8 @@ export function SubmitButton({
   pendingLabel: string;
   className?: string;
   children: ReactNode;
+  /** useActionState's isPending, for a form dispatched from onSubmit (useFormAction). */
+  pending?: boolean;
   "aria-label"?: string;
   ref?: Ref<HTMLButtonElement>;
   /**
@@ -103,7 +106,8 @@ export function SubmitButton({
    */
   formAction?: ComponentProps<"button">["formAction"];
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = status.pending || pendingProp;
   return (
     <Button
       type="submit"
@@ -135,7 +139,8 @@ export function FormBusy({ formRef }: { formRef: RefObject<HTMLFormElement | nul
 
 /** Moves focus to the first invalid field after a result with field errors. */
 export function useFocusFirstInvalid(
-  formRef: RefObject<HTMLFormElement | null>,
+  /** Usually the form; any container of the fields works (C09 calibration points list). */
+  formRef: RefObject<HTMLElement | null>,
   state: ActionResult,
 ) {
   useEffect(() => {

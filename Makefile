@@ -3,6 +3,7 @@ COMPOSE := docker compose
 WEB := $(COMPOSE) exec web
 
 .PHONY: help env up down logs ps migrate migrate-new seed fixtures test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run cv-image reset
+.PHONY: cv-bench cv-image-gpu cv-golden
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -92,5 +93,16 @@ lint: ## Lint and typecheck everything
 cv-image: ## Build the CV worker image the cv-dispatcher starts per job (C08)
 	$(COMPOSE) --profile cv-image build cv-worker
 
-cv-run: ## Run the CV worker standalone: make cv-run video=match.mp4 calibration=cal.json out=./out
-	cd cv_worker && uv run python -m wideline_cv run --video $(video) --calibration $(calibration) --out $(or $(out),./out)
+cv-run: ## Run the CV worker standalone: make cv-run video=match.mp4 [calibration=cal.json] [mode=synthetic] out=./out
+	cd cv_worker && uv run python -m wideline_cv run --video $(video) $(if $(calibration),--calibration $(calibration)) $(if $(mode),--mode $(mode)) --out $(or $(out),./out)
+
+# C09 (NFR01): time each pipeline stage. Synthetic by default; a 90-minute
+# file needs WIDELINE_CV_SYNTHETIC_MAX_SEC=5400 to run its full length.
+cv-bench: ## Time the CV pipeline on a video: make cv-bench video=match.mp4 [mode=synthetic]
+	cd cv_worker && uv run python -m wideline_cv bench --video $(video) $(if $(mode),--mode $(mode),--mode synthetic)
+
+cv-image-gpu: ## Build the GPU model image by hand (RF-DETR; waits on B-001, never in CI)
+	docker build --target gpu -t wideline-cv-worker:gpu cv_worker
+
+cv-golden: ## Regenerate the golden synthetic CV result and truth used by the web tests (C09)
+	cd cv_worker && uv run python -m wideline_cv golden --out ../web/tests/fixtures/cv

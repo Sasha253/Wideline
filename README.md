@@ -221,6 +221,36 @@ docs/                PRD
   emails platform admins once (`src/server/processing/alerts.ts`; transcodes
   too). A consent withdrawal deletes the player's tracks and unlinks their
   events (`src/server/cv/withdrawal.ts`).
+- **CV pipeline** (CV02 to CV08, CV11, NFR01; C09): the worker
+  (`cv_worker/wideline_cv/pipeline/`) samples at 5 fps, detects people and the
+  ball, tracks them (ByteTrack vendored from supervision, MIT, and a ball
+  tracker), splits the teams by kit colour, calibrates the pitch, votes on
+  shirt numbers and finds goals, shots (on target or not) and touches, then
+  writes contract 1.0 and a calibration still. Two modes, `WIDELINE_CV_MODE`:
+  `synthetic` (the default everywhere: a seeded scene rendered and "detected"
+  with noise, no GPU, weights or network; `modelVersions` say `synthetic-1`)
+  and `model` (RF-DETR, Apache-2.0, from the `model` extra and weights baked
+  into the hand-built GPU image; waits on blocker B-001). The dispatcher
+  passes the mode (`CV_PIPELINE_MODE`, default `synthetic`), the venue's
+  stored calibration and a signed still URL. Ingest also picks home and away
+  from lineup shirt numbers (Q-041), stores `Track.distanceM`
+  (`src/lib/positions.ts`) and the video's `PitchCalibration`, and creates the
+  `clips` job: the transcode worker cuts one 720p MP4 per event from the raw
+  footage (`src/worker/clips.ts`) under `orgs/{org}/matches/{match}/clips/`,
+  with `storage_bytes` usage, and `expiresAt` = upload + 14 days unless a
+  `ClipFavourite` exists (database triggers). A match is review-ready once
+  transcode, cv and clips have all succeeded. The CV Lab (`/lab`) shows recall
+  against hand-tagged CSV imports per match and per model version (the v0
+  gate: 95% of goals and shots), time to review-ready, and a pitch calibration
+  tool that is reused per venue and camera.
+
+  ```sh
+  make cv-run video=match.mp4 mode=synthetic   # result.json and still.png in ./out
+  make cv-bench video=match.mp4                # stage timings (synthetic; add
+                                               # WIDELINE_CV_SYNTHETIC_MAX_SEC=5400 for 90 min)
+  make cv-golden                               # regenerate web/tests/fixtures/cv after a pipeline change
+  make cv-image-gpu                            # the GPU model image, by hand only (B-001)
+  ```
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and

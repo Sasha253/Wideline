@@ -7,7 +7,8 @@ import { processingTimings } from "./timings";
 
 /**
  * What the match page shows about processing (MATCH07, NFR31 as plain status;
- * docs/build/design/C07.md, Surface 2): the transcode and CV jobs' states and
+ * docs/build/design/C07.md, Surface 2; C09 adds the clips job): the
+ * transcode, CV and clips jobs' states and
  * attempt counts, and the estimated finish from measured timings. Read through
  * the scoped client. Never carries errorMessage: technical error text is not
  * for clubs.
@@ -19,6 +20,8 @@ export type ProcessingStep = {
   maxAttempts: number;
   startedAt: Date | null;
   finishedAt: Date | null;
+  /** Clips job only: how many clips it cut, once succeeded. */
+  clips?: number;
 };
 
 export type ProcessingSummary = {
@@ -26,6 +29,8 @@ export type ProcessingSummary = {
   transcode: ProcessingStep | null;
   /** The accepted video's CV job, or null (accepted before C08). */
   cv: ProcessingStep | null;
+  /** C09: the clips job, or null until the CV ingest creates it. */
+  clips: ProcessingStep | null;
   /** The estimated finish, or null before the probe has run. */
   readyAt: Date | null;
 };
@@ -37,6 +42,7 @@ const STEP_SELECT = {
   maxAttempts: true,
   startedAt: true,
   finishedAt: true,
+  metadata: true,
 } as const;
 
 /** The processing summary for the match's accepted video, or null when it has none. */
@@ -53,25 +59,28 @@ export async function processingSummary(
   if (!video) return null;
   const [jobs, timings] = await Promise.all([
     ctx.db.processingJob.findMany({
-      where: { matchId, videoId: video.id, type: { in: ["transcode", "cv"] } },
+      where: { matchId, videoId: video.id, type: { in: ["transcode", "cv", "clips"] } },
       select: STEP_SELECT,
     }),
     processingTimings(),
   ]);
-  const step = (type: "transcode" | "cv"): ProcessingStep | null => {
+  const step = (type: "transcode" | "cv" | "clips"): ProcessingStep | null => {
     const job = jobs.find((j) => j.type === type);
     if (!job) return null;
+    const count = (job.metadata as { count?: unknown } | null)?.count;
     return {
       status: job.status,
       attempts: job.attempts,
       maxAttempts: job.maxAttempts,
       startedAt: job.startedAt,
       finishedAt: job.finishedAt,
+      ...(type === "clips" && typeof count === "number" && { clips: count }),
     };
   };
   return {
     transcode: step("transcode"),
     cv: step("cv"),
+    clips: step("clips"),
     readyAt: estimatedReadyAt(video, timings),
   };
 }

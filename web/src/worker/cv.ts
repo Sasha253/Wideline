@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { cameraKey, reusableCalibration, venueKey } from "../server/cv/calibration";
 import { cvConfig } from "../server/cv/config";
 import { CvResultInvalid, MAX_RESULT_BYTES, parseCvResult } from "../server/cv/contract";
 import { ingestCvResult } from "../server/cv/ingest";
@@ -20,7 +21,7 @@ import { gpuProvider } from "../server/cv/providers";
 import type { GpuProvider } from "../server/cv/providers/types";
 import { rawDb } from "../server/db/raw";
 import { log } from "../server/log";
-import { cvResultKey } from "../server/matches/keys";
+import { cvResultKey, cvStillKey } from "../server/matches/keys";
 import { fromStatusesFor } from "../server/matches/status";
 import { alertPlatformAdmins } from "../server/processing/alerts";
 import {
@@ -34,6 +35,7 @@ import {
 } from "../server/processing/jobs";
 import type { CvJob } from "../server/queue";
 import { bucket, s3Internal } from "../server/storage";
+import { sendClipsJob } from "./clips";
 
 /**
  * The CV job (C08; CV01, CV09, CV10, NFR04, NFR06, NFR07, NFR30, NFR31). One
@@ -50,6 +52,12 @@ import { bucket, s3Internal } from "../server/storage";
  * it, and platform admins get one email (NFR30). Every state change is one
  * "processing job" log line (NFR31), ids and counts only. The instance's
  * environment carries ids and signed URLs, never names or lineups.
+ *
+ * C09: the spec also carries the probed video size, the venue's stored
+ * calibration (reusableCalibration, or null) and a signed PUT for the
+ * attempt's calibration still; the pipeline mode and synthetic seed go in as
+ * WIDELINE_CV_MODE and WIDELINE_CV_SYNTHETIC_SEED. After the ingest commits,
+ * the clips job it created is sent.
  */
 
 /** How often the handler checks the instance while it runs. */
@@ -69,6 +77,8 @@ export type CvDeps = {
   pollMs?: number;
   /** Reads the result file; the default checks its size first and hashes it. */
   loadResult?: (key: string) => Promise<LoadedResult>;
+  /** C09: sends the clips job after the ingest; the default goes through pg-boss. */
+  sendClips?: (job: JobRef) => Promise<void>;
 };
 
 /** Reads a result from object storage: size-capped, sha256 computed. */
@@ -133,7 +143,9 @@ export async function handleCvJob(
       matchId: true,
       durationSec: true,
       fps: true,
-      match: { select: { status: true } },
+      width: true,
+      height: true,
+      match: { select: { status: true, venue: true } },
     },
   });
   if (!row || !video || row.videoId !== videoId || row.type !== "cv") {
@@ -167,6 +179,14 @@ export async function handleCvJob(
 
   const resultKey = cvResultKey(organisationId, video.matchId, job.id, attempt);
   const durationMs = video.durationSec ? Math.round(video.durationSec * 1000) : null;
+  // CV05: the venue's manual calibration, reused (A-7); none means the worker
+  // falls back to a frame fit.
+  const calibration = await reusableCalibration(
+    rawDb,
+    organisationId,
+    venueKey(video.match.venue),
+    cameraKey(video.width, video.height),
+  );
   let videoUrl: string | undefined;
   let instance: InstanceRef | undefined;
   try {
@@ -186,6 +206,15 @@ export async function handleCvJob(
         new PutObjectCommand({ Bucket: bucket(), Key: resultKey, ContentType: "application/json" }),
         { expiresIn: ttl },
       );
+      const stillUrl = await getSignedUrl(
+        s3Internal(),
+        new PutObjectCommand({
+          Bucket: bucket(),
+          Key: cvStillKey(organisationId, video.matchId, job.id, attempt),
+          ContentType: "image/png",
+        }),
+        { expiresIn: ttl },
+      );
       const spec = {
         jobId: job.id,
         matchId: video.matchId,
@@ -198,13 +227,23 @@ export async function handleCvJob(
         sampledFps: SAMPLED_FPS,
         durationSec: video.durationSec,
         fps: video.fps,
+        width: video.width,
+        height: video.height,
+        calibration,
+        stillUrl,
       };
       try {
         const started = await provider.start({
           instanceId: instance.id,
           processingJobId: job.id,
           image: cfg.CV_WORKER_IMAGE,
-          env: { WIDELINE_JOB: JSON.stringify(spec) },
+          env: {
+            WIDELINE_JOB: JSON.stringify(spec),
+            WIDELINE_CV_MODE: cfg.CV_PIPELINE_MODE,
+            ...(cfg.CV_SYNTHETIC_SEED !== undefined && {
+              WIDELINE_CV_SYNTHETIC_SEED: String(cfg.CV_SYNTHETIC_SEED),
+            }),
+          },
         });
         instance = await markInstanceStarted(instance, started.providerInstanceId, now());
       } catch (err) {
@@ -215,6 +254,8 @@ export async function handleCvJob(
         gpuInstanceId: instance.id,
         provider: provider.name,
         startupMs: instance.startedAt!.getTime() - instance.requestedAt.getTime(),
+        mode: cfg.CV_PIPELINE_MODE,
+        calibrationId: calibration?.id ?? null,
       });
     }
 
@@ -254,6 +295,7 @@ export async function handleCvJob(
       startupMs: settled.startedAt
         ? settled.startedAt.getTime() - settled.requestedAt.getTime()
         : null,
+      calibrationId: calibration?.id ?? null,
       now: now(),
     });
     await markJobSettled(job.id, now());
@@ -263,6 +305,12 @@ export async function handleCvJob(
     }
     jobLog("ingested", job, { ...outcome.counts, matchReady: outcome.matchReady });
     jobLog("succeeded", { ...job, status: "succeeded", finishedAt: now() });
+    // CV11: a failed send leaves the clips job queued; the cv watchdog resends it.
+    if (outcome.clipsJob) {
+      await (deps.sendClips ?? sendClipsJob)(outcome.clipsJob).catch((err: unknown) =>
+        log.warn({ err: String(err), processingJobId: job.id }, "clips job send failed"),
+      );
+    }
     return "succeeded";
   } catch (err) {
     if (err instanceof JobGone) {

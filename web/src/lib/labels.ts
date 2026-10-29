@@ -353,3 +353,17 @@ export function formatVideoTime(ms: number, decimals: 0 | 1 = 1): string {
 export function formatFps(fps: number): string {
   return new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(fps);
 }
+
+/**
+ * C09 (Lab recall): a rate as whole percent rounded down, so 94.6% reads 94%
+ * and never as meeting a 95% target. Null when there is nothing to divide by.
+ */
+export function formatRate(matched: number, total: number): string | null {
+  if (total <= 0) return null;
+  return `${Math.floor((100 * matched) / total)}%`;
+}
+
+/** Q-048: fewer tags than this of one type, per match or per model version, is a small sample. */
+export const SMALL_SAMPLE_TAGS = 10;
+/** Q-048: fewer matches than this behind a model version's numbers is a small sample. */
+export const SMALL_SAMPLE_MATCHES = 3;

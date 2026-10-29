@@ -23,6 +23,7 @@ export function ConfirmDialog({
   form,
   hidden,
   submit,
+  closeOnError = false,
   children,
 }: {
   trigger: {
@@ -38,6 +39,11 @@ export function ConfirmDialog({
   form: SectionForm;
   hidden: Record<string, string>;
   submit: { label: string; pendingLabel: string; variant: "primary" | "danger" };
+  /**
+   * Close on an error too, when the caller shows it on the page instead (C09
+   * calibration: the point fields the server marks are behind the dialog).
+   */
+  closeOnError?: boolean;
   /** Fields. A function gets the result on screen, for field errors (C02 reason fields). */
   children?: ReactNode | ((visible: ActionResult) => ReactNode);
 }) {
@@ -45,15 +51,15 @@ export function ConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const bodyId = useId();
-  const { state, formProps } = form;
+  const { state, pending, formProps } = form;
   // The result that was on screen when the dialog last opened, so a reopened
   // dialog does not show a stale error.
   const [dismissed, setDismissed] = useState<ActionResult>(null);
   const [formKey, setFormKey] = useState(0);
 
   useEffect(() => {
-    if (state?.ok) dialogRef.current?.close();
-  }, [state]);
+    if (state?.ok || (closeOnError && state)) dialogRef.current?.close();
+  }, [state, closeOnError]);
 
   function open() {
     setDismissed(state);
@@ -95,7 +101,13 @@ export function ConfirmDialog({
           {body}
         </div>
         {/* noValidate: required fields get the server's copy (C02 suspension reason), not a browser tooltip. */}
-        <form key={formKey} {...formProps} noValidate className="mt-4 flex flex-col gap-4">
+        <form
+          key={formKey}
+          {...formProps}
+          noValidate
+          aria-busy={pending || undefined}
+          className="mt-4 flex flex-col gap-4"
+        >
           {Object.entries(hidden).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}
@@ -105,7 +117,11 @@ export function ConfirmDialog({
             <Button ref={cancelRef} variant="secondary" onClick={() => dialogRef.current?.close()}>
               Cancel
             </Button>
-            <SubmitButton variant={submit.variant} pendingLabel={submit.pendingLabel}>
+            <SubmitButton
+              variant={submit.variant}
+              pendingLabel={submit.pendingLabel}
+              pending={pending}
+            >
               {submit.label}
             </SubmitButton>
           </div>

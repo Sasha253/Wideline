@@ -9,12 +9,19 @@
  * Players are shirt-number placeholders, not named people, so the Lab never
  * derives per-player data about a named, non-consented child (NFR-08).
  * "Opposition U17" is an opposition team (Team.isOpposition, SQUAD07).
+ *
+ * C09: a second Lab match, "Benchmark", carries the synthetic scene's ground
+ * truth (tests/fixtures/cv/synthetic-truth.csv) as tags, so the Lab shows
+ * recall once footage is uploaded to it and the synthetic CV run finishes.
  */
 import "dotenv/config";
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { hashPassword } from "better-auth/crypto";
 import { rawDb as db } from "../src/server/db/raw";
 import { ensurePilotPlan, ensureSubscription } from "../src/server/entitlements/plans";
+import { parseTagsCsv } from "../src/server/lab/tags";
 import { ensureScoutNetwork, SCOUT_NETWORK_NAME } from "../src/server/scouts/network";
 
 const ORG_NAME = "Wideline Lab";
@@ -172,6 +179,48 @@ async function main() {
         startedAt: 0,
       })),
     });
+  }
+
+  // C09: the Lab benchmark match and its synthetic ground-truth tags.
+  const benchmark = await db.match.findFirst({
+    where: { organisationId: org.id, competition: "Benchmark" },
+  });
+  const [labHome, labAway] = await Promise.all(
+    ["Lab Academy U17", "Opposition U17"].map((name) =>
+      db.team.findFirst({ where: { organisationId: org.id, name } }),
+    ),
+  );
+  if (!benchmark && labHome && labAway) {
+    const created = await db.match.create({
+      data: {
+        organisationId: org.id,
+        homeTeamId: labHome.id,
+        awayTeamId: labAway.id,
+        playedAt: new Date("2026-10-25T10:00:00+02:00"),
+        venue: "Lab Training Ground",
+        competition: "Benchmark",
+      },
+    });
+    const csv = readFileSync(
+      join(import.meta.dirname, "../tests/fixtures/cv/synthetic-truth.csv"),
+      "utf8",
+    );
+    const parsed = parseTagsCsv(csv, null);
+    if (parsed.ok) {
+      const importBatchId = randomUUID();
+      await db.benchmarkTag.createMany({
+        data: parsed.rows.map((r) => ({
+          organisationId: org.id,
+          matchId: created.id,
+          type: r.type,
+          timestampMs: r.timestampMs,
+          teamSide: r.teamSide,
+          onTarget: r.onTarget,
+          source: "synthetic" as const,
+          importBatchId,
+        })),
+      });
+    }
   }
 
   // Opposition teams hold unnamed placeholders only (SQUAD07). Marks the Lab's

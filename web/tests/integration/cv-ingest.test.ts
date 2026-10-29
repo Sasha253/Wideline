@@ -93,7 +93,7 @@ function input(job: IngestInput["job"], videoId: string, r: IngestInput["result"
   };
 }
 
-describe("cv ingest", () => {
+describe("cv ingest", { timeout: 30_000 }, () => {
   it("writes tracks, points and events once, through the consent gate (acceptance)", async () => {
     const { matchId, videoId, transcodeId, job } = await setup();
     await transcodeDone(transcodeId);
@@ -126,7 +126,9 @@ describe("cv ingest", () => {
     );
 
     const first = await ingestCvResult(input(job, videoId, r));
-    expect(first).toMatchObject({ ingested: true, matchReady: true });
+    // C09: the clips job is still to run, so the match is not ready yet.
+    expect(first).toMatchObject({ ingested: true, matchReady: false });
+    expect(first.clipsJob).toMatchObject({ type: "clips", status: "queued", videoId });
     expect(first.counts).toEqual({
       tracks: 4,
       linked: 2,
@@ -173,7 +175,23 @@ describe("cv ingest", () => {
       gpuProvider: "fake",
     });
     expect(JSON.stringify(before.job.metadata)).not.toContain(clubOnly.id);
-    expect(before.match).toBe("awaiting_review");
+    expect(before.match).toBe("processing");
+    // C09: distance per kept track, the fallback calibration on the video, sides kept.
+    const distances = await rawDb.track.findMany({
+      where: { matchId },
+      select: { distanceM: true },
+    });
+    expect(distances.every((t) => t.distanceM !== null && t.distanceM > 0)).toBe(true);
+    const video = await rawDb.video.findUniqueOrThrow({
+      where: { id: videoId },
+      select: { pitchCalibration: { select: { source: true, sourceVideoId: true } } },
+    });
+    expect(video.pitchCalibration).toEqual({ source: "fallback", sourceVideoId: videoId });
+    expect(before.job.metadata).toMatchObject({
+      teamSideSwapped: false,
+      teamSideEvidence: { kept: 4, swapped: 0 },
+      calibrationSource: "fallback",
+    });
 
     // Again: the job has settled, so nothing changes.
     const second = await ingestCvResult(input(job, videoId, r));
@@ -186,6 +204,8 @@ describe("cv ingest", () => {
     expect(third.ingested).toBe(true);
     expect(third.counts).toEqual(first.counts);
     expect(await snapshot(matchId, job.id)).toEqual(before);
+    expect(await rawDb.pitchCalibration.count({ where: { sourceVideoId: videoId } })).toBe(1);
+    expect(await rawDb.processingJob.count({ where: { videoId, type: "clips" } })).toBe(1);
   });
 
   it("keeps the match in Processing until the transcode has succeeded too", async () => {

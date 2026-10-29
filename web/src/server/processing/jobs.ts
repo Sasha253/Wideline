@@ -182,6 +182,15 @@ export function createCvJob(tx: Prisma.TransactionClient, video: VideoRef) {
   return createJob(tx, "cv", video);
 }
 
+/**
+ * The video's clips job (C09; CV11), created in the CV ingest transaction (or
+ * by the cv watchdog for a match ingested before C09). It runs in parallel
+ * with the transcode.
+ */
+export function createClipsJob(tx: Prisma.TransactionClient, video: VideoRef) {
+  return createJob(tx, "clips", video);
+}
+
 async function jobFor(
   organisationId: string,
   videoId: string,
@@ -201,6 +210,11 @@ export function transcodeJobFor(organisationId: string, videoId: string): Promis
 /** The video's CV job, or null. */
 export function cvJobFor(organisationId: string, videoId: string): Promise<JobRef | null> {
   return jobFor(organisationId, videoId, "cv");
+}
+
+/** The video's clips job, or null. */
+export function clipsJobFor(organisationId: string, videoId: string): Promise<JobRef | null> {
+  return jobFor(organisationId, videoId, "clips");
 }
 
 /** One job by id, in its organisation, or null. */

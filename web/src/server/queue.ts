@@ -16,6 +16,7 @@ export const QUEUES = {
   // C08 (NFR07): every minute, destroys GPU instances that are idle or have
   // outlived their job, and repairs lost CV jobs (src/worker/cv-watchdog.ts).
   cvWatchdog: "cv-watchdog",
+  // C09 (CV11): cut one clip per event after the CV ingest (src/worker/clips.ts).
   clips: "clips",
   // C05 (NFR11): a consent change took visibility away. Payload
   // ConsentWithdrawnJob. The handler is a stub until C12, C13 and C17 have
@@ -94,6 +95,20 @@ export function cvJobOptions(): { expireInSeconds: number } {
   const max = Number(process.env.CV_MAX_JOB_SECONDS) || 4 * 3600;
   return { expireInSeconds: max + 1800 };
 }
+
+/**
+ * The clips payload (C09): ids only, as TranscodeJob. Sent after the CV ingest
+ * commits, with ProcessingJob.bossJobId as the pg-boss id, so a resend (the cv
+ * watchdog repairing a lost send) is a no-op.
+ */
+export type ClipsJob = {
+  organisationId: string;
+  videoId: string;
+  processingJobId: string;
+};
+
+/** Send options for clips jobs: hundreds of short ffmpeg runs stay well inside 3 h. */
+export const CLIPS_JOB_OPTIONS = { expireInSeconds: 3 * 3600 } as const;
 
 /** The consent-withdrawn payload: ids only, never names (children's data). */
 export type ConsentWithdrawnJob = {

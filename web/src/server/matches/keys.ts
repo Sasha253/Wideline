@@ -19,3 +19,17 @@ export function cvResultKey(
 ): string {
   return `${matchPrefix(organisationId, matchId)}cv/${jobId}/attempt-${attempt}/result.json`;
 }
+
+/**
+ * C09: the calibration still a CV attempt saves for the Lab (PNG), next to its
+ * result: orgs/{org}/matches/{match}/cv/{jobId}/attempt-{n}/still.png. C17
+ * removes stills with the rest of cv/.
+ */
+export function cvStillKey(
+  organisationId: string,
+  matchId: string,
+  jobId: string,
+  attempt: number,
+): string {
+  return `${matchPrefix(organisationId, matchId)}cv/${jobId}/attempt-${attempt}/still.png`;
+}

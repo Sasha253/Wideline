@@ -5,12 +5,13 @@ import { fromStatusesFor } from "../matches/status";
 
 /**
  * When a match is review-ready (C08; MATCH07): every required processing job
- * of its accepted video has succeeded. The transcode and cv jobs run in
- * parallel, so each one's success transaction calls this; the Match row lock
- * serialises them, so the second to finish always sees the first and the
- * match never stays in Processing. C09 appends "clips".
+ * of its accepted video has succeeded. The transcode runs in parallel with the
+ * cv job and then the clips job (C09, created by the cv ingest; review needs
+ * its clips cued up, A-12), so each one's success transaction calls this; the
+ * Match row lock serialises them, so the last to finish always sees the
+ * others and the match never stays in Processing.
  */
-export const REQUIRED_JOB_TYPES: readonly ProcessingJobType[] = ["transcode", "cv"];
+export const REQUIRED_JOB_TYPES: readonly ProcessingJobType[] = ["transcode", "cv", "clips"];
 
 /**
  * Moves the match Processing to Awaiting review if every required job of the

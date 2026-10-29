@@ -44,6 +44,12 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Track",
   "TrackPoint",
   "Event",
+  // C09: clips (CV11), favourites (scoped by the clip's organisation), pitch
+  // calibrations (CV05) and the Lab's ground-truth tags.
+  "Clip",
+  "ClipFavourite",
+  "PitchCalibration",
+  "BenchmarkTag",
 ]);
 
 // Tables no organisation may reach: the Better Auth tables, the scout tables
@@ -144,6 +150,8 @@ const USER_PRIVATE_RELATIONS = new Set([
   // C05: every consent a user recorded or requested, in any organisation.
   "consentsRecorded",
   "consentRequestsCreated",
+  // C09: a user's favourite clips span organisations.
+  "clipFavourites",
 ]);
 const USER_RELATION_KEYS = new Set(["user", "invitedBy", "acceptedBy", "recordedBy", "createdBy"]);
 

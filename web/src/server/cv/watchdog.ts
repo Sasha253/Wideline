@@ -26,6 +26,8 @@ export const START_LIMIT_MS = 10 * 60 * 1000;
 export const ORPHAN_GRACE_MS = 2 * 60 * 1000;
 /** A cv job queued this long without starting is sent again. */
 export const RESEND_AFTER_MS = 5 * 60 * 1000;
+/** C09: a clips job queued this long without starting is sent again (its send was lost). */
+export const CLIPS_RESEND_AFTER_MS = 10 * 60 * 1000;
 
 export type WatchdogInstance = {
   id: string;

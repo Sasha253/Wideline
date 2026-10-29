@@ -8,8 +8,10 @@ import { log } from "../log";
  * hours. If attributablePlayerIds() no longer passes the player, their events
  * lose the track, the player and the position, and their tracks are deleted
  * (the points cascade), in one transaction. A change to club only still
- * passes, so nothing is purged for it. Derived stats, clips and shortlists are
- * purged by C12, C13, C15 and C17 in the same job. Logs carry ids and counts.
+ * passes, so nothing is purged for it. The events' clips (C09) are kept: with
+ * the player unlinked they are team-level footage (QUESTIONS.md Q-047). Derived
+ * stats and shortlists are purged by C12 and C15 in the same job. Logs carry
+ * ids and counts.
  */
 export async function purgeUnattributablePlayerTracks(
   organisationId: string,

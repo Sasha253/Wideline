@@ -1,7 +1,13 @@
 import { useId, type ReactNode } from "react";
 import { BackLinkButton, type BackLink } from "./PageHeader";
 
-export type DetailSection = { id: string; title: string; content: ReactNode };
+export type DetailSection = {
+  id: string;
+  title: string;
+  content: ReactNode;
+  /** A stable h2 id other links point at ("#import"); the h2 then takes focus (C09). */
+  anchor?: string;
+};
 
 /**
  * One thing in depth, with a hero (docs/build/design/D02.md, Surface 5): a player
@@ -58,8 +64,12 @@ export function DetailPage({
       </section>
       {notice}
       {sections.map((s) => (
-        <section key={s.id} aria-labelledby={`${titleId}-${s.id}`} className="mt-8">
-          <h2 id={`${titleId}-${s.id}`} className="heading-2">
+        <section key={s.id} aria-labelledby={s.anchor ?? `${titleId}-${s.id}`} className="mt-8">
+          <h2
+            id={s.anchor ?? `${titleId}-${s.id}`}
+            className="heading-2"
+            tabIndex={s.anchor ? -1 : undefined}
+          >
             {s.title}
           </h2>
           <div className="mt-4">{s.content}</div>

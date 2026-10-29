@@ -333,3 +333,91 @@ These questions do not block the build. Each one has a default that the build is
 - **Recommended:** keep them for the pilot, and tune them from the Lab's recall numbers and real job timings (`cvTimings()`).
 - **Impact:** a constant or setting change and its tests. No schema change.
 - **Answer:**
+
+## Q-039 · C09 · Shirt-number recognition in v0
+
+- **Question:** The PRD suggests SoccerNet jersey-number recognition, which is research-only, so it cannot ship. Should v0 ship a number reader at all?
+- **Default taken:** no production reader. `NullReader` returns null, so CV links no tracks, and linking is the reviewer's job (C11). The reader interface and a synthetic reader are built and tested, and ingest linking is unchanged.
+- **Recommended:** keep the default for the pilot. Train an in-house digit recogniser on reviewer-linked crops once C11 has produced them, which we would own outright, as the PRD plans for events. Alternatively, approve a specific Apache-2.0 OCR model (for example PARSeq) after its weights' training-data terms are checked.
+- **Impact:** a reader implementation behind `NumberReader`, a LICENSES row and a weights pin. No schema change. Until then CV06 auto-linking is inactive in production, and per-player stats depend on reviewer links.
+- **Answer:**
+
+## Q-040 · C09 · A clip for every touch
+
+- **Question:** CV11 says one clip per detected event. Touches are by far the most common event (several hundred a match), which costs about 1 MB each for 14 days and adds CPU time. Should touches get clips?
+- **Default taken:** yes, every event, as CV11 says.
+- **Recommended:** keep it for the pilot and measure storage per match against NFR05's R120. If it is over budget, cut touch clips only for `pending_review` touches.
+- **Impact:** one filter in `src/worker/clips.ts` and its test. No schema change.
+- **Answer:**
+
+## Q-041 · C09 · Telling home from away
+
+- **Question:** Kit-colour clustering finds two teams but cannot know which is home. How should the pipeline decide?
+- **Default taken:** cluster 0 is reported as home, and ingest swaps the sides when the swap makes more readable shirt numbers match the lineups. With no reader (Q-039), sides are unconfirmed and C11 gets a "swap teams" action. No warning is stored for this: "not confirmed" is derived from the teamSideEvidence counts (kept, swapped) that ingest writes to the CV job's metadata.
+- **Recommended:** add an optional kit colour per side to the match form (C06), and send it in the job spec. That is reliable and needs no model.
+- **Impact:** two optional columns on Match (or Team), one form field pair, one spec field, and a matching step in `teams.py`.
+- **Answer:**
+
+## Q-042 · C09 · How pitch calibration is done
+
+- **Question:** The PRD suggests a SoccerNet keypoint model, which is research-only. How is the pitch calibrated per venue and camera in v0?
+- **Default taken:** a platform admin places 4 to 12 landmarks on a still in the Lab once per venue and camera. That calibration is reused for later matches at the venue, and saving re-projects the current match's stored positions. Until then the worker uses a low-confidence frame-fit fallback with a warning.
+- **Recommended:** keep it for the pilot (5 clubs, fixed cameras). This matches the PRD risk table's "per-venue calibration that is checked once and reused". Add an automatic estimator later.
+- **Impact:** automatic calibration would be a new `auto` source and a model with its own licence check. No schema change (the `CalibrationSource.auto` value already exists).
+- **Answer:**
+
+## Q-043 · C09 · Pitch coordinate frame
+
+- **Question:** The contract says the origin is at the bottom-left corner of the attacking-left team. The CV job runs before half-time markers exist (C08). Is it acceptable to store camera-fixed coordinates and orient them per team at read time?
+- **Default taken:** yes. TrackPoints and Events are camera-fixed, and `orientForTeam()` normalises them using the markers.
+- **Recommended:** keep it. It survives markers set later and recalibration.
+- **Impact:** otherwise ingest would have to wait for markers, or rewrite points when markers change. That means a re-projection like the calibration one, with no schema change.
+- **Answer:**
+
+## Q-044 · C09 · ByteTrack from supervision: package or vendored
+
+- **Question:** CHUNKS.md says to use `supervision` (MIT). The package pulls in tqdm and certifi (MPL-2.0) and matplotlib (PSF), which fall outside the Apache, MIT and BSD rule. Should we depend on the package, or vendor its MIT ByteTrack?
+- **Default taken:** vendor the ByteTrack module, with the MIT notice. Core deps stay numpy and scipy.
+- **Recommended:** vendor it. Upstream fixes are then copied by hand, and the code is small.
+- **Impact:** a dependency line plus deleting the vendored file. The licence exception list gains the transitive packages.
+- **Answer:**
+
+## Q-045 · C09 · Clip format and audio
+
+- **Question:** Are 720p H.264 MP4 clips at CRF 26 with match audio right? Audio follows Q-030 (still unanswered).
+- **Default taken:** these settings, with audio kept when the source has it.
+- **Recommended:** keep them. Drop audio together with the HLS if the lawyer advises it under Q-030.
+- **Impact:** constants in `ffmpegClipArgs()` and their unit test. Existing clips keep their format until they expire.
+- **Answer:**
+
+## Q-046 · C09 · How recall is measured in the Lab
+
+- **Question:** What counts as a match between a detected event and a hand tag, and which events count?
+- **Default taken:** same type, within ±2 s for goals and shots and ±1 s for touches, one-to-one greedy matching, every CV event of the job whatever its status. Auto-accepted recall is shown alongside. The v0 gate reads goal and shot recall of 95% or more.
+- **Recommended:** keep it, and agree the tolerances with whoever hand-tags the pilot fixtures.
+- **Impact:** constants in `src/server/lab/recall.ts` and their tests.
+- **Answer:**
+
+## Q-047 · C09 · Clips of events from non-consented players
+
+- **Question:** An event whose track was discarded at the consent gate is kept at team level (C08). Should it still get a clip? The clip is whole-pitch footage, but the child in it is the event's subject.
+- **Default taken:** yes, cut it. The clip is not linked to any player, and C08 keeps the event.
+- **Recommended:** keep it for the pilot, and add it to the privacy lawyer's reviewer-footage question at the v0 gate, with Q-035. The same goes for withdrawal: when a player's consent is withdrawn, their events are unlinked and their clips are kept at team level, not purged. Ask the privacy lawyer whether a withdrawn player's clips should be deleted instead.
+- **Impact:** skipping it is one filter in the clips worker. Review (C11) would then show such events without a clip.
+- **Answer:**
+
+## Q-048 · C09 · Small-sample thresholds for recall in the Lab
+
+- **Question:** The design system flags a small sample under 3 matches for player stats. What counts as a small sample for detector recall in the Lab?
+- **Default taken:** per match, fewer than 10 tags of an event type; on the benchmark page, fewer than 3 matches or fewer than 10 tags of a type. The flag reads "Small sample · {n} tagged" or "Small sample · {n} matches"; the rate and the 95% verdict still show (`docs/build/design/C09.md`).
+- **Recommended:** keep it for the pilot, then raise the benchmark bar (for example 30 tagged goals) before the v0 gate is signed off, since a 95% target needs dozens of goals to mean anything.
+- **Impact:** two constants next to `formatRate()` and their unit tests. No schema change.
+- **Answer:**
+
+## Q-049 · C09 · Keeping the points of a manual calibration
+
+- **Question:** `PitchCalibration` stores the fitted matrix and the point count, not the landmark points. Should it keep the points, so the Lab calibration tool can reload and adjust an earlier calibration instead of starting from nothing?
+- **Default taken:** do not store them. The tool starts with no points and draws the current calibration's pitch lines (dashed) for comparison.
+- **Recommended:** store them as a `correspondences Json?` column on manual calibrations; it is small, and fixing one stray point is much quicker than placing 8 again.
+- **Impact:** one nullable column in the C09 migration, written by `saveManualCalibration`, and a preload in the calibration page. No change to reuse or re-projection.
+- **Answer:**

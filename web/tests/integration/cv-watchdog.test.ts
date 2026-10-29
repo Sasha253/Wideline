@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { markInstanceStarted, requestInstance } from "@/server/cv/instances";
 import { rawDb } from "@/server/db/raw";
-import { markRunning } from "@/server/processing/jobs";
+import { createClipsJob, markRunning } from "@/server/processing/jobs";
 import { handleCvWatchdog, type WatchdogDeps } from "@/worker/cv-watchdog";
 import { fixtures } from "./helpers/fixtures";
 import {
@@ -19,6 +19,8 @@ import { acceptedVideo } from "./helpers/transcode";
 // cv job queued 5 minutes without starting is sent again; a running job whose
 // pg-boss job failed for good (a crashed dispatcher) is failed with its match,
 // and platform admins are told once; an alert whose email failed is sent again.
+// C09: a clips job queued 10 minutes without starting is sent again, and a
+// succeeded cv job with no clips job (ingested before C09) gets one.
 
 const deliverMail = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/server/mail-transport", () => ({ deliverMail }));
@@ -57,7 +59,12 @@ describe("handleCvWatchdog", () => {
     provider.states.set("fake-x", "running");
 
     const later = new Date(t0.getTime() + 10 * MIN);
-    const summary = await handleCvWatchdog({ provider, now: () => later, resend: vi.fn() });
+    const summary = await handleCvWatchdog({
+      provider,
+      now: () => later,
+      resend: vi.fn(),
+      sendClips: vi.fn(),
+    });
     expect(summary.destroyed).toBeGreaterThanOrEqual(1);
     const row = await rawDb.gpuInstance.findUniqueOrThrow({ where: { id: instance.id } });
     expect(row).toMatchObject({
@@ -76,7 +83,7 @@ describe("handleCvWatchdog", () => {
       data: { queuedAt: new Date(Date.now() - 6 * MIN) },
     });
     const resend = vi.fn(async () => {});
-    await handleCvWatchdog({ provider: new FakeGpuProvider(), resend });
+    await handleCvWatchdog({ provider: new FakeGpuProvider(), resend, sendClips: vi.fn() });
     expect(resend.mock.calls.map((c) => (c as unknown as [{ id: string }])[0].id)).toContain(
       job.id,
     );
@@ -90,6 +97,7 @@ describe("handleCvWatchdog", () => {
       handleCvWatchdog({
         provider: new FakeGpuProvider(),
         resend: vi.fn(),
+        sendClips: vi.fn(),
         boss: boss as unknown as NonNullable<WatchdogDeps["boss"]>,
       });
     expect((await run()).reconciled).toBeGreaterThanOrEqual(1);
@@ -109,6 +117,57 @@ describe("handleCvWatchdog", () => {
     }
     await run();
     expect(alertsFor(deliverMail.mock.calls, job.id)).toHaveLength(alerts.length);
+  });
+
+  it("sends a clips job again after 10 minutes queued without starting (C09)", async () => {
+    const { matchId, job } = await setup();
+    const { job: clips } = await rawDb.$transaction((tx) =>
+      createClipsJob(tx, { organisationId: club.org.id, matchId, videoId: job.videoId! }),
+    );
+    const sendClips = vi.fn(async () => {});
+    const run = (minutes: number) =>
+      handleCvWatchdog({
+        provider: new FakeGpuProvider(),
+        resend: vi.fn(),
+        sendClips,
+        now: () => new Date(Date.now() + minutes * MIN),
+      });
+    await run(5);
+    expect(sendClips.mock.calls.map((c) => (c as unknown as [{ id: string }])[0].id)).not.toContain(
+      clips.id,
+    );
+    const summary = await run(11);
+    expect(summary.clipsResent).toBeGreaterThanOrEqual(1);
+    expect(sendClips.mock.calls.map((c) => (c as unknown as [{ id: string }])[0].id)).toContain(
+      clips.id,
+    );
+  });
+
+  it("backfills a clips job for a succeeded cv job that has none (C09)", async () => {
+    const { job } = await setup();
+    await rawDb.processingJob.update({
+      where: { id: job.id },
+      data: { status: "succeeded", attempts: 1, finishedAt: new Date() },
+    });
+    const sendClips = vi.fn(async () => {});
+    const summary = await handleCvWatchdog({
+      provider: new FakeGpuProvider(),
+      resend: vi.fn(),
+      sendClips,
+    });
+    expect(summary.clipsBackfilled).toBeGreaterThanOrEqual(1);
+    const clips = await rawDb.processingJob.findFirstOrThrow({
+      where: { videoId: job.videoId, type: "clips" },
+    });
+    expect(clips.status).toBe("queued");
+    expect(sendClips.mock.calls.map((c) => (c as unknown as [{ id: string }])[0].id)).toContain(
+      clips.id,
+    );
+    // Once is enough: the next run finds the clips job.
+    await handleCvWatchdog({ provider: new FakeGpuProvider(), resend: vi.fn(), sendClips });
+    expect(
+      await rawDb.processingJob.count({ where: { videoId: job.videoId, type: "clips" } }),
+    ).toBe(1);
   });
 
   it("sends an alert whose email failed, once, only for recent failures", async () => {
@@ -132,7 +191,8 @@ describe("handleCvWatchdog", () => {
     const recent = await failed(10);
     const fresh = await failed(1);
     const old = await failed(2 * 24 * 60);
-    const run = () => handleCvWatchdog({ provider: new FakeGpuProvider(), resend: vi.fn() });
+    const run = () =>
+      handleCvWatchdog({ provider: new FakeGpuProvider(), resend: vi.fn(), sendClips: vi.fn() });
 
     expect((await run()).realerted).toBeGreaterThanOrEqual(1);
     const alerts = alertsFor(deliverMail.mock.calls, recent.id);
