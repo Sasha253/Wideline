@@ -13,6 +13,9 @@ export const QUEUES = {
   probe: "probe",
   transcode: "transcode",
   cv: "cv",
+  // C08 (NFR07): every minute, destroys GPU instances that are idle or have
+  // outlived their job, and repairs lost CV jobs (src/worker/cv-watchdog.ts).
+  cvWatchdog: "cv-watchdog",
   clips: "clips",
   // C05 (NFR11): a consent change took visibility away. Payload
   // ConsentWithdrawnJob. The handler is a stub until C12, C13 and C17 have
@@ -70,6 +73,27 @@ export type TranscodeJob = {
  * the expiry sits above ffmpeg's own 4 h timeout (src/worker/transcode.ts).
  */
 export const TRANSCODE_JOB_OPTIONS = { expireInSeconds: 5 * 3600 } as const;
+
+/**
+ * The CV payload (C08): ids only, as TranscodeJob. Sent with
+ * ProcessingJob.bossJobId as the pg-boss id, so a resend is a no-op. The
+ * handler holds the job while its GPU instance runs (src/worker/cv.ts).
+ */
+export type CvJob = {
+  organisationId: string;
+  videoId: string;
+  processingJobId: string;
+};
+
+/**
+ * Send options for CV jobs: pg-boss expires an active job only after the
+ * longest attempt the dispatcher allows (CV_MAX_JOB_SECONDS, 4 h by default)
+ * plus 30 minutes, so the dispatcher's own deadline fires first.
+ */
+export function cvJobOptions(): { expireInSeconds: number } {
+  const max = Number(process.env.CV_MAX_JOB_SECONDS) || 4 * 3600;
+  return { expireInSeconds: max + 1800 };
+}
 
 /** The consent-withdrawn payload: ids only, never names (children's data). */
 export type ConsentWithdrawnJob = {

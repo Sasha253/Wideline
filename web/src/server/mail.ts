@@ -1,19 +1,6 @@
 import "server-only";
-import { createTransport, type Transporter } from "nodemailer";
 import { env } from "./env";
-
-let transport: Transporter | undefined;
-
-function getTransport(): Transporter {
-  const e = env();
-  transport ??= createTransport({
-    host: e.SMTP_HOST,
-    port: e.SMTP_PORT,
-    secure: e.SMTP_PORT === 465,
-    auth: e.SMTP_USER ? { user: e.SMTP_USER, pass: e.SMTP_PASSWORD } : undefined,
-  });
-  return transport;
-}
+import { deliverMail } from "./mail-transport";
 
 /** Sends one email. `html` is an optional HTML part next to the plain text (C05 guardian link). */
 export async function sendMail(
@@ -22,11 +9,7 @@ export async function sendMail(
   text: string,
   html?: string,
 ): Promise<void> {
-  await getTransport().sendMail({
-    from: env().MAIL_FROM,
-    to,
-    subject,
-    text,
-    ...(html && { html }),
-  });
+  // env() checks the SMTP settings at first use; the transport reads the same variables.
+  env();
+  await deliverMail(to, subject, text, html);
 }

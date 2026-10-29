@@ -117,7 +117,7 @@ describe("tenant isolation for processing jobs", () => {
     ).toMatch(/P2003|ProcessingJob_organisationId_matchId_fkey/);
   });
 
-  it("holds one transcode job per video, attempts within range, and an error when failed", async () => {
+  it("holds one job per video and type, attempts within range, and an error when failed", async () => {
     expect(
       await refusal(
         rawDb.processingJob.create({
@@ -130,17 +130,19 @@ describe("tenant isolation for processing jobs", () => {
           },
         }),
       ),
-    ).toMatch(/P2002|ProcessingJob_transcode_video_key/);
-    // Other job types are not limited here (C08, C09).
-    await rawDb.processingJob.create({
-      data: {
-        organisationId: a.org.id,
-        matchId: matchA,
-        videoId: videoA,
-        type: "cv",
-        bossJobId: randomUUID(),
-      },
-    });
+    ).toMatch(/P2002|ProcessingJob_video_type_key/);
+    // C08: one job per video and type, so a cv job sits next to the transcode,
+    // and a second cv job is refused.
+    const cv = {
+      organisationId: a.org.id,
+      matchId: matchA,
+      videoId: videoA,
+      type: "cv" as const,
+    };
+    await rawDb.processingJob.create({ data: { ...cv, bossJobId: randomUUID() } });
+    expect(
+      await refusal(rawDb.processingJob.create({ data: { ...cv, bossJobId: randomUUID() } })),
+    ).toMatch(/P2002|ProcessingJob_video_type_key/);
     expect(
       await refusal(rawDb.processingJob.update({ where: { id: jobA }, data: { attempts: 4 } })),
     ).toMatch(/ProcessingJob_attempts_range/);

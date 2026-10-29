@@ -30,8 +30,12 @@ const schema = z.object({
     .string()
     .default("true")
     .transform((v) => v === "true"),
+  // C08: the HMAC key for CV worker callbacks (src/server/cv/instances.ts). At
+  // least 32 characters in production. The worker side reads the same values
+  // through src/server/cv/config.ts.
   CV_CALLBACK_SECRET: z.string().min(8),
-  CV_DISPATCH: z.enum(["docker", "subprocess"]).default("docker"),
+  CV_DISPATCH: z.enum(["docker", "hourly"]).default("docker"),
+  CV_CALLBACK_BASE_URL: optional,
   SENTRY_DSN: optional,
   // AUTH09: the HMAC key for scout ID and passport numbers
   // (src/server/scouts/identity.ts). Required in production; elsewhere it falls
@@ -49,6 +53,13 @@ const checked = schema.superRefine((e, ctx) => {
       code: "custom",
       path: ["ID_HASH_SECRET"],
       message: "ID_HASH_SECRET is required in production",
+    });
+  }
+  if (e.NODE_ENV === "production" && e.CV_CALLBACK_SECRET.length < 32) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["CV_CALLBACK_SECRET"],
+      message: "CV_CALLBACK_SECRET must be at least 32 characters in production",
     });
   }
 });

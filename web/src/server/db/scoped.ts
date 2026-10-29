@@ -39,6 +39,11 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "Video",
   // C07: processing jobs (transcode; clips and cv from C08, C09).
   "ProcessingJob",
+  // C08: CV output. Written by the worker's ingest (src/server/cv/), read by
+  // review (C11) and stats (C12) through the scoped client.
+  "Track",
+  "TrackPoint",
+  "Event",
 ]);
 
 // Tables no organisation may reach: the Better Auth tables, the scout tables
@@ -56,6 +61,8 @@ const FORBIDDEN = new Set<Prisma.ModelName>([
   "Subscription",
   "Entitlement",
   "UsageEvent",
+  // C08: GPU instances carry internal cost (src/server/cv/).
+  "GpuInstance",
 ]);
 const ENTITLEMENTS_REASON =
   "plans and entitlements are set by Wideline; read them with entitlement() or may() from src/server/entitlements/";
@@ -66,6 +73,7 @@ const FORBIDDEN_REASON: Partial<Record<Prisma.ModelName, string>> = {
   Subscription: ENTITLEMENTS_REASON,
   Entitlement: ENTITLEMENTS_REASON,
   UsageEvent: "usage is recorded with recordUsage() from src/server/usage/meter.ts",
+  GpuInstance: "GPU instances and their cost are internal; use src/server/cv/",
 };
 
 const UNIQUE_WHERE_OPS = new Set(["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"]);
@@ -178,6 +186,8 @@ const ORG_PRIVATE_RELATIONS = new Set([
   "subscription",
   "entitlements",
   "usageEvents",
+  // C08: GPU instances and their cost.
+  "gpuInstances",
 ]);
 
 function assertOrgUpdateAllowed(data: unknown): void {

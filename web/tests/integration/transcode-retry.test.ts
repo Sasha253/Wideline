@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { PgBoss } from "pg-boss";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { rawDb } from "@/server/db/raw";
+import { alertPlatformAdmins } from "@/server/processing/alerts";
 import {
   DEAD_LETTER_QUEUE,
   getBoss,
@@ -12,6 +13,7 @@ import {
   type TranscodeJob,
 } from "@/server/queue";
 import { handleTranscode, type TranscodeRunner } from "@/worker/transcode";
+import { alertsFor, platformAdmin, platformAdminEmails } from "./helpers/cv";
 import { fixtures } from "./helpers/fixtures";
 import { jobsFor, match, setupClub } from "./helpers/matches";
 import { acceptedVideo } from "./helpers/transcode";
@@ -24,10 +26,15 @@ import { acceptedVideo } from "./helpers/transcode";
 // error, and the match moved Processing to Failed. Part two checks the real
 // `transcode` queue carries that policy. Needs only Postgres.
 
+// C08 (NFR30): the final failure emails platform admins, once.
+const deliverMail = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/server/mail-transport", () => ({ deliverMail }));
+
 const f = fixtures();
 const queue = `transcode-retry-test-${randomUUID().slice(0, 8)}`;
 let boss: PgBoss;
 let club: Awaited<ReturnType<typeof setupClub>>;
+let admin: { email: string };
 const attempts: number[] = [];
 const deadLettered: string[] = [];
 
@@ -41,6 +48,7 @@ const failing: TranscodeRunner = {
 beforeAll(async () => {
   boss = await getBoss();
   club = await setupClub(f, "Retry FC");
+  admin = await platformAdmin(f);
   await boss.createQueue(queue, queuePolicy(0));
   const options = { includeMetadata: true, batchSize: 1, pollingIntervalSeconds: 0.5 } as const;
   await boss.work<TranscodeJob, unknown, typeof options>(queue, options, async (jobs) => {
@@ -105,6 +113,18 @@ describe("transcode retries", { timeout: 90_000 }, () => {
     );
     expect(row.errorMessage).not.toMatch(/X-Amz|Signature/);
     expect((await rawDb.match.findUniqueOrThrow({ where: { id: matchId } })).status).toBe("failed");
+    // C08 (NFR30): platform admins were told once, with ids and no signed URL.
+    expect(row.alertedAt).not.toBeNull();
+    const alerts = alertsFor(deliverMail.mock.calls, job.id);
+    const admins = await platformAdminEmails();
+    expect(admins).toContain(admin.email);
+    expect(alerts.map((a) => a.to).sort()).toEqual(admins);
+    for (const a of alerts) {
+      expect(a.text).toContain(job.id);
+      expect(a.text).not.toMatch(/X-Amz|Signature/);
+    }
+    expect(await alertPlatformAdmins(row, "again")).toBe(false);
+    expect(alertsFor(deliverMail.mock.calls, job.id)).toHaveLength(alerts.length);
   });
 
   it("gives the real transcode queue 3 attempts and the dead-letter queue", async () => {

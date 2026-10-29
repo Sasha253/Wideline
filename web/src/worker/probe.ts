@@ -5,12 +5,21 @@ import { evaluateFootage, type FootageValidation, type ProbeSummary } from "../l
 import { rawDb } from "../server/db/raw";
 import { log } from "../server/log";
 import { isUnreadableFile, summariseProbe, type FfprobeOutput } from "../server/matches/probe";
-import { createTranscodeJob, jobLog, transcodeJobFor } from "../server/processing/jobs";
+import {
+  createCvJob,
+  createTranscodeJob,
+  cvJobFor,
+  jobLog,
+  transcodeJobFor,
+  type JobRef,
+} from "../server/processing/jobs";
 import { redactProbeError } from "../server/processing/redact";
 import {
+  cvJobOptions,
   getBoss,
   QUEUES,
   TRANSCODE_JOB_OPTIONS,
+  type CvJob,
   type ProbeJob,
   type TranscodeJob,
 } from "../server/queue";
@@ -31,7 +40,10 @@ import { recordUsage } from "../server/usage/meter";
  * dead-letters it after 3 attempts. Logs carry ids only.
  *
  * C07: accepted footage also gets its transcode ProcessingJob in the same
- * transaction, and the pg-boss job is sent after the commit.
+ * transaction, and the pg-boss job is sent after the commit. C08: and its CV
+ * job, which runs in parallel with the transcode (both read the raw file), so
+ * the match is review-ready sooner (NFR01). It does not wait for lineups or
+ * markers (Q-023): linking uses the lineup present at ingest.
  */
 
 const FFPROBE_TIMEOUT_MS = 120_000;
@@ -99,29 +111,49 @@ export const runFfprobe: ProbeRunner = (url, videoId) =>
   });
 
 /**
- * Accepted footage goes on to transcoding (C07): sends the video's transcode
- * job, created in the probe's transaction, with its ProcessingJob.bossJobId
- * as the pg-boss id. Sending the same id again is a no-op, so this is safe to
- * repeat: a probe retry after a failed send calls it again from the skipped
- * path. Footage accepted before C07 has no job row; nothing is sent.
+ * Accepted footage goes on to transcoding (C07) and CV (C08): sends the
+ * video's transcode and cv jobs, created in the probe's transaction, each with
+ * its ProcessingJob.bossJobId as the pg-boss id. Sending the same id again is
+ * a no-op, so this is safe to repeat: a probe retry after a failed send calls
+ * it again from the skipped path, and the CV watchdog resends a cv job that
+ * never started. Footage accepted before C07 (or C08) has no job row; nothing
+ * is sent for it.
  */
 export async function onFootageAccepted(job: ProbeJob & { matchId: string }): Promise<void> {
-  const row = await transcodeJobFor(job.organisationId, job.videoId);
-  if (!row) {
-    log.warn(job, "footage accepted with no transcode job");
-    return;
-  }
-  if (row.status !== "queued" || row.attempts > 0) return;
+  const [transcode, cv] = await Promise.all([
+    transcodeJobFor(job.organisationId, job.videoId),
+    cvJobFor(job.organisationId, job.videoId),
+  ]);
+  if (!transcode) log.warn(job, "footage accepted with no transcode job");
+  if (transcode) await sendTranscodeJob(transcode);
+  if (cv) await sendCvJob(cv);
+}
+
+async function sendTranscodeJob(row: JobRef): Promise<void> {
+  if (row.status !== "queued" || row.attempts > 0 || !row.videoId) return;
   const boss = await getBoss();
   const payload: TranscodeJob = {
     organisationId: row.organisationId,
-    videoId: job.videoId,
+    videoId: row.videoId,
     processingJobId: row.id,
   };
   const sent = await boss.send(QUEUES.transcode, payload, {
     id: row.bossJobId,
     ...TRANSCODE_JOB_OPTIONS,
   });
+  jobLog("enqueued", row, { duplicate: sent === null });
+}
+
+/** Sends a cv job that has not started. Exported for the watchdog's repair. */
+export async function sendCvJob(row: JobRef): Promise<void> {
+  if (row.status !== "queued" || row.attempts > 0 || !row.videoId) return;
+  const boss = await getBoss();
+  const payload: CvJob = {
+    organisationId: row.organisationId,
+    videoId: row.videoId,
+    processingJobId: row.id,
+  };
+  const sent = await boss.send(QUEUES.cv, payload, { id: row.bossJobId, ...cvJobOptions() });
   jobLog("enqueued", row, { duplicate: sent === null });
 }
 
@@ -199,13 +231,14 @@ export async function handleProbe(
         tx,
       );
     }
-    // C07: the transcode job, committed with the acceptance and sent after it.
-    return accepted
-      ? await createTranscodeJob(tx, { organisationId, matchId: video.matchId, videoId })
-      : { job: null, created: false };
+    // C07 and C08: the transcode and cv jobs, committed with the acceptance
+    // and sent after it.
+    if (!accepted) return { jobs: [] };
+    const ref = { organisationId, matchId: video.matchId, videoId };
+    return { jobs: [await createTranscodeJob(tx, ref), await createCvJob(tx, ref)] };
   });
   if (!result) return "skipped";
-  if (result.job && result.created) jobLog("queued", result.job);
+  for (const { job, created } of result.jobs) if (created) jobLog("queued", job);
 
   log.info(
     {

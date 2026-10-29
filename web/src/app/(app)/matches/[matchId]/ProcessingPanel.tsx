@@ -7,13 +7,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { iconProps } from "@/components/ui/icons";
-import type { TranscodeStep } from "@/server/processing/summary";
+import type { ProcessingStep } from "@/server/processing/summary";
 
 /**
  * The processing steps in the Footage card (MATCH07; docs/build/design/C07.md,
- * Surface 2): Preparing playback from the transcode job, then a Finding
- * events placeholder until C08. Every state is an icon, a word and a caption;
- * colour only reinforces (NFR27). Nothing spins.
+ * Surface 2): Preparing playback from the transcode job and, from C08,
+ * Finding events from the CV job. The two run at the same time. Every state is
+ * an icon, a word and a caption; colour only reinforces (NFR27). Nothing spins.
  */
 
 type Step = {
@@ -25,7 +25,7 @@ type Step = {
   tone?: "retrying" | "failed";
 };
 
-export function playbackStep(job: TranscodeStep | null): Step {
+export function playbackStep(job: ProcessingStep | null): Step {
   const name = "Preparing playback";
   if (!job || (job.status === "queued" && job.attempts === 0)) {
     return {
@@ -83,39 +83,83 @@ export function playbackStep(job: TranscodeStep | null): Step {
   }
 }
 
-/** C08 replaces this with its own job states, in the same shape. */
-export function eventsStep(job: TranscodeStep | null): Step {
+/** The CV job (C08): goals, shots and touches; a scout checks the unsure ones. */
+export function eventsStep(job: ProcessingStep | null): Step {
   const name = "Finding events";
-  if (job?.status === "failed") {
-    return { icon: CircleDashed, name, state: "Not started", caption: null };
-  }
-  if (job?.status === "succeeded") {
+  if (!job || (job.status === "queued" && job.attempts === 0)) {
     return {
       icon: CircleDashed,
       name,
       state: "Waiting to start",
-      caption: "We find goals, shots and passes, then a scout checks them.",
+      caption: "Starts in a few minutes.",
     };
   }
-  return {
-    icon: CircleDashed,
-    name,
-    state: "Not started",
-    caption: "Starts after playback is ready.",
-  };
+  const max = job.maxAttempts;
+  switch (job.status) {
+    case "running":
+      return job.attempts <= 1
+        ? {
+            icon: LoaderCircle,
+            name,
+            state: "In progress",
+            caption: "Looking for goals, shots and touches in the footage.",
+          }
+        : {
+            icon: LoaderCircle,
+            name,
+            tone: "retrying",
+            state: `In progress, attempt ${job.attempts} of ${max}`,
+            caption:
+              job.attempts === 2
+                ? "The first try did not finish, so we are trying again."
+                : "Earlier tries did not finish, so we are trying again.",
+          };
+    case "queued":
+      return {
+        icon: RotateCcw,
+        name,
+        tone: "retrying",
+        state: `Trying again soon, attempt ${job.attempts + 1} of ${max}`,
+        caption: "The last try did not finish. We try again in a minute.",
+      };
+    case "succeeded":
+      return {
+        icon: Check,
+        name,
+        done: true,
+        state: "Done",
+        caption: "A scout checks the events next.",
+      };
+    case "failed":
+      // Settled without a try: the transcode failed first, and its step says so.
+      if (job.attempts === 0) {
+        return { icon: CircleDashed, name, state: "Not started", caption: null };
+      }
+      return {
+        icon: CircleAlert,
+        name,
+        tone: "failed",
+        state: "Failed",
+        caption: `We tried ${max} times. Wideline staff have been told and will try again.`,
+      };
+  }
 }
 
-export function ProcessingPanel({ job }: { job: TranscodeStep | null | "unavailable" }) {
+export function ProcessingPanel({
+  steps,
+}: {
+  steps: { transcode: ProcessingStep | null; cv: ProcessingStep | null } | "unavailable";
+}) {
   return (
     <>
       <h3 className="body-strong mt-6">Processing</h3>
-      {job === "unavailable" ? (
+      {steps === "unavailable" ? (
         <p className="body mt-2 text-ink-muted">
           Processing status is not available right now. This page updates every 30 seconds.
         </p>
       ) : (
         <ol className="wl-checklist mt-2" role="list">
-          {[playbackStep(job), eventsStep(job)].map((s) => (
+          {[playbackStep(steps.transcode), eventsStep(steps.cv)].map((s) => (
             <li key={s.name} data-done={s.done ? "true" : undefined} data-state={s.tone}>
               <s.icon {...iconProps} />
               <div>

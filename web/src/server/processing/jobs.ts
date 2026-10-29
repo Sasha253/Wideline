@@ -18,7 +18,8 @@ import { redactProbeError } from "./redact";
  *
  * Job history (NFR31): every state change is one structured log line, msg
  * "processing job", with `event` one of queued, enqueued, started, progress,
- * succeeded, attempt_failed, failed or skipped, and ids, attempt numbers and
+ * succeeded, attempt_failed, failed or skipped (C08 adds instance_started,
+ * ingested and repaired for CV jobs), and ids, attempt numbers and
  * timings only, never names. Filtering the logs by processingJobId rebuilds a
  * job's whole history.
  */
@@ -63,7 +64,11 @@ export type JobEvent =
   | "succeeded"
   | "attempt_failed"
   | "failed"
-  | "skipped";
+  | "skipped"
+  // C08: the CV job's GPU instance, its ingest, and watchdog repairs.
+  | "instance_started"
+  | "ingested"
+  | "repaired";
 
 const LEVEL: Record<JobEvent, "info" | "warn" | "error"> = {
   queued: "info",
@@ -72,9 +77,13 @@ const LEVEL: Record<JobEvent, "info" | "warn" | "error"> = {
   progress: "info",
   succeeded: "info",
   attempt_failed: "warn",
-  // NFR30: the final failure is the alert path (C18 adds the admin alert).
+  // NFR30: the final failure; platform admins are emailed once
+  // (src/server/processing/alerts.ts).
   failed: "error",
   skipped: "info",
+  instance_started: "info",
+  ingested: "info",
+  repaired: "warn",
 };
 
 /** Extra fields a job log line may carry: numbers, ids and short codes only. */
@@ -139,40 +148,59 @@ export function failureUpdate(
   };
 }
 
+type VideoRef = { organisationId: string; matchId: string; videoId: string };
+
 /**
- * Creates the video's transcode job, in the probe's transaction, or returns
- * the one it already has (the partial unique "ProcessingJob_transcode_video_key"
- * holds one per video). The pg-boss job id is made here, so every later send
- * names the same job.
+ * Creates the video's job of this type, in the caller's transaction, or
+ * returns the one it already has (the unique "ProcessingJob_video_type_key"
+ * holds one per video and type). The pg-boss job id is made here, so every
+ * later send names the same job.
  */
-export async function createTranscodeJob(
+async function createJob(
   tx: Prisma.TransactionClient,
-  {
-    organisationId,
-    matchId,
-    videoId,
-  }: { organisationId: string; matchId: string; videoId: string },
+  type: ProcessingJobType,
+  { organisationId, matchId, videoId }: VideoRef,
 ): Promise<{ job: JobRef; created: boolean }> {
   const { count } = await tx.processingJob.createMany({
-    data: [{ organisationId, matchId, videoId, type: "transcode", bossJobId: randomUUID() }],
+    data: [{ organisationId, matchId, videoId, type, bossJobId: randomUUID() }],
     skipDuplicates: true,
   });
   const job = await tx.processingJob.findFirstOrThrow({
-    where: { organisationId, videoId, type: "transcode" },
+    where: { organisationId, videoId, type },
     select: JOB_SELECT,
   });
   return { job, created: count === 1 };
 }
 
-/** The video's transcode job, or null. */
-export async function transcodeJobFor(
+/** The video's transcode job (C07), created in the probe's transaction. */
+export function createTranscodeJob(tx: Prisma.TransactionClient, video: VideoRef) {
+  return createJob(tx, "transcode", video);
+}
+
+/** The video's CV job (C08), created next to the transcode job: the two run in parallel. */
+export function createCvJob(tx: Prisma.TransactionClient, video: VideoRef) {
+  return createJob(tx, "cv", video);
+}
+
+async function jobFor(
   organisationId: string,
   videoId: string,
+  type: ProcessingJobType,
 ): Promise<JobRef | null> {
   return rawDb.processingJob.findFirst({
-    where: { organisationId, videoId, type: "transcode" },
+    where: { organisationId, videoId, type },
     select: JOB_SELECT,
   });
+}
+
+/** The video's transcode job, or null. */
+export function transcodeJobFor(organisationId: string, videoId: string): Promise<JobRef | null> {
+  return jobFor(organisationId, videoId, "transcode");
+}
+
+/** The video's CV job, or null. */
+export function cvJobFor(organisationId: string, videoId: string): Promise<JobRef | null> {
+  return jobFor(organisationId, videoId, "cv");
 }
 
 /** One job by id, in its organisation, or null. */

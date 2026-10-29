@@ -31,7 +31,7 @@ without any setup. Safari does not.
 ## Layout
 
 ```
-docker-compose.yml   caddy, web, transcode-worker, postgres, rustfs, mailpit, init
+docker-compose.yml   caddy, web, transcode-worker, cv-dispatcher, postgres, rustfs, mailpit, init
 Caddyfile            reverse proxy for the *.wideline.localhost hosts
 web/                 Next.js app and the transcode worker (same codebase)
   prisma/            schema, migrations, seed
@@ -186,6 +186,41 @@ docs/                PRD
   fallback while the transcode runs. Production bucket CORS must also allow GET
   from the app origin (Caddy does this locally), since the browser follows the
   302 to the bucket.
+- **CV jobs** (CV01, CV09, CV10, NFR04, NFR06, NFR07, NFR08, NFR30; C08):
+  accepted footage also gets a `cv` `ProcessingJob` in the probe's
+  transaction; it runs in parallel with the transcode, and the match moves
+  Processing to Awaiting review once both have succeeded
+  (`src/server/processing/readiness.ts`, under a Match row lock). The
+  `cv-dispatcher` service (`WORKER_QUEUES=cv,cv-watchdog`) handles `cv`
+  (`src/worker/cv.ts`): one GPU instance per attempt through a `GpuProvider`
+  (`src/server/cv/providers/`: `docker` locally, starting the
+  `wideline-cv-worker` image built by `make cv-image`; `hourly` is a stub until
+  the provider is chosen). The instance gets ids and signed URLs only (raw
+  footage GET, result PUT under `orgs/{org}/matches/{match}/cv/`), heartbeats
+  and reports through `POST /api/jobs/[jobId]/callback`, the one route with no
+  session (an HMAC token per instance, `CV_CALLBACK_SECRET`), which only records
+  the report on the `GpuInstance` row. The dispatcher polls that row, destroys
+  the instance (cost recorded once per instance: the row,
+  `ProcessingJob.costCents` and a `gpu_cost_cents` usage row with
+  `metadata.matchId`), checks the result against the contract
+  (`src/server/cv/contract/cv-result-1.0.schema.json`, ajv, plus semantic
+  checks; the worker bundles the same schema) and ingests it in one
+  transaction (`src/server/cv/ingest.ts`). Ingest is keyed on
+  `(jobId, trackIndex)`, `(matchId, trackId, tMs)` and `(jobId, sourceKey)`, so a
+  replay changes nothing (NFR06). The consent gate sits there:
+  `attributablePlayerIds()` decides which shirt-number links are kept; tracks
+  of anyone else on the lineup (no consent, withdrawn, opposition
+  placeholders) are never stored, and their events keep only the team side.
+  Event status comes from `Organisation.settings.autoAccept`
+  (`src/lib/auto-accept.ts`; catalogue defaults goal 0.90, shot 0.75, touch
+  0.80). `TrackPoint` is hash-partitioned by match (16 partitions in schema
+  `trackpoint_parts`). The `cv-watchdog` job runs every minute
+  (`src/worker/cv-watchdog.ts`): it destroys instances idle for 10 minutes or
+  30 minutes past their job, and orphans; resends cv jobs that never started;
+  and fails jobs pg-boss lost. A job's third failure fails it and its match and
+  emails platform admins once (`src/server/processing/alerts.ts`; transcodes
+  too). A consent withdrawal deletes the player's tracks and unlinks their
+  events (`src/server/cv/withdrawal.ts`).
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and
@@ -201,7 +236,9 @@ docs/                PRD
   scout registration and profiles (`src/server/scouts/`, the public
   registration or the caller's own userId), entitlements and the usage meter
   (`src/server/entitlements/`, `src/server/usage/meter.ts`, one explicit
-  organisationId per call), the seed, the worker and the worker callback.
+  organisationId per call), CV dispatch and ingest (`src/server/cv/`, one
+  explicit organisationId per call), the seed, the worker and the worker
+  callback.
 - **Queue**: pg-boss in the `pgboss` schema of the same Postgres. Three attempts
   per job, then the dead-letter queue (CV-10, NFR-30).
 - **Object storage**: S3 API only. Locally RustFS (MinIO no longer publishes
@@ -274,14 +311,11 @@ tokens and voice, tests, and the definition of done.
 These are deliberately deferred from V0 and must be done before real clubs
 join:
 
-- **TrackPoint partitioning.** Prisma cannot declare partitions. TrackPoint
-  (about 600,000 rows per match) must be partitioned by match with a raw SQL
-  migration. The model carries a `TODO(partition)` note when it lands (Phase 4).
+- **The hourly GPU provider** (Q-033): `src/server/cv/providers/hourly.ts` is
+  a stub. Choose the provider, implement it, and set `CV_DISPATCH=hourly` and
+  `CV_CALLBACK_BASE_URL`. TrackPoint partitioning (hash by match) and the
+  consent gate at ingest are done (C08).
 - **Postgres row-level security** as a second layer under the scoped client.
-- **Consent gate at ingest** (NFR-08): C05 provides
-  `attributablePlayerIds()` in `src/server/consent/visibility.ts`; C08 must call
-  it before linking tracks or attributing events. Until then V0 Lab lineups use
-  shirt-number placeholders only.
 - **Retention cleanup job** and bucket lifecycle rules (CONS-09, NFR-13). C06
   added the `retention` queue (match deletions); C17 adds the daily sweep and an
   AbortIncompleteMultipartUpload lifecycle rule for abandoned uploads.
@@ -294,6 +328,8 @@ join:
   (`make env` generates one). Outside production it falls back to a key derived
   from `BETTER_AUTH_SECRET`. Changing it makes every stored ID hash unmatchable.
 - Postgres is not published to the host.
-- The CV dispatcher's Docker mode (Phase 4) mounts the Docker socket into the
-  worker container. That is root-equivalent on the host and is for local
-  development only.
+- The CV dispatcher's Docker mode (C08) mounts the Docker socket into the
+  `cv-dispatcher` container only. That is root-equivalent on the host and is
+  for local development only; production uses the hourly GPU provider.
+- `CV_CALLBACK_SECRET` signs each CV instance's callback token; it must be at
+  least 32 characters in production (`make env` generates 64).

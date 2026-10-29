@@ -1,10 +1,20 @@
 /**
- * Transcode worker entry point: a long-running process that consumes pg-boss
- * queues (probe, transcode, clips) and dispatches CV jobs. Same codebase as the
- * web app, separate container. C06 adds probe and retention, C07 transcode; CV
- * and clips arrive in C08 and C09.
+ * Worker entry point: a long-running process that consumes pg-boss queues.
+ * Same codebase as the web app, separate container. C06 adds probe and
+ * retention, C07 transcode, C08 cv and cv-watchdog; clips arrive in C09.
+ *
+ * WORKER_QUEUES (comma-separated) picks the queues this process consumes;
+ * unset, it consumes all of them. Compose runs two: the transcode worker
+ * (probe, transcode, retention, consent-withdrawn) and the cv dispatcher (cv,
+ * cv-watchdog), which alone mounts the Docker socket.
  */
-import type { ConsentWithdrawnJob, ProbeJob, RetentionJob, TranscodeJob } from "../server/queue";
+import type {
+  ConsentWithdrawnJob,
+  CvJob,
+  ProbeJob,
+  RetentionJob,
+  TranscodeJob,
+} from "../server/queue";
 
 export {};
 
@@ -17,52 +27,103 @@ const { getBoss, QUEUES, DEAD_LETTER_QUEUE } = await import("../server/queue");
 const { handleProbe } = await import("./probe");
 const { handleRetention } = await import("./retention");
 const { handleTranscode } = await import("./transcode");
+const { handleCvJob } = await import("./cv");
+const { handleCvWatchdog } = await import("./cv-watchdog");
+const { purgeUnattributablePlayerTracks } = await import("../server/cv/withdrawal");
 
 const boss = await getBoss();
 
+const wanted = (process.env.WORKER_QUEUES ?? "")
+  .split(",")
+  .map((q) => q.trim())
+  .filter(Boolean);
+const consumes = (queue: string) => wanted.length === 0 || wanted.includes(queue);
+const started: string[] = [];
+
 // C06 (MATCH03, MATCH04): ffprobe the uploaded footage and apply the footage
 // rules. A throw fails the job: pg-boss retries it, then dead-letters it (NFR30).
-await boss.work<ProbeJob>(QUEUES.probe, async (jobs) => {
-  for (const job of jobs) {
-    const outcome = await handleProbe(job.data);
-    log.info({ jobId: job.id, videoId: job.data.videoId, outcome }, "probe job done");
-  }
-});
+if (consumes(QUEUES.probe)) {
+  await boss.work<ProbeJob>(QUEUES.probe, async (jobs) => {
+    for (const job of jobs) {
+      const outcome = await handleProbe(job.data);
+      log.info({ jobId: job.id, videoId: job.data.videoId, outcome }, "probe job done");
+    }
+  });
+  started.push(QUEUES.probe);
+}
 
 // C07 (MATCH06): the HLS ladder, one job at a time per worker (ffmpeg uses
 // every core). A throw is recorded on the ProcessingJob and fails the job:
 // pg-boss retries it, then dead-letters it after 3 attempts (NFR30).
 const transcodeOptions = { includeMetadata: true, batchSize: 1, localConcurrency: 1 } as const;
-await boss.work<TranscodeJob, unknown, typeof transcodeOptions>(
-  QUEUES.transcode,
-  transcodeOptions,
-  async (jobs) => {
+if (consumes(QUEUES.transcode)) {
+  await boss.work<TranscodeJob, unknown, typeof transcodeOptions>(
+    QUEUES.transcode,
+    transcodeOptions,
+    async (jobs) => {
+      for (const job of jobs) {
+        await handleTranscode(job.data, { retryCount: job.retryCount, retryLimit: job.retryLimit });
+      }
+    },
+  );
+  started.push(QUEUES.transcode);
+}
+
+// C08 (CV01, CV10): one GPU instance per CV attempt. The handler holds the job
+// while the instance runs, polling its row, so each dispatcher runs
+// CV_CONCURRENCY jobs at once (default 2). A throw is recorded and fails the
+// job: pg-boss retries it, then dead-letters it after 3 attempts (NFR30).
+const cvOptions = {
+  includeMetadata: true,
+  batchSize: 1,
+  localConcurrency: Number(process.env.CV_CONCURRENCY) || 2,
+} as const;
+if (consumes(QUEUES.cv)) {
+  await boss.work<CvJob, unknown, typeof cvOptions>(QUEUES.cv, cvOptions, async (jobs) => {
     for (const job of jobs) {
-      await handleTranscode(job.data, { retryCount: job.retryCount, retryLimit: job.retryLimit });
+      await handleCvJob(job.data, { retryCount: job.retryCount, retryLimit: job.retryLimit });
     }
-  },
-);
+  });
+  started.push(QUEUES.cv);
+}
+
+// C08 (NFR07): every minute, destroy idle or outlived GPU instances and repair
+// lost CV jobs.
+if (consumes(QUEUES.cvWatchdog)) {
+  await boss.schedule(QUEUES.cvWatchdog, "* * * * *");
+  await boss.work(QUEUES.cvWatchdog, async () => {
+    await handleCvWatchdog({ boss });
+  });
+  started.push(QUEUES.cvWatchdog);
+}
 
 // C06 (MATCH08, NFR32): purge a deleted match's storage. C17 adds its sweep here.
-await boss.work<RetentionJob>(QUEUES.retention, async (jobs) => {
-  for (const job of jobs) await handleRetention(job.data);
-});
+if (consumes(QUEUES.retention)) {
+  await boss.work<RetentionJob>(QUEUES.retention, async (jobs) => {
+    for (const job of jobs) await handleRetention(job.data);
+  });
+  started.push(QUEUES.retention);
+}
 
 // C05 (NFR11): a consent change took visibility away. Live queries already
-// hide the player (consentVisibleTo). This stub only logs ids: C12 (stats
-// caches), C13 (clips and profiles) and C17 (retention) purge their derived
-// artefacts here within 24 hours, once they exist.
-await boss.work<ConsentWithdrawnJob>(QUEUES.consentWithdrawn, async (jobs) => {
-  for (const job of jobs) {
-    const { organisationId, playerId, consentId } = job.data;
-    log.info(
-      { jobId: job.id, organisationId, playerId, consentId },
-      "consent withdrawn: nothing derived to purge yet",
-    );
-  }
-});
+// hide the player (consentVisibleTo). C08 purges the player's tracks and
+// unlinks their events here; C12 (stats caches), C13 (clips and profiles) and
+// C17 (retention) add their own derived artefacts within 24 hours.
+if (consumes(QUEUES.consentWithdrawn)) {
+  await boss.work<ConsentWithdrawnJob>(QUEUES.consentWithdrawn, async (jobs) => {
+    for (const job of jobs) {
+      const { organisationId, playerId, consentId } = job.data;
+      const purged = await purgeUnattributablePlayerTracks(organisationId, playerId);
+      log.info(
+        { jobId: job.id, organisationId, playerId, consentId, ...purged },
+        "consent withdrawn: derived data purged",
+      );
+    }
+  });
+  started.push(QUEUES.consentWithdrawn);
+}
 
-log.info({ queues: [...Object.values(QUEUES), DEAD_LETTER_QUEUE] }, "worker ready");
+log.info({ queues: started, deadLetter: DEAD_LETTER_QUEUE }, "worker ready");
 
 async function shutdown(signal: string) {
   log.info({ signal }, "worker stopping");

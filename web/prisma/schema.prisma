@@ -96,8 +96,9 @@ model Organisation {
   applicantEmail  String?
   reviewedAt      DateTime?
   rejectionReason String?
-  // REVIEW-10: auto-accept thresholds per event type, plus other per-org
-  // settings. Shape is defined and defaulted in src/server/settings.ts.
+  // REVIEW-10: auto-accept thresholds per event type under settings.autoAccept
+  // ({ goal?, shot? }, read by autoAcceptThresholds() in
+  // src/lib/auto-accept.ts), plus other per-org settings.
   settings        Json               @default("{}")
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -116,6 +117,10 @@ model Organisation {
   videos          Video[]
   // C07: transcode, clips and CV jobs (MATCH06, NFR31).
   processingJobs  ProcessingJob[]
+  // C08: CV output (CV01, CV09; NFR08 gate at ingest).
+  tracks          Track[]
+  trackPoints     TrackPoint[]
+  events          Event[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -127,6 +132,8 @@ model Organisation {
   subscription Subscription?
   entitlements Entitlement[]
   usageEvents  UsageEvent[]
+  // C08: GPU instances and their cost are internal (src/server/cv/).
+  gpuInstances GpuInstance[]
 }
 
 // Global. Columns match what Better Auth expects for its user model.
@@ -421,6 +428,10 @@ model Player {
   lineups         Lineup[]
   consents        Consent[]
   consentRequests ConsentRequest[]
+  // C08: tracks linked to the player, and events attributed to them. Only
+  // players passing attributablePlayerIds() are ever linked (NFR08).
+  tracks          Track[]
+  events          Event[]
 
   @@unique([organisationId, id])
   // SQUAD04: a squad number is used once per team among active players. A Team
@@ -587,8 +598,12 @@ model Match {
 
   lineups        Lineup[]
   videos         Video[]
-  // C07: one transcode job per video; clips (C09) and cv (C08) later.
+  // C07: one job per video and type: transcode (C07), cv (C08), clips (C09).
   processingJobs ProcessingJob[]
+  // C08: CV output.
+  tracks         Track[]
+  trackPoints    TrackPoint[]
+  events         Event[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playedAt])
@@ -752,19 +767,212 @@ model ProcessingJob {
   // Redacted (no signed URLs) and at most 500 characters. Never shown to a club.
   errorMessage   String?
   // Transcode: renditions (bytes, segments), encodeMs, uploadMs, realtimeFactor.
+  // CV (C08): resultKey, resultSha256, schemaVersion, modelVersions, warnings,
+  // counts, thresholds, realtimeFactor. Counts and ids only, never player ids.
   metadata       Json                @default("{}")
-  // PRD columns for the C08 CV job (NFR04).
+  // PRD columns for the C08 CV job (NFR04). costCents is the sum over the
+  // job's GpuInstance rows, failed attempts included.
   modelVersion   String?
   gpuProvider    String?
   costCents      Int?
+  // C08 (NFR30): set when platform admins were told of the final failure, so
+  // they are told once (src/server/processing/alerts.ts).
+  alertedAt      DateTime?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
+  tracks Track[]
+  events Event[]
+
   @@unique([organisationId, id])
-  // One transcode job per video.
-  @@unique([videoId], map: "ProcessingJob_transcode_video_key", where: raw("type = 'transcode'::\"ProcessingJobType\""))
+  // One job per video and type (C08; C07 had a transcode-only partial unique).
+  // CV re-runs (CV14, V202) will revisit this.
+  @@unique([videoId, type], map: "ProcessingJob_video_type_key")
   @@index([organisationId, matchId])
   @@index([type, status, finishedAt])
+}
+
+// ---------------------------------------------------------------------------
+// CV output (C08; CV01, CV09, CV10, NFR04, NFR06, NFR07, NFR08)
+// ---------------------------------------------------------------------------
+
+enum TeamSide {
+  home
+  away
+  unknown
+}
+
+// Who linked a track to a player: the CV ingest (shirt number) or a reviewer (C11).
+enum TrackLinkSource {
+  cv
+  reviewer
+}
+
+// v0 event types (the stats catalogue). Shot on target is Event.onTarget.
+// Passes and the rest arrive as new values with a new contract version (V101).
+enum EventType {
+  goal
+  shot
+  touch
+}
+
+// PRD data model. C08 writes auto_accepted and pending_review only; review
+// (C11) moves events to confirmed or rejected and adds manual ones.
+enum EventStatus {
+  auto_accepted
+  pending_review
+  confirmed
+  rejected
+  manual
+}
+
+// One tracked person in one CV result. Keyed on (jobId, trackIndex), so a
+// re-ingest of the same result writes nothing twice (NFR06). playerId is set
+// only for a player who passed attributablePlayerIds() at ingest (NFR08);
+// tracks of other lineup players are never stored. Tenant table: in
+// TENANT_SCOPED.
+model Track {
+  id              String           @id @default(cuid())
+  organisationId  String
+  organisation    Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId         String
+  match           Match            @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  // The cv ProcessingJob whose result this came from.
+  jobId           String
+  job             ProcessingJob    @relation(fields: [organisationId, jobId], references: [organisationId, id], onDelete: Cascade)
+  trackIndex      Int
+  teamSide        TeamSide
+  shirtNumber     Int?
+  shirtConfidence Float?
+  playerId        String?
+  player          Player?          @relation(fields: [organisationId, playerId], references: [organisationId, id], onDelete: Cascade)
+  linkConfidence  Float?
+  linkedBy        TrackLinkSource?
+  // A plain column, no relation (C11 reviewer links).
+  linkedByUserId  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  points TrackPoint[]
+  events Event[]
+
+  @@unique([organisationId, id])
+  @@unique([jobId, trackIndex])
+  @@index([organisationId, matchId])
+  @@index([playerId])
+}
+
+// A track's position at one sampled frame, in metres on the 105 x 68 pitch.
+// Partitioned in raw SQL (migration c08_cv_ingest): PARTITION BY HASH
+// ("matchId"), 16 partitions in schema trackpoint_parts, so Prisma sees only
+// this parent. The partition key is in the primary key, which is also the
+// idempotency key. CHECK "TrackPoint_coords" in raw SQL.
+model TrackPoint {
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId        String
+  match          Match        @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  trackId        String
+  track          Track        @relation(fields: [organisationId, trackId], references: [organisationId, id], onDelete: Cascade)
+  // Video milliseconds.
+  tMs            Int
+  x              Float        @db.Real
+  y              Float        @db.Real
+
+  @@id([matchId, trackId, tMs])
+}
+
+// One detected (or, from C11, manually added) event. A CV event's identity in
+// its result is (jobId, sourceKey), "{type}@{tMs}#{trackIndex|none}", so a
+// re-ingest writes nothing twice (NFR06). Times are video ms, mapped to the
+// match clock at read (src/lib/match-clock.ts). Raw SQL CHECKs (migration
+// c08_cv_ingest): "Event_confidence_range", "Event_coords",
+// "Event_clip_window", "Event_player_needs_track" (playerId only on a linked
+// track, or a manual event) and "Event_cv_has_identity". Tenant table.
+model Event {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId        String
+  match          Match          @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  // Null for a manual event (C11). Jobs only go with their match, which
+  // cascades the events first.
+  jobId          String?
+  job            ProcessingJob? @relation(fields: [organisationId, jobId], references: [organisationId, id], onDelete: NoAction, onUpdate: NoAction)
+  sourceKey      String?
+  type           EventType
+  status         EventStatus
+  teamSide       TeamSide?
+  trackId        String?
+  track          Track?         @relation(fields: [organisationId, trackId], references: [organisationId, id], onDelete: Cascade)
+  playerId       String?
+  player         Player?        @relation(fields: [organisationId, playerId], references: [organisationId, id], onDelete: Cascade)
+  timestampMs    Int
+  pitchX         Float?
+  pitchY         Float?
+  confidence     Float?
+  onTarget       Boolean?
+  clipStartMs    Int?
+  clipEndMs      Int?
+  payload        Json           @default("{}")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([organisationId, id])
+  @@unique([jobId, sourceKey])
+  @@index([organisationId, matchId, status])
+  @@index([trackId])
+  @@index([playerId])
+}
+
+enum GpuInstanceStatus {
+  requested
+  running
+  destroying
+  destroyed
+  failed_to_start
+}
+
+// One GPU instance per CV attempt (NFR04, NFR07). Refused by the scoped client
+// (cost is internal); read and written through src/server/cv/. processingJobId
+// and matchId are plain columns, so the row and its cost outlive a match
+// deletion and the watchdog still sees it. CHECK "GpuInstance_cost_nonneg" in
+// raw SQL.
+model GpuInstance {
+  id                 String            @id @default(cuid())
+  organisationId     String
+  organisation       Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  processingJobId    String
+  matchId            String
+  attempt            Int
+  provider           String
+  providerInstanceId String?
+  status             GpuInstanceStatus @default(requested)
+  requestedAt        DateTime          @default(now())
+  startedAt          DateTime?
+  lastHeartbeatAt    DateTime?
+  // What the worker reported: succeeded or failed.
+  resultStatus       String?
+  resultAt           DateTime?
+  // Redacted, at most 500 characters.
+  resultError        String?
+  resultSha256       String?
+  // When the job this instance served settled, for the 30-minute rule.
+  jobSettledAt       DateTime?
+  destroyedAt        DateTime?
+  // job_done | attempt_failed | idle | outlived | orphan | job_gone | start_failed
+  destroyReason      String?
+  centsPerHour       Int
+  // ISO 4217.
+  currency           String
+  billedSeconds      Int?
+  costCents          Int?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([processingJobId, attempt])
+  @@unique([organisationId, id])
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------

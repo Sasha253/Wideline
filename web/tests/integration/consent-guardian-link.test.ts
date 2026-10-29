@@ -326,7 +326,7 @@ async function raceWithLockedChange(
     const [{ n }] = await rawDb.$queryRaw<[{ n: number }]>`
       SELECT count(*)::int AS n FROM pg_stat_activity
        WHERE datname = current_database() AND wait_event_type = 'Lock'
-         AND query LIKE '%FOR UPDATE%'`;
+         AND query LIKE '%FOR%UPDATE%'`;
     if (n > 0) break;
     if (i > 200) throw new Error("the guardian decision never waited on the player lock");
     await new Promise((r) => setTimeout(r, 25));

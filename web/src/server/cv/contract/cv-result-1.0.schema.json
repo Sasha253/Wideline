@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wideline.app/schemas/cv-result-1.0.json",
+  "title": "Wideline CV result, contract 1.0",
+  "description": "The one file the CV worker writes for a job (PRD page 19). Pitch coordinates are metres on a 105 x 68 pitch; times are video milliseconds. A copy lives in cv_worker/wideline_cv/contract/; keep both identical (cv_worker/tests/test_contract_sync.py).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "jobId",
+    "matchId",
+    "modelVersions",
+    "video",
+    "calibration",
+    "tracks",
+    "events",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "jobId": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "matchId": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "modelVersions": {
+      "type": "object",
+      "required": ["detector", "tracker", "events"],
+      "properties": {
+        "detector": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "tracker": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "events": { "type": "string", "minLength": 1, "maxLength": 64 }
+      },
+      "additionalProperties": { "type": "string", "maxLength": 64 }
+    },
+    "video": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["durationSec", "fps", "sampledFps"],
+      "properties": {
+        "durationSec": { "type": "number", "exclusiveMinimum": 0 },
+        "fps": { "type": "number", "exclusiveMinimum": 0 },
+        "sampledFps": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence", "homography"],
+      "properties": {
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "homography": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": { "type": "number" }
+          }
+        }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/track" }
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "x": { "type": "number", "minimum": 0, "maximum": 105 },
+    "y": { "type": "number", "minimum": 0, "maximum": 68 },
+    "tMs": { "type": "integer", "minimum": 0 },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tMs", "x", "y"],
+      "properties": {
+        "tMs": { "$ref": "#/$defs/tMs" },
+        "x": { "$ref": "#/$defs/x" },
+        "y": { "$ref": "#/$defs/y" }
+      }
+    },
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trackIndex", "teamSide", "shirtNumber", "shirtConfidence", "points"],
+      "properties": {
+        "trackIndex": { "type": "integer", "minimum": 0 },
+        "teamSide": { "enum": ["home", "away", "unknown"] },
+        "shirtNumber": {
+          "oneOf": [{ "type": "integer", "minimum": 0, "maximum": 99 }, { "type": "null" }]
+        },
+        "shirtConfidence": {
+          "oneOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "type": "null" }]
+        },
+        "points": { "type": "array", "items": { "$ref": "#/$defs/point" } }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "trackIndex", "tMs", "x", "y", "confidence", "clipStartMs", "clipEndMs"],
+      "properties": {
+        "type": { "enum": ["goal", "shot", "touch"] },
+        "trackIndex": {
+          "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+        },
+        "tMs": { "$ref": "#/$defs/tMs" },
+        "x": { "oneOf": [{ "$ref": "#/$defs/x" }, { "type": "null" }] },
+        "y": { "oneOf": [{ "$ref": "#/$defs/y" }, { "type": "null" }] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "onTarget": { "type": "boolean" },
+        "clipStartMs": { "$ref": "#/$defs/tMs" },
+        "clipEndMs": { "$ref": "#/$defs/tMs" }
+      },
+      "if": { "properties": { "type": { "const": "shot" } } },
+      "then": { "properties": { "onTarget": true }, "required": ["onTarget"] },
+      "else": { "properties": { "onTarget": false } }
+    }
+  }
+}

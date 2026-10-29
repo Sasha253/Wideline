@@ -13,7 +13,7 @@ name: wideline
 
 x-web-env: &web-env
   env_file: .env
-  environment:
+  environment: &web-environment
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     S3_INTERNAL_ENDPOINT: http://rustfs:9000
     SMTP_HOST: mailpit
@@ -125,6 +125,10 @@ services:
       context: ./web
       target: dev
     command: pnpm worker:dev
+    environment:
+      <<: *web-environment
+      # C08: the CV queues run in cv-dispatcher.
+      WORKER_QUEUES: probe,transcode,retention,consent-withdrawn
     # Bounded so a 1080p encode cannot starve web and postgres of memory.
     mem_limit: ${TRANSCODE_MEM_LIMIT:-2g}
     volumes:
@@ -135,6 +139,35 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+
+  # C08: CV dispatch and the GPU watchdog. Starts one wideline-cv-worker
+  # container per CV attempt through the Docker socket. The socket is
+  # root-equivalent on the host: development only, never in production (the
+  # hourly GPU provider replaces it, C19).
+  cv-dispatcher:
+    <<: *web-env
+    build:
+      context: ./web
+      target: dev
+    command: pnpm worker:dev
+    environment:
+      <<: *web-environment
+      WORKER_QUEUES: cv,cv-watchdog
+      WIDELINE_SERVICE: cv-dispatcher
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  # C08: the CV worker image, built by `make up` (or `make cv-image`) and never
+  # started by compose: cv-dispatcher starts one container per attempt.
+  cv-worker:
+    build: ./cv_worker
+    image: wideline-cv-worker:dev
+    profiles: [cv-image]
 
 volumes:
   postgres-data:

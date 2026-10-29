@@ -6,3 +6,16 @@
 export function matchPrefix(organisationId: string, matchId: string): string {
   return `orgs/${organisationId}/matches/${matchId}/`;
 }
+
+/**
+ * C08: where a CV attempt writes its result, under the match prefix so a match
+ * deletion purges it: orgs/{org}/matches/{match}/cv/{jobId}/attempt-{n}/result.json.
+ */
+export function cvResultKey(
+  organisationId: string,
+  matchId: string,
+  jobId: string,
+  attempt: number,
+): string {
+  return `${matchPrefix(organisationId, matchId)}cv/${jobId}/attempt-${attempt}/result.json`;
+}

@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 WEB := $(COMPOSE) exec web
 
-.PHONY: help env up down logs ps migrate migrate-new seed fixtures test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run reset
+.PHONY: help env up down logs ps migrate migrate-new seed fixtures test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run cv-image reset
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -14,7 +14,7 @@ env: ## Create .env from .env.example with fresh secrets
 	      -e "s|^ID_HASH_SECRET=.*|ID_HASH_SECRET=$$(openssl rand -hex 32)|" \
 	      .env.example > .env && echo "Wrote .env" )
 
-up: env ## Build and start the stack
+up: env cv-image ## Build and start the stack
 	$(COMPOSE) up -d --build --renew-anon-volumes --wait --wait-timeout 600
 	@echo "Open http://wideline.localhost"
 
@@ -88,6 +88,9 @@ lint: ## Lint and typecheck everything
 	$(WEB) pnpm lint
 	$(WEB) pnpm typecheck
 	cd cv_worker && uv run ruff check . && uv run ruff format --check . && uv run mypy wideline_cv
+
+cv-image: ## Build the CV worker image the cv-dispatcher starts per job (C08)
+	$(COMPOSE) --profile cv-image build cv-worker
 
 cv-run: ## Run the CV worker standalone: make cv-run video=match.mp4 calibration=cal.json out=./out
 	cd cv_worker && uv run python -m wideline_cv run --video $(video) --calibration $(calibration) --out $(or $(out),./out)

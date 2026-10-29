@@ -36,6 +36,12 @@ export type LockedConsentPlayer = {
  * whether a link may decide on both, so a consent change and a date of birth
  * edit or a departure of one player run one after the other and each sees the
  * other's result. Null when the player is not in this organisation.
+ *
+ * NO KEY UPDATE, not UPDATE: consent writes never change the key, so they need
+ * not wait on the key-share locks that foreign key checks take. A CV ingest
+ * inserting Tracks for this player holds one until it commits, and a plain
+ * FOR UPDATE would stall a withdrawal behind it (CONS03). Ingest's final
+ * FOR SHARE re-check still conflicts with this lock.
  */
 export async function lockConsentPlayer(
   tx: RawQuery,
@@ -46,7 +52,7 @@ export async function lockConsentPlayer(
     SELECT "consentState"::text AS "consentState", "dateOfBirth", "clubStatus"::text AS "clubStatus"
       FROM "Player"
      WHERE "organisationId" = ${organisationId} AND "id" = ${playerId}
-     FOR UPDATE`;
+     FOR NO KEY UPDATE`;
   return rows[0] ?? null;
 }
 

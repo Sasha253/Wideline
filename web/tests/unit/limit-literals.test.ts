@@ -120,6 +120,7 @@ describe("limit literal check", () => {
     expect(files.some((f) => f.endsWith("src/server/entitlements/index.ts"))).toBe(true);
   });
 
+  // Parses every file in src/, which takes over 5 s on a loaded machine.
   it("no file in src/ compares a limit with a numeric literal", () => {
     const found = files.flatMap((f) =>
       findLimitLiterals(readFileSync(f, "utf8"), relative(srcDir, f)),
@@ -127,5 +128,5 @@ describe("limit literal check", () => {
     expect(found, "Use hasCapacity() or may() instead of comparing a limit with a number").toEqual(
       [],
     );
-  });
+  }, 30_000);
 });

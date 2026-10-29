@@ -24,6 +24,12 @@ const RAW_DB_ALLOWED = [
   // reads aggregate timings only, no tenant data.
   "src/server/processing/jobs.ts",
   "src/server/processing/timings.ts",
+  // C08: CV dispatch, ingest and the watchdog (worker side), the job readiness
+  // check, and the platform-admin alert. Every call takes an explicit
+  // organisationId; the alert reads platform admins only.
+  "src/server/cv/**",
+  "src/server/processing/readiness.ts",
+  "src/server/processing/alerts.ts",
   "src/worker/**",
   "src/app/api/jobs/*/callback/**",
   "prisma/seed.ts",

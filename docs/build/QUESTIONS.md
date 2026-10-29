@@ -208,6 +208,7 @@ These questions do not block the build. Each one has a default that the build is
 - **Impact:** a hold would add a "Needs lineup" step between Uploading and Processing, a check in `onFootageAccepted()`, and one more line in the match status panel. No schema change.
 - **Answer:** No: processing starts when footage is accepted; decide in C08 whether the CV job waits for lineups and markers. (Given by the user in the orchestrator chat on 2026-10-26, recorded by the orchestrator.)
 - **Resolved:** matches the default; no rework. Decision carried to C08.
+- **C08 decision:** the CV job does not wait. It starts when the footage is accepted, links tracks to the lineup present at ingest (shirt numbers, through the consent gate), and leaves the rest unlinked for the reviewer. Event times are stored in video milliseconds and mapped to match time when read, so markers set later still apply. Recommended for C11: re-run shirt-number linking (with the consent gate) when a lineup is saved while the match awaits review.
 
 ## Q-024 · C06 · Adding an opposition team while creating a match
 
@@ -283,4 +284,52 @@ These questions do not block the build. Each one has a default that the build is
 - **Default taken:** use Debian ffmpeg with libx264, and correct the `LICENSES.md` row.
 - **Recommended:** accept it. GPL, unlike AGPL, puts no obligations on server-side use without distribution.
 - **Impact:** otherwise switch to an LGPL ffmpeg build with openh264 or a hardware encoder: a Dockerfile change, with lower quality per bit.
+- **Answer:**
+
+## Q-033 · C08 · Which hourly GPU provider runs the CV worker
+
+- **Question:** Which hourly GPU provider should run the CV worker? The PRD leaves it open: price per hour for a T4-class or better GPU, start-up by API, per-minute billing, region.
+- **Default taken:** the `GpuProvider` interface with a working `docker` provider for local development and an `hourly` stub (`src/server/cv/providers/hourly.ts`) with real billing maths that refuses every call until a provider is chosen. `CV_DISPATCH=docker` everywhere for now.
+- **Recommended:** choose before the first pilot upload: per-minute billing, and an API that supports labels or tags (the watchdog finds instances by label). Sign its operator agreement too (NFR15).
+- **Impact:** implement start, status, destroy and list in `providers/hourly.ts`, and set the `HOURLY_GPU_*` settings. No schema change. Until then production cannot run CV jobs.
+- **Answer:**
+
+## Q-034 · C08 · CV in parallel with the transcode
+
+- **Question:** Should the CV job run at the same time as the transcode, or only after playback is ready?
+- **Default taken:** at the same time. Both read the raw file; the match waits in Processing until both have succeeded.
+- **Recommended:** in parallel, for NFR01's 4-hour review-ready target.
+- **Impact:** sequential means sending the cv job from the transcode's success path instead of the probe, and the panel copy goes back to "Starts after playback is ready."
+- **Answer:**
+
+## Q-035 · C08 · Position data of opposition players
+
+- **Question:** Opposition players are unnamed placeholders with no consent. When a readable shirt number matches one, may the track keep its positions (unlinked), or must it be discarded like any non-consented player?
+- **Default taken:** discarded: no track and no points; the track's events keep their team side only.
+- **Recommended:** keep the strict default for v0, and ask the privacy lawyer at the v0 gate whether unlinked opposition positions (no name, no club record) are a child's personal information.
+- **Impact:** allowing it is one branch in `planTracks` (`src/server/cv/ingest.ts`) and its test. Opposition heatmaps would then become possible.
+- **Answer:**
+
+## Q-036 · C08 · GPU cost per instance or per job
+
+- **Question:** Should GPU cost be recorded for every instance, failed attempts included, or only once per successful job?
+- **Default taken:** per instance, when it is destroyed, with `metadata.matchId`. `ProcessingJob.costCents` is the sum. (The C03 note said once per cv job.)
+- **Recommended:** per instance: failed attempts are real spend, and NFR05's R120-per-match target needs them.
+- **Impact:** per job only means moving `recordUsage()` into the ingest transaction and dropping failed attempts' cost.
+- **Answer:**
+
+## Q-037 · C08 · How platform admins hear of a failed job
+
+- **Question:** How should a platform admin be told when a processing job fails 3 times (NFR30)?
+- **Default taken:** one plain email per failed job to every platform admin (ids, the job type and a link to `/admin`, no names), plus an error log line. Transcode failures use the same alert.
+- **Recommended:** email for the pilot; C18 adds a failed-jobs view with a retry.
+- **Impact:** another channel (Slack or a webhook) is one more sender in `src/server/processing/alerts.ts`.
+- **Answer:**
+
+## Q-038 · C08 · Draft CV constants
+
+- **Question:** Are the draft CV constants right: a shirt number links a track at confidence 0.5 or more, one CV attempt may run at most 4 hours, and each dispatcher runs 2 CV jobs at once?
+- **Default taken:** these values, as `TRACK_LINK_MIN_CONFIDENCE` in `src/server/cv/ingest.ts` and the `CV_MAX_JOB_SECONDS` and `CV_CONCURRENCY` settings.
+- **Recommended:** keep them for the pilot, and tune them from the Lab's recall numbers and real job timings (`cvTimings()`).
+- **Impact:** a constant or setting change and its tests. No schema change.
 - **Answer:**

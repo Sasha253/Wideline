@@ -7,6 +7,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { rawDb } from "../server/db/raw";
 import { log } from "../server/log";
 import { fromStatusesFor } from "../server/matches/status";
+import { alertPlatformAdmins } from "../server/processing/alerts";
 import {
   findJob,
   isFinalAttempt,
@@ -17,6 +18,7 @@ import {
   redactJobError,
   type JobRef,
 } from "../server/processing/jobs";
+import { moveToAwaitingReviewIfReady } from "../server/processing/readiness";
 import type { TranscodeJob } from "../server/queue";
 import { bucket, s3Internal } from "../server/storage";
 import {
@@ -299,6 +301,8 @@ export async function handleTranscode(
         });
         if (count === 0) throw new Gone();
         if (!(await markSucceeded(tx, job, metadata, finishedAt))) throw new Gone();
+        // C08: review-ready once the cv job has succeeded too.
+        await moveToAwaitingReviewIfReady(tx, { organisationId, matchId: video.matchId, videoId });
         for (const r of renditions) {
           await recordUsage(
             {
@@ -355,6 +359,8 @@ export async function handleTranscode(
       finishedAt: final ? failedAt : null,
     };
     jobLog(final ? "failed" : "attempt_failed", failedJob, { error });
+    // NFR30 (C08): platform admins hear of the final failure once.
+    if (final) await alertPlatformAdmins(failedJob, "transcode failed 3 times");
     throw new Error(`transcode failed: ${error}`);
   } finally {
     if (outDir) await rm(outDir, { recursive: true, force: true });

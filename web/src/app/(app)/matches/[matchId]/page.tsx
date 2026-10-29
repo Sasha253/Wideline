@@ -190,7 +190,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
     }
   }
 
-  // C07: processing steps and the estimate, while Processing or Failed.
+  // C07: processing steps and the estimate, while Processing or Failed (C08:
+  // the CV job's step too).
   let processing: ProcessingSummary | null | "unavailable" = null;
   if (accepted && (match.status === "processing" || match.status === "failed")) {
     try {
@@ -295,11 +296,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
           </>
         )}
         <FootageFacts video={video} now={now} />
-        {processing && (
-          <ProcessingPanel
-            job={processing === "unavailable" ? "unavailable" : processing.transcode}
-          />
-        )}
+        {processing && <ProcessingPanel steps={processing} />}
         {statusText && <p className="body mt-4">{statusText}</p>}
       </>
     );

@@ -24,7 +24,8 @@ import {
 // guidance. The worker's probe handler with real ffprobe on generated footage
 // (`make fixtures`), uploaded to RustFS through the real upload service.
 // C07: accepted footage gets one transcode ProcessingJob and one pg-boss send
-// with its bossJobId; a retried probe sends the same id again.
+// with its bossJobId; a retried probe sends the same id again. C08: and one cv
+// job, sent the same way, so the two run in parallel.
 // Skipped without object storage, ffprobe or the fixtures (CI; see STATUS.md).
 
 const boss = vi.hoisted(() => ({
@@ -138,22 +139,36 @@ describe.skipIf(!ready)("probe", { timeout: 60_000 }, () => {
     expect(usage).toHaveLength(1);
     expect(usage[0]).toMatchObject({ quantity: BigInt(330), sourceType: "Video" });
 
-    // C07: one transcode job, sent once with its own id as the pg-boss id.
-    const jobs = await rawDb.processingJob.findMany({ where: { videoId } });
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({
-      type: "transcode",
-      status: "queued",
-      attempts: 0,
-      matchId,
-      organisationId: club.org.id,
+    // C07 and C08: one transcode and one cv job, each sent once with its own
+    // id as the pg-boss id.
+    const jobs = await rawDb.processingJob.findMany({
+      where: { videoId },
+      orderBy: { type: "asc" },
     });
+    expect(jobs.map((j) => j.type)).toEqual(["transcode", "cv"]);
+    for (const j of jobs) {
+      expect(j).toMatchObject({
+        status: "queued",
+        attempts: 0,
+        matchId,
+        organisationId: club.org.id,
+      });
+    }
+    const [transcode, cv] = jobs as [(typeof jobs)[0], (typeof jobs)[0]];
     const sends = () => boss.send.mock.calls.filter(([q]) => q === "transcode");
     expect(sends()).toEqual([
       [
         "transcode",
-        { organisationId: club.org.id, videoId, processingJobId: jobs[0]!.id },
-        { id: jobs[0]!.bossJobId, expireInSeconds: 5 * 3600 },
+        { organisationId: club.org.id, videoId, processingJobId: transcode.id },
+        { id: transcode.bossJobId, expireInSeconds: 5 * 3600 },
+      ],
+    ]);
+    const cvSends = () => boss.send.mock.calls.filter(([q]) => q === "cv");
+    expect(cvSends()).toEqual([
+      [
+        "cv",
+        { organisationId: club.org.id, videoId, processingJobId: cv.id },
+        { id: cv.bossJobId, expireInSeconds: 4 * 3600 + 1800 },
       ],
     ]);
 
@@ -164,9 +179,11 @@ describe.skipIf(!ready)("probe", { timeout: 60_000 }, () => {
     expect(
       await rawDb.usageEvent.count({ where: { metric: "video_seconds", sourceId: videoId } }),
     ).toBe(1);
-    expect(await rawDb.processingJob.count({ where: { videoId } })).toBe(1);
+    expect(await rawDb.processingJob.count({ where: { videoId } })).toBe(2);
     expect(sends()).toHaveLength(2);
-    expect(sends()[1]![2]).toEqual({ id: jobs[0]!.bossJobId, expireInSeconds: 5 * 3600 });
+    expect(sends()[1]![2]).toEqual({ id: transcode.bossJobId, expireInSeconds: 5 * 3600 });
+    expect(cvSends()).toHaveLength(2);
+    expect(cvSends()[1]![2]).toEqual({ id: cv.bossJobId, expireInSeconds: 4 * 3600 + 1800 });
   });
 
   it("only handles a video of the job's organisation", async () => {

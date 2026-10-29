@@ -86,6 +86,10 @@ describe.skipIf(!ready)("transcode", { timeout: 120_000 }, () => {
     expect(meta.uploadMs).toBeGreaterThanOrEqual(0);
     expect(meta.realtimeFactor).toBeCloseTo(meta.encodeMs / 20_000, 3);
     expect(meta.hasAudio).toBe(true);
+    // C08: review-ready needs the cv job too, so the match stays in Processing.
+    expect((await rawDb.match.findUniqueOrThrow({ where: { id: matchId } })).status).toBe(
+      "processing",
+    );
 
     const usage = await rawDb.usageEvent.findMany({
       where: { organisationId: club.org.id, metric: "storage_bytes", sourceType: "Rendition" },
