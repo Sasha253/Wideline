@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { formatDate, identityText } from "@/lib/labels";
 import { hasPassword } from "@/server/auth/password";
 import { requirePageRole, SCOUT_ROLES } from "@/server/auth/session";
+import { CONFLICT_COOLING_OFF_DAYS, coolingOffUntil } from "@/server/scouts/conflicts";
 import { getOwnScoutProfile } from "@/server/scouts/profile";
 import { REVIEWER_TERMS_VERSION } from "@/server/scouts/terms";
 import { TermsText } from "@/app/register/TermsText";
@@ -107,7 +108,11 @@ export default async function ScoutProfilePage({
         registered={formatDate(profile.createdAt)}
         phone={profile.phone}
       />
-      <AffiliationsSection items={affiliations} />
+      <AffiliationsSection
+        items={affiliations}
+        coolingOffDays={CONFLICT_COOLING_OFF_DAYS}
+        removedBlocksUntil={formatDate(coolingOffUntil(new Date()))}
+      />
       <TermsSection
         current={profile.termsCurrent}
         acceptedVersion={profile.termsVersion}

@@ -251,6 +251,46 @@ docs/                PRD
   make cv-golden                               # regenerate web/tests/fixtures/cv after a pipeline change
   make cv-image-gpu                            # the GPU model image, by hand only (B-001)
   ```
+- **Review queue and claims** (C10; REVIEW01, REVIEW02, REVIEW13, AUTH07,
+  AUTH10, NFR16): `src/server/review/`. `/review` lists Awaiting review
+  matches of active academies and clubs, soonest raw footage expiry first,
+  with match-level facts only (no venue, players or lineups); matches whose
+  raw footage is gone stay under "Clips only" until their clips go. A scout
+  claims a match for 48 hours (`CLAIM_DURATION_MS`, a product rule) after a
+  no-conflict declaration; how many they may hold at once is the
+  `review_claims_active` limit, read from the scout network organisation. A
+  claim takes FOR UPDATE on the match (lineup and marker saves take FOR
+  SHARE, `src/server/db/locks.ts`), re-checks conflicts on the server
+  (`src/server/review/conflicts.ts`: `scoutConflicts()`, declared club
+  names as whole words in either team name, represented players among the
+  named lineup players whatever their consent (REVIEW02); a removed
+  declaration keeps blocking for 90 days) and moves the match to In review.
+  Conflicts reach pages as one boolean, never a name. Because a declared
+  name can block on a child the scout may not see, declaring names is capped:
+  at most 30 player names may block at once, removed ones included while
+  their cooling-off runs (`cooling_off_limit`, Q-053), and every declaration
+  and refused claim is audited without the name. A
+  "Log in as" session can view review pages but never claim or release
+  (Q-064).
+  `ReviewClaim` is a tenant table on the match's organisation: readable
+  through the scoped client (a club sees when its review is due, never by
+  whom), never writable there. Review data is scoped to the claiming scout:
+  `claimScope(ctx, claimId)` hands out a read-only client bound to the claim
+  only while the caller holds the live claim, checked on every request. It
+  reaches only the claimed match's Match, Video, Lineup, Event, Track,
+  TrackPoint and Clip rows, and Player names of that match's scout_visible
+  lineup players; scalar fields only (no include or relation filters), no
+  writes, no other model. The reviewer HLS routes
+  `/api/review/claims/{claimId}/hls/...` use it. Expiry is enforced on every check (`isClaimLive`) and tidied by the
+  `review-sweep` queue every minute on the transcode worker
+  (`src/worker/review-sweep.ts`), which also releases the claims of
+  suspended or conflicted scouts and emails platform admins once per video
+  when an unreviewed match has 48 hours of raw footage left
+  (`Video.reviewAlertedAt`, ids only). A suspension and a new conflicting
+  affiliation or admin link release claims in their own transaction. Audit
+  actions: `review.claim_started`, `review.claim_refused`,
+  `review.claim_released` and `review.claim_expired`
+  (ids, reason codes and the declaration version only).
 - **Tenant scoping** (NFR-16): application code gets a Prisma client from
   `requireRole()` that is scoped to the active organisation
   (`src/server/db/scoped.ts`). It injects `organisationId` into every query and
@@ -267,8 +307,9 @@ docs/                PRD
   registration or the caller's own userId), entitlements and the usage meter
   (`src/server/entitlements/`, `src/server/usage/meter.ts`, one explicit
   organisationId per call), CV dispatch and ingest (`src/server/cv/`, one
-  explicit organisationId per call), the seed, the worker and the worker
-  callback.
+  explicit organisationId per call), the review queue and claims
+  (`src/server/review/`, the caller's own ReviewerContext), the seed, the
+  worker and the worker callback.
 - **Queue**: pg-boss in the `pgboss` schema of the same Postgres. Three attempts
   per job, then the dead-letter queue (CV-10, NFR-30).
 - **Object storage**: S3 API only. Locally RustFS (MinIO no longer publishes

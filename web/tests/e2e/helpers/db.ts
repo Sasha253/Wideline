@@ -24,12 +24,13 @@ export const E2E_EMAIL_DOMAIN = "@e2e.wideline.localhost";
  * Teams the specs add to Wideline Demo FC, each named with a unique() tag:
  * squad (U15 E2E, U17 CSV, Rivals), consent (U14 Consent), matches (U13
  * Matches, Rivals Matches), upload (U14 Upload, Rivals Upload), playback
- * (U12 Playback, Rivals Playback) and the C09 pipeline (U11 Pipeline, Rivals
- * Pipeline). Their players and matches (videos, processing jobs, CV output and
+ * (U12 Playback, Rivals Playback), the C09 pipeline (U11 Pipeline, Rivals
+ * Pipeline) and the C10 review queue (U10 Review, Rivals Review; their review
+ * claims cascade with the matches). Their players and matches (videos, processing jobs, CV output and
  * clips cascade) go with them. Keep in step with the specs.
  */
 export const E2E_TEAM_PATTERN =
-  "^(U1[0-9] (Consent|Matches|E2E|CSV|Upload|Playback|Pipeline)|Rivals( Matches| Upload| Playback| Pipeline)?) [0-9a-z]{9,13}$";
+  "^(U1[0-9] (Consent|Matches|E2E|CSV|Upload|Playback|Pipeline|Review)|Rivals( Matches| Upload| Playback| Pipeline| Review)?) [0-9a-z]{9,13}$";
 
 const KEEP_ORGS = ["Wideline Demo FC", "Wideline Lab"];
 

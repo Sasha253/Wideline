@@ -31,9 +31,20 @@ export type AffiliationItem = {
 /**
  * The clubs and players a scout is linked to (AUTH10; docs/build/design/C02.md,
  * Conflicts section). Added and removed rows report to the section banner;
- * removal is soft on the server and audited.
+ * removal is soft on the server and audited. A removed entry keeps blocking
+ * for CONFLICT_COOLING_OFF_DAYS (Q-006; docs/build/design/C10.md, Surface 5):
+ * the page passes the number and the date worked out from its `now`.
  */
-export function AffiliationsSection({ items }: { items: AffiliationItem[] }) {
+export function AffiliationsSection({
+  items,
+  coolingOffDays,
+  removedBlocksUntil,
+}: {
+  items: AffiliationItem[];
+  coolingOffDays: number;
+  /** formatDate(now + coolingOffDays), for the remove dialog. */
+  removedBlocksUntil: string;
+}) {
   const [result, setResult] = useState<ActionResult>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const remove = useSectionAction(removeAffiliationAction, (r) => {
@@ -49,9 +60,12 @@ export function AffiliationsSection({ items }: { items: AffiliationItem[] }) {
         Clubs and players you are linked to
       </h2>
       <p className="body mt-2 max-w-prose text-ink-muted">
-        You cannot review a match involving a club on this list, or the club of a player you
-        represent. Wideline staff match each name to a club on Wideline. A name blocks matches only
-        once it is matched, so check the spelling.
+        You cannot review a match involving a club on this list, a player you represent, or that
+        player&apos;s club. We check these names against both teams and the lineups of every match,
+        and Wideline staff match each name to a club on Wideline, so check the spelling.
+      </p>
+      <p className="caption mt-2 text-ink-muted">
+        A club or player you remove keeps blocking matches for {coolingOffDays} days.
       </p>
       {items.length === 0 && (
         <p className="caption mt-2 text-ink-muted">
@@ -67,11 +81,23 @@ export function AffiliationsSection({ items }: { items: AffiliationItem[] }) {
       </div>
 
       <h3 className="body-strong mt-6">Clubs</h3>
-      <AffiliationList items={clubs} empty="No clubs on your list." remove={remove} />
+      <AffiliationList
+        items={clubs}
+        empty="No clubs on your list."
+        remove={remove}
+        coolingOffDays={coolingOffDays}
+        removedBlocksUntil={removedBlocksUntil}
+      />
       <AddForm type="club" onAdded={setResult} />
 
       <h3 className="body-strong mt-6">Players you represent</h3>
-      <AffiliationList items={players} empty="No players on your list." remove={remove} />
+      <AffiliationList
+        items={players}
+        empty="No players on your list."
+        remove={remove}
+        coolingOffDays={coolingOffDays}
+        removedBlocksUntil={removedBlocksUntil}
+      />
       <AddForm type="player" onAdded={setResult} />
     </section>
   );
@@ -81,10 +107,14 @@ function AffiliationList({
   items,
   empty,
   remove,
+  coolingOffDays,
+  removedBlocksUntil,
 }: {
   items: AffiliationItem[];
   empty: string;
   remove: SectionForm;
+  coolingOffDays: number;
+  removedBlocksUntil: string;
 }) {
   if (items.length === 0) return <p className="body mt-2 text-ink-muted">{empty}</p>;
   return (
@@ -118,7 +148,7 @@ function AffiliationList({
                 ariaLabel: `Remove ${a.name}`,
               }}
               title={`Remove ${a.name}?`}
-              body={`You will be able to review matches involving ${a.name} again. Wideline keeps a record that you removed it.`}
+              body={`${a.name} keeps blocking your review of their matches for ${coolingOffDays} days, until ${removedBlocksUntil}. Wideline keeps a record that you removed it.`}
               form={remove}
               hidden={{ affiliationId: a.id }}
               submit={{ label: "Remove", pendingLabel: "Removing…", variant: "danger" }}

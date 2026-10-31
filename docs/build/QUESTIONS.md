@@ -421,3 +421,171 @@ These questions do not block the build. Each one has a default that the build is
 - **Recommended:** store them as a `correspondences Json?` column on manual calibrations; it is small, and fixing one stray point is much quicker than placing 8 again.
 - **Impact:** one nullable column in the C09 migration, written by `saveManualCalibration`, and a preload in the calibration page. No change to reuse or re-projection.
 - **Answer:**
+
+## Q-050 · C10 · Claimed matches per scout
+
+- **Question:** How many matches can one scout hold claimed at a time?
+- **Default taken:** 1 on the pilot plan (`review_claims_active`, read from the scout network organisation for every reviewer).
+- **Recommended:** 1 for the pilot, so matches are not hoarded while footage runs out.
+- **Impact:** The plan value, or an entitlement override on the scout network, changes it. No code change.
+- **Answer:**
+
+## Q-051 · C10 · Conflicted matches in the queue
+
+- **Question:** Should conflicted matches appear in a scout's queue?
+- **Default taken:** Shown, with 'You cannot claim this match' and no detail about which club or player.
+- **Recommended:** Show them, so the queue looks the same for every scout and a scout can spot a missing declaration.
+- **Impact:** Hiding them is a filter in `reviewQueue()` plus a copy change.
+- **Answer:**
+
+## Q-052 · C10 · Detecting a scout who works for the opposition
+
+- **Question:** How is a scout who works for the opposition detected, when the opposition is a free-text team in the club's own organisation?
+- **Default taken:** A declared club name (or a represented player's club, or a linked organisation's name) blocks the match when it appears as whole words in either team name.
+- **Recommended:** Keep it. A false positive only blocks one scout; a miss lets a conflicted scout review.
+- **Impact:** A stricter or looser match changes `conflictReasons()` and its unit tests only.
+- **Answer:**
+
+## Q-053 · C10 · Matching represented players to a lineup
+
+- **Question:** How are represented players matched to a lineup?
+- **Default taken:** An exact match of the normalised full name against every named lineup player (not placeholders), whatever their consent, as REVIEW02 and the C10 spec say. Names never leave the server; the scout sees one boolean ("You cannot claim this match"), never which player or why. The first C10 review fix had narrowed this to `scout_visible` players and only flagged the rest for admins (`review.claim_flagged`); that dropped the player clause of REVIEW02 for every child without scout consent, so the second review fix restored the block and removed the flag. The privacy cost is that a scout who knows a child's name could declare it and see which matches become conflicted, learning the child's club and fixtures (NFR08, CONS03). It is bounded instead of hidden: at most 30 player names may block at once, counting removed ones while their 90-day cooling-off runs (`cooling_off_limit` in `addOwnAffiliation()`, so declare-and-remove cycling does not help); every declaration (`scout.affiliation_added`) and every refused claim (`review.claim_refused`, reason `player`) is audited without the name; scouts are approved by a platform admin, identity-checked and bound by the confidentiality terms (AUTH08, AUTH09).
+- **Recommended:** Keep the block (it is the PRD). Needs an owner answer before the pilot on whether this bound on probing is enough; if not, C18 could add an admin check of represented-player declarations (ADMIN06) or a lower cap. Fuzzy matching later if admins see misses.
+- **Impact:** `conflictReasons()` and `loadMatchFacts()` in `src/server/review/conflicts.ts`; the cap in `addOwnAffiliation()` (`src/server/scouts/profile.ts`) and its message in `src/app/(app)/scout/actions.ts`. Narrowing the check again would be a PRD deviation (REVIEW02) and must be recorded as one.
+- **Answer:**
+
+## Q-054 · C10 · Cooling-off after leaving a club
+
+- **Question:** Does leaving a club (a membership ending) keep blocking for 90 days, like a removed declaration?
+- **Default taken:** No. Memberships block only while they exist; only declared affiliations have the 90-day cooling-off (Q-006).
+- **Recommended:** Keep it, unless ended memberships are kept as history.
+- **Impact:** Needs a record of ended memberships (a schema change) plus a filter in `scoutConflicts()`.
+- **Answer:**
+
+## Q-055 · C10 · Claiming after raw footage is deleted
+
+- **Question:** Can a match still be claimed after its raw footage is deleted?
+- **Default taken:** Yes, under 'Clips only' until its clips go (14 days after upload). Missed events cannot be added.
+- **Recommended:** Yes. Checking events against clips still improves the stats.
+- **Impact:** Dropping it is a change to `queueSection()` plus removing one queue section.
+- **Answer:**
+
+## Q-056 · C10 · Platform admins as reviewers of last resort
+
+- **Question:** May platform admins claim matches as reviewers of last resort (the PRD's pilot fallback)?
+- **Default taken:** Only through an approved ScoutProfile in the scout network, like any scout.
+- **Recommended:** Keep it. The conflict checks and the audit then cover admins too.
+- **Impact:** A separate admin path would need its own guard and conflict rules (C18).
+- **Answer:**
+
+## Q-057 · C10 · Who gets the 48-hour footage alert
+
+- **Question:** Should the 48-hour footage alert (REVIEW13) also go to the club, or to the scout who holds the claim?
+- **Default taken:** Platform admins only, by email, once per video (`Video.reviewAlertedAt`).
+- **Recommended:** Platform admins for the pilot; add the claiming scout later.
+- **Impact:** Another recipient list in `src/server/review/alerts.ts`.
+- **Answer:**
+
+## Q-058 · C10 · Wording of the no-conflict declaration
+
+- **Question:** Is the wording of the no-conflict declaration on the claim page acceptable?
+- **Default taken:** Draft: 'I have no link to either club or to any player in this match.', versioned `2026-10-draft-1` (`CLAIM_DECLARATION_VERSION`) and recorded in the claim's audit row. The reviewer terms list on the claim page is draft too.
+- **Recommended:** Lawyer review together with Q-004 before the v0 gate.
+- **Impact:** New wording is a copy change plus a new `CLAIM_DECLARATION_VERSION`.
+- **Answer:**
+
+## Q-059 · C10 · Naming the reviewer to the club
+
+- **Question:** Should the club see which scout is reviewing its match?
+- **Default taken:** No. The club sees only that a scout is reviewing and when the review is due.
+- **Recommended:** Keep scouts anonymous to clubs, to limit pressure and contact.
+- **Impact:** Showing a name needs a scoped read of the scout's name and a privacy decision.
+- **Answer:**
+
+## Q-060 · C10 · Time zone for review times
+
+- **Question:** Claim end times, footage deletion dates and due times are shown in South African time. Should scouts outside South Africa see their own time zone instead?
+- **Default taken:** South African time everywhere (`Africa/Johannesburg`, as every formatter already uses), with one "Times are South African time." note on the claim and claimed-match pages. Time left ("47 hours") does not depend on the zone.
+- **Recommended:** keep it for the pilot, where reviewers are in South Africa. Revisit before scouts from other countries review (v1).
+- **Impact:** showing the viewer's zone needs the browser's zone (a cookie or client-side formatting) in the date formatters, and the note changes. No schema change.
+- **Answer:**
+
+## Q-061 · C10 · Live countdown in the review queue
+
+- **Question:** Should the review queue and the claimed-match page count down or refresh on their own, so time left stays current while the page is open?
+- **Default taken:** no. Time left is worked out on the server when the page loads and is floored ("47 hours"), so it never overstates. Every navigation or action shows fresh values. Expiry is enforced on the server either way (A-5).
+- **Recommended:** keep it for v0. A ticking clock distracts, and timed live announcements are hard to get right for screen readers. Add a quiet refresh every few minutes if scouts leave the queue open.
+- **Impact:** a refresh is a small client component calling `router.refresh()` on an interval, with no live region. No server change.
+- **Answer:**
+
+## Q-062 · C12 · Where the stats breakdown UI lives
+
+- **Question:** The request was to "build out the stats breakdown". The visible per-player breakdown page belongs to C13 (Player profiles and clips), not C12. Should C12 also ship a minimal read-only stats table on the squad player page?
+- **Default taken:** C12 ships server reads and formatting helpers only; the UI comes in C13.
+- **Recommended:** keep the UI in C13, and build C13 right after C12.
+- **Impact:** a page in C12 needs a design surface and a Playwright test, and C13 would partly redo it.
+- **Answer:**
+
+## Q-063 · C12 · Stats of a published match during re-review
+
+- **Question:** Does a re-review of an already-published match unpublish its stats while it is in review, or keep the old stats until the re-review is published again?
+- **Default taken:** keep the old stats until the new publish, then rebuild.
+- **Recommended:** keep the old stats until re-publish.
+- **Impact:** unpublishing during review would make stats vanish for a while; it is a one-line change in `rebuildMatchStats`.
+- **Answer:**
+
+## Q-064 · C10 · Claiming in a 'Log in as' session
+
+- **Question:** Can a platform admin in a 'Log in as' session claim or release a match as the scout?
+- **Default taken:** No, by design: impersonated sessions may view review pages but not claim or release. Built in the C10 review fix: `claimMatch()` and `releaseClaim()` throw `impersonation_refused` when `ctx.impersonator` is set (so both server actions refuse whatever the client sends), `IMPERSONATION_REFUSED` in `src/server/review/errors.ts`, and the warn banner replaces the claim form and the Release trigger. This needs `AuthContext.impersonator` from the "Log in as" work, so that work is committed first, on its own, and C10 on top of it (see the C10 row in STATUS.md).
+- **Recommended:** Refuse: the declaration has legal weight and must be the scout's own.
+- **Impact:** One check in the two review actions and a warn banner on the claim and claimed pages.
+- **Answer:**
+
+## Q-065 · C11 · Linking a track or event to a player without consent
+
+- **Question:** When a reviewer links a track, or assigns an event, to a player who has no consent, what should happen and what should the reviewer see?
+- **Default taken:** The lineup picker offers every entry, labelled per Q-021. The server runs `attributablePlayerIds()`. A refused relink discards the track (events kept at team level, track and points deleted) as ingest does. A refused reassignment is rejected with the neutral message 'This player's events cannot be recorded. The event stays with the team.'
+- **Recommended:** Keep the default. The reviewer already watches the footage, and refusing at ingest is what NFR08 requires. Add the question to the privacy lawyer's reviewer-footage list (Q-035/Q-047).
+- **Impact:** Hiding non-attributable entries from the picker is a filter in `loadWorkspace()`. A silent discard would change only the copy. No schema change.
+- **Answer:**
+
+## Q-066 · C11 · Handling every below-threshold event before submit
+
+- **Question:** Must every below-threshold event be handled before 'Mark as reviewed' is allowed?
+- **Default taken:** Yes. Submit is refused while any `pending_review` event is left, and the button says how many remain.
+- **Recommended:** Yes. 'Nothing is published unverified' (PRD stats rules).
+- **Impact:** Allowing a partial submit would mean bulk-rejecting or bulk-confirming the rest. That is one branch in `submitReview()`.
+- **Answer:**
+
+## Q-067 · C11 · Storing review confirmations as training data
+
+- **Question:** Should review confirmations, not just changes, be stored as training data in `EventCorrection`?
+- **Default taken:** Yes, as kind `confirmed`. They are excluded from the `ReviewClaim.corrections` count.
+- **Recommended:** Yes. Confirmed positives are as useful as corrections for retraining.
+- **Impact:** Dropping them is one filter in `corrections.ts`. Existing rows can simply be ignored.
+- **Answer:**
+
+## Q-068 · C11 · Client-side or server-side watermark (REVIEW11)
+
+- **Question:** Is a client-side name watermark enough for REVIEW11, or should footage be watermarked server-side (burned in or forensic)?
+- **Default taken:** A client overlay with the reviewer's name and short claim id, drifting position, plus no-download controls and claim-checked URLs on every segment.
+- **Recommended:** Keep it for the pilot. A burned-in per-reviewer render would cost a transcode per claim. Revisit with the lawyer at the v0 gate.
+- **Impact:** A server-side watermark would be a per-claim ffmpeg job and a change to the HLS routes. The workspace UI would not change.
+- **Answer:**
+
+## Q-069 · C11 · Re-scoring events after a threshold change
+
+- **Question:** Should a change to the auto-accept thresholds re-score events of matches not yet reviewed?
+- **Default taken:** No. New thresholds apply to the next CV ingest only.
+- **Recommended:** Keep it. Re-scoring a match while it is claimed would change a scout's list under them.
+- **Impact:** Re-scoring is one `updateMany` per `awaiting_review` match in the settings action, plus a test.
+- **Answer:**
+
+## Q-070 · C11 · Who may change the review thresholds
+
+- **Question:** Who may change the review thresholds?
+- **Default taken:** Owners and admins. Coaches can see the values but not change them.
+- **Recommended:** Owners and admins, consistent with the other organisation settings.
+- **Impact:** A role list in the settings action and page.
+- **Answer:**

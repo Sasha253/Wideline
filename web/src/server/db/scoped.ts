@@ -50,6 +50,9 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   "ClipFavourite",
   "PitchCalibration",
   "BenchmarkTag",
+  // C10: review claims. Readable (a club sees when its review is due), never
+  // writable: REVIEW_CLAIM_REFUSED_OPS below.
+  "ReviewClaim",
 ]);
 
 // Tables no organisation may reach: the Better Auth tables, the scout tables
@@ -166,6 +169,38 @@ const CONSENT_REFUSED_OPS = new Set([
   "delete",
   "deleteMany",
 ]);
+
+// C10 (NFR16): review claims are written only by src/server/review/, which
+// checks the scout, the match and the claim limit. A scoped client may read
+// them but never create, change or delete one, directly or nested in another
+// model's write.
+const REVIEW_CLAIM_REFUSED_OPS = new Set([
+  "create",
+  "createMany",
+  "createManyAndReturn",
+  "update",
+  "updateMany",
+  "updateManyAndReturn",
+  "upsert",
+  "delete",
+  "deleteMany",
+]);
+const REVIEW_CLAIM_REASON = "review claims are written by src/server/review/";
+
+/** Throws if a write reaches review claims through a relation (match.reviewClaims), at any depth. */
+function assertNoReviewClaimWrite(value: unknown, path: string): void {
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => assertNoReviewClaimWrite(v, `${path}[${i}]`));
+    return;
+  }
+  if (value === null || typeof value !== "object" || value instanceof Date) return;
+  for (const [key, v] of Object.entries(value)) {
+    if (key === "reviewClaims") {
+      throw new TenantScopeError(`${path}.reviewClaims: ${REVIEW_CLAIM_REASON}`);
+    }
+    assertNoReviewClaimWrite(v, `${path}.${key}`);
+  }
+}
 
 /** Throws if a Player write sets consentState: only the Consent trigger writes it. */
 function assertNoConsentStateWrite(value: unknown, path: string): void {
@@ -345,6 +380,12 @@ export function scopedDb(organisationId: string) {
               `Consent.${operation}: Consent is append-only; record a new row instead`,
             );
           }
+          if (model === "ReviewClaim" && REVIEW_CLAIM_REFUSED_OPS.has(operation)) {
+            throw new TenantScopeError(`ReviewClaim.${operation}: ${REVIEW_CLAIM_REASON}`);
+          }
+          assertNoReviewClaimWrite(a.data, "data");
+          assertNoReviewClaimWrite(a.create, "create");
+          assertNoReviewClaimWrite(a.update, "update");
           if (model === "Player") {
             assertNoConsentStateWrite(a.data, "data");
             assertNoConsentStateWrite(a.create, "create");

@@ -5,12 +5,20 @@ import { ConfidenceMeter } from "@/components/ui/ConfidenceMeter";
 import { ConsentBadge } from "@/components/ui/ConsentBadge";
 import { Cover } from "@/components/ui/Cover";
 import { formatDeletionDate } from "@/components/ui/expiry";
-import { ExpiryBanner, ExpiryLabel } from "@/components/ui/ExpiryBanner";
+import {
+  ClaimTimeLeft,
+  ClipsTimeLeft,
+  ExpiryBanner,
+  ExpiryLabel,
+  FootageTimeLeft,
+} from "@/components/ui/ExpiryBanner";
 import { AveragePositionMap, PitchHeatmap } from "@/components/ui/PitchHeatmap";
 import { PlayerCard } from "@/components/ui/PlayerCard";
 import { ReviewEventRow } from "@/components/ui/ReviewEventRow";
 import { StatTile } from "@/components/ui/StatTile";
 import {
+  CLAIM_STATES,
+  ClaimStatusChip,
   ClubStatusChip,
   EVENT_STATES,
   EventStatusChip,
@@ -27,7 +35,7 @@ import {
 } from "@/components/ui/StatusChip";
 import { iconProps } from "@/components/ui/icons";
 import { TeamMarker } from "@/components/ui/TeamMarker";
-import type { ConsentState, MatchStatus } from "@/generated/prisma/enums";
+import type { ConsentState, MatchStatus, ReviewClaimStatus } from "@/generated/prisma/enums";
 import {
   averagePositions,
   AWAY_TEAM,
@@ -35,6 +43,7 @@ import {
   dangerExpiry,
   heatmapZones,
   HOME_TEAM,
+  hoursFromNow,
   INVITATION_STATE_FIXTURES,
   leboStats,
   now,
@@ -251,6 +260,13 @@ export function Gallery({ theme }: { theme: Theme }) {
                 ))}
               </div>
             </Group>
+            <Group label="Claim">
+              <div className="wl-row">
+                {(Object.keys(CLAIM_STATES) as ReviewClaimStatus[]).map((s) => (
+                  <ClaimStatusChip key={s} status={s} />
+                ))}
+              </div>
+            </Group>
             <Group label="Invitation states">
               <div className="wl-row">
                 {INVITATION_STATE_FIXTURES.map((s) => (
@@ -358,6 +374,25 @@ export function Gallery({ theme }: { theme: Theme }) {
               <div className="wl-row">
                 <ExpiryLabel expiresAt={warningExpiry} now={now} />
                 <ExpiryLabel expiresAt={dangerExpiry} now={now} />
+              </div>
+            </Group>
+            <Group label="Time left">
+              <div className="wl-row">
+                {[73, 48, 23].map((h) => (
+                  <div key={`footage-${h}`}>
+                    <FootageTimeLeft expiresAt={hoursFromNow(h)} now={now} />
+                  </div>
+                ))}
+                {[48, 11].map((h) => (
+                  <div key={`claim-${h}`}>
+                    <ClaimTimeLeft expiresAt={hoursFromNow(h)} now={now} />
+                  </div>
+                ))}
+                {[73, 23].map((h) => (
+                  <div key={`clips-${h}`}>
+                    <ClipsTimeLeft clipsExpireAt={hoursFromNow(h)} now={now} />
+                  </div>
+                ))}
               </div>
             </Group>
           </div>

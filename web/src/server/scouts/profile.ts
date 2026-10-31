@@ -2,6 +2,8 @@ import "server-only";
 import type { ScoutAffiliationType } from "@/generated/prisma/enums";
 import { audit } from "../audit";
 import { rawDb } from "../db/raw";
+import { releaseConflictedClaims } from "../review/lifecycle";
+import { coolingOffSince } from "./conflicts";
 import {
   affiliationSchema,
   MAX_AFFILIATIONS_PER_TYPE,
@@ -17,7 +19,7 @@ import { REVIEWER_TERMS_VERSION } from "./terms";
  */
 
 export type ScoutProfileErrorCode =
-  "no_profile" | "duplicate" | "limit" | "already_removed" | "terms_changed";
+  "no_profile" | "duplicate" | "limit" | "cooling_off_limit" | "already_removed" | "terms_changed";
 
 export class ScoutProfileError extends Error {
   constructor(readonly code: ScoutProfileErrorCode) {
@@ -130,7 +132,12 @@ export async function updateOwnPhone(
 
 /**
  * Declares a club or a represented player. Refuses a name already on the
- * active list (same type, case-insensitive) and more than 30 per type.
+ * active list (same type, case-insensitive) and more than 30 per type. A
+ * represented player blocks claims whatever the lineup player's consent
+ * (REVIEW02, Q-053), so declaring names is a way to probe which matches a
+ * child plays in. To bound that, at most 30 player names may block at once,
+ * counting removed ones still in their 90-day cooling-off (Q-006):
+ * cooling_off_limit. Every declaration is audited without the name.
  */
 export async function addOwnAffiliation(
   userId: string,
@@ -147,7 +154,19 @@ export async function addOwnAffiliation(
       throw new ScoutProfileError("duplicate");
     }
     if (active.length >= MAX_AFFILIATIONS_PER_TYPE) throw new ScoutProfileError("limit");
-    return tx.scoutAffiliation.create({
+    if (data.type === "player") {
+      const cooling = await tx.scoutAffiliation.count({
+        where: {
+          scoutUserId: userId,
+          type: "player",
+          removedAt: { gt: coolingOffSince(new Date()) },
+        },
+      });
+      if (active.length + cooling >= MAX_AFFILIATIONS_PER_TYPE) {
+        throw new ScoutProfileError("cooling_off_limit");
+      }
+    }
+    const created = await tx.scoutAffiliation.create({
       data: {
         scoutUserId: userId,
         type: data.type,
@@ -155,6 +174,11 @@ export async function addOwnAffiliation(
         clubName: data.type === "player" ? data.clubName : null,
       },
     });
+    // C10 (A-9): a new affiliation releases the claims it conflicts with, in
+    // this transaction, so it sees the new row. Removal releases nothing: the
+    // removed row keeps blocking for 90 days (Q-006).
+    await releaseConflictedClaims(tx, userId, new Date(), userId);
+    return created;
   });
   await audit({
     organisationId: null,

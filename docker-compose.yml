@@ -128,7 +128,8 @@ services:
     environment:
       <<: *web-environment
       # C08: the CV queues run in cv-dispatcher. C09: clips run here (ffmpeg).
-      WORKER_QUEUES: probe,transcode,clips,retention,consent-withdrawn
+      # C10: the review sweep (every minute) runs here.
+      WORKER_QUEUES: probe,transcode,clips,review-sweep,retention,consent-withdrawn
     # Bounded so a 1080p encode cannot starve web and postgres of memory.
     mem_limit: ${TRANSCODE_MEM_LIMIT:-2g}
     volumes:

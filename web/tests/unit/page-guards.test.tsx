@@ -32,6 +32,20 @@ vi.mock("@/server/matches/matches", async (importOriginal) => ({
   listMatchesByStatus: vi.fn(async () => []),
 }));
 
+// The review queue reads the queue once review access passes (C10).
+vi.mock("@/server/review/queue", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/review/queue")>()),
+  reviewQueue: vi.fn(async () => ({
+    mine: [],
+    waiting: [],
+    clipsOnly: [],
+    claimLimit: 1,
+    activeClaims: 0,
+    atLimit: false,
+    capped: false,
+  })),
+}));
+
 const session =
   await vi.importActual<typeof import("@/server/auth/session")>("@/server/auth/session");
 
@@ -196,12 +210,16 @@ describe("placeholder pages for an allowed role", () => {
       requireReviewerPage.mockImplementationOnce(async () => {
         throw new Error("NEXT_REDIRECT");
       });
-      const page = (await load()).default as Page;
-      await expect(page({})).rejects.toThrow("NEXT_REDIRECT");
+      // The queue reads ?done= (C10); the shortlists placeholder ignores it.
+      const page = (await load()).default as (props: {
+        searchParams: Promise<Record<string, string>>;
+      }) => Promise<ReactNode>;
+      const props = { searchParams: Promise.resolve({}) };
+      await expect(page(props)).rejects.toThrow("NEXT_REDIRECT");
       expect(requireReviewerPage).toHaveBeenCalledTimes(1);
       expect(requirePageRole).not.toHaveBeenCalled();
       requireReviewerPage.mockResolvedValueOnce({ organisationName: "Wideline scouts" });
-      const html = renderToStaticMarkup(await page({}));
+      const html = renderToStaticMarkup(await page(props));
       expect(html.match(/<h1/g)).toHaveLength(1);
       expect(html).toContain(empty);
     },

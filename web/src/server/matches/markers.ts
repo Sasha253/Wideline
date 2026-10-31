@@ -4,6 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MARKER_KEYS, markerPastEnd, validateMarkers, type MarkerKey } from "@/lib/match-clock";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { lockMatchShared } from "../db/locks";
 import { asTransactionClient } from "../squad/tx";
 import { bucket, s3Public } from "../storage";
 import { isLocked, requireSquadOrg } from "./access";
@@ -29,6 +30,8 @@ export async function saveMarkers(
   requireSquadOrg(ctx);
   const data = markersSchema.parse(input);
   await ctx.db.$transaction(async (tx) => {
+    // C10 (A-6): as lineup saves, FOR SHARE so a review claim never races this.
+    await lockMatchShared(tx, ctx.organisationId, matchId);
     const match = await tx.match.findFirst({
       where: { id: matchId },
       select: {

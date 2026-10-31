@@ -84,6 +84,44 @@ describe("own profile", () => {
     });
   });
 
+  // Q-053: a represented player blocks whatever the lineup player's consent, so
+  // declaring names could probe for a child. At most 30 player names may block
+  // at once, removed ones included while their 90-day cooling-off runs (Q-006).
+  it("caps player names that still block, counting removals in the last 90 days", async () => {
+    const carol = await f.user("Carol Scout");
+    await scoutProfile(carol.id);
+    const DAY = 24 * 60 * 60 * 1000;
+    await rawDb.scoutAffiliation.createMany({
+      data: [
+        ...Array.from({ length: 20 }, (_, i) => ({
+          scoutUserId: carol.id,
+          type: "player" as const,
+          name: `Removed ${i}`,
+          removedAt: new Date(Date.now() - 10 * DAY),
+        })),
+        // Past the cooling-off: no longer counts.
+        ...Array.from({ length: 5 }, (_, i) => ({
+          scoutUserId: carol.id,
+          type: "player" as const,
+          name: `Cooled ${i}`,
+          removedAt: new Date(Date.now() - 91 * DAY),
+        })),
+      ],
+    });
+    for (let i = 0; i < 10; i++)
+      await addOwnAffiliation(carol.id, { type: "player", name: `Player ${i}`, clubName: "" });
+    await expect(
+      addOwnAffiliation(carol.id, { type: "player", name: "Player 10", clubName: "" }),
+    ).rejects.toMatchObject({ code: "cooling_off_limit" });
+    // Clubs are not capped this way.
+    await addOwnAffiliation(carol.id, { type: "club", name: "Some FC" });
+    expect(
+      await rawDb.scoutAffiliation.count({
+        where: { scoutUserId: carol.id, type: "player", removedAt: null },
+      }),
+    ).toBe(10);
+  });
+
   it("removes softly, only the caller's own rows, audited", async () => {
     const [row] = (await getOwnScoutProfile(alice.id))!.affiliations;
     await expect(removeOwnAffiliation(bob.id, row!.id)).rejects.toMatchObject({
@@ -125,14 +163,16 @@ describe("own profile", () => {
 });
 
 describe("scoutConflicts", () => {
-  it("returns linked active affiliations and accepted memberships, nothing else", async () => {
+  // C10 (Q-006): a removed affiliation keeps blocking for 90 days, then stops.
+  it("returns linked affiliations (removed ones for 90 days) and accepted memberships, nothing else", async () => {
     const u = await f.user("Conflicted Scout");
     await scoutProfile(u.id);
-    const [linkedClub, playersClub, removedClub, memberClub, invitedClub, platform] =
+    const [linkedClub, playersClub, removedClub, cooledClub, memberClub, invitedClub, platform] =
       await Promise.all([
         f.org("Linked club"),
         f.org("Players club"),
         f.org("Removed club"),
+        f.org("Cooled club"),
         f.org("Member club"),
         f.org("Invited club"),
         f.org("Platform", { type: "platform" }),
@@ -154,6 +194,13 @@ describe("scoutConflicts", () => {
           organisationId: removedClub.id,
           removedAt: new Date(),
         },
+        {
+          scoutUserId: u.id,
+          type: "club",
+          name: "Cooled off",
+          organisationId: cooledClub.id,
+          removedAt: new Date(Date.now() - 91 * 24 * 60 * 60 * 1000),
+        },
         { scoutUserId: u.id, type: "club", name: "Not linked yet" },
       ],
     });
@@ -165,7 +212,9 @@ describe("scoutConflicts", () => {
     });
 
     const { organisationIds } = await scoutConflicts(u.id);
-    expect(organisationIds.sort()).toEqual([linkedClub.id, playersClub.id, memberClub.id].sort());
+    expect(organisationIds.sort()).toEqual(
+      [linkedClub.id, playersClub.id, removedClub.id, memberClub.id].sort(),
+    );
     expect(organisationIds).not.toContain(SCOUT_NETWORK_ORG_ID);
   });
 
@@ -191,7 +240,7 @@ describe("scoutConflicts", () => {
         { scoutUserId: u.id, type: "club", name: agency.name },
         // Not active: no conflict.
         { scoutUserId: u.id, type: "club", name: pendingOrg.name },
-        // Removed by the scout: no conflict.
+        // Removed by the scout today: still blocks for 90 days (Q-006).
         { scoutUserId: u.id, type: "club", name: removedMatch.name, removedAt: new Date() },
         // An admin saved Not matched, but the name still equals an organisation's.
         { scoutUserId: u.id, type: "club", name: checkedMatch.name, linkedAt: new Date() },
@@ -203,7 +252,7 @@ describe("scoutConflicts", () => {
 
     const { organisationIds } = await scoutConflicts(u.id);
     expect(organisationIds).toEqual(
-      [club.id, twinClub.id, twinAcademy.id, agency.id, checkedMatch.id].sort(),
+      [club.id, twinClub.id, twinAcademy.id, agency.id, removedMatch.id, checkedMatch.id].sort(),
     );
   });
 });

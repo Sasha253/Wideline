@@ -19,10 +19,15 @@ import { GRANTED_STATES, isGranted } from "@/lib/consent-rules";
  *    C14). Only players with a grant (club_only or scout_visible).
  *  - scout: anything a scout sees outside review (C13, C15). Only
  *    scout_visible, named players.
- * A new viewer (C10/C11 reviewers, for example) adds a kind here, with a test
- * in tests/integration/consent-visibility.test.ts.
+ *  - reviewer: the scout holding a review claim (C10, used by C11 through
+ *    claimScope()), for the players named in the workspace. Only
+ *    scout_visible, named players; everyone else shows as side and shirt
+ *    number (Q-021).
+ * A new viewer adds a kind here, with a test in
+ * tests/integration/consent-visibility.test.ts.
  */
-export type ConsentViewer = { kind: "club" } | { kind: "club_stats" } | { kind: "scout" };
+export type ConsentViewer =
+  { kind: "club" } | { kind: "club_stats" } | { kind: "scout" } | { kind: "reviewer" };
 
 export function consentVisibleTo(viewer: ConsentViewer): PlayerWhereInput {
   switch (viewer.kind) {
@@ -31,6 +36,7 @@ export function consentVisibleTo(viewer: ConsentViewer): PlayerWhereInput {
     case "club_stats":
       return { consentState: { in: [...GRANTED_STATES] } };
     case "scout":
+    case "reviewer":
       return { consentState: "scout_visible", isPlaceholder: false };
   }
 }

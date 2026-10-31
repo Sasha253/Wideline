@@ -130,7 +130,17 @@ function FootageFacts({ video, now }: { video: VideoSummary; now: Date }) {
   return <FactList items={items} />;
 }
 
-function matchStatusText(match: MatchDetail, now: Date, readyAt?: Date | null): string | null {
+/**
+ * `reviewDueAt` is the live review claim's end (C10), or null: an In review
+ * match whose claim has run out is about to go back to the queue, so it reads
+ * as Awaiting review. The scout is never named (Q-059).
+ */
+function matchStatusText(
+  match: MatchDetail,
+  now: Date,
+  readyAt?: Date | null,
+  reviewDueAt: Date | null = null,
+): string | null {
   switch (match.status) {
     case "processing": {
       // C07: readyAt uses measured transcode timings; the C06 constants otherwise.
@@ -140,9 +150,11 @@ function matchStatusText(match: MatchDetail, now: Date, readyAt?: Date | null): 
         : "Processing is taking longer than usual. This page updates when it is ready.";
     }
     case "awaiting_review":
-      return "Ready for review. A scout picks it up from the review queue.";
+      return READY_FOR_REVIEW;
     case "in_review":
-      return "A scout is reviewing this match.";
+      return reviewDueAt
+        ? `A scout is reviewing this match. The review is due by ${formatReadyBy(reviewDueAt, now)}.`
+        : READY_FOR_REVIEW;
     case "published":
       return "Published. Stats from this match are on player profiles.";
     case "failed":
@@ -151,6 +163,8 @@ function matchStatusText(match: MatchDetail, now: Date, readyAt?: Date | null): 
       return null;
   }
 }
+
+const READY_FOR_REVIEW = "Ready for review. A scout picks it up from the review queue.";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -280,10 +294,20 @@ export default async function MatchPage({ params, searchParams }: Props) {
       </>
     );
   } else {
+    // C10: the live claim's end, read through the scoped client (claims are
+    // readable there, never writable). Only the time, never the scout.
+    const claim =
+      match.status === "in_review"
+        ? await ctx.db.reviewClaim.findFirst({
+            where: { matchId: match.id, status: "active", expiresAt: { gt: now } },
+            select: { expiresAt: true },
+          })
+        : null;
     const statusText = matchStatusText(
       match,
       now,
       processing && processing !== "unavailable" ? processing.readyAt : undefined,
+      claim?.expiresAt ?? null,
     );
     footage = (
       <>

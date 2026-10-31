@@ -106,6 +106,32 @@ describe("consentVisibleTo and attributablePlayerIds (NFR08)", () => {
     expect(club).toHaveLength(5);
   });
 
+  // C10 (Q-021): the scout holding a review claim sees by name only players
+  // whose family agreed to scouts; everyone else is side and shirt number.
+  it("reviewer passes only scout_visible, named players", async () => {
+    const clubOnly = await namedPlayer(ctx, teamId);
+    await recordConsent(ctx, clubOnly.id, guardianGrant({ scoutVisible: "no" }));
+    const pending = await namedPlayer(ctx, teamId);
+    await createConsentRequest(ctx, pending.id);
+    const withdrawn = await namedPlayer(ctx, teamId);
+    await recordConsent(ctx, withdrawn.id, guardianGrant());
+    await withdrawConsent(ctx, withdrawn.id, { requestedBy: "Thandi", method: "email" });
+    const none = await namedPlayer(ctx, teamId);
+    const scoutVisible = await namedPlayer(ctx, teamId);
+    await recordConsent(ctx, scoutVisible.id, guardianGrant());
+    const all = [clubOnly, pending, withdrawn, none, scoutVisible].map((p) => p.id);
+
+    expect(consentVisibleTo({ kind: "reviewer" })).toEqual({
+      consentState: "scout_visible",
+      isPlaceholder: false,
+    });
+    const seen = await ctx.db.player.findMany({
+      where: { id: { in: all }, ...consentVisibleTo({ kind: "reviewer" }) },
+      select: { id: true },
+    });
+    expect(seen.map((r) => r.id)).toEqual([scoutVisible.id]);
+  });
+
   it("mayAttribute allows only a grant", () => {
     expect(mayAttribute("club_only")).toBe(true);
     expect(mayAttribute("scout_visible")).toBe(true);

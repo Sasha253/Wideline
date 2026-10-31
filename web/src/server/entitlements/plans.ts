@@ -25,6 +25,8 @@ export const PILOT_PLAN_LIMITS = {
   scout_seats: 50,
   // 8 GiB, the C06 upload cap.
   upload_max_bytes: 8_589_934_592,
+  // C10 (Q-050): the c10_review_rules migration wrote it to the plan row.
+  review_claims_active: 1,
   billing: false,
   scout_search: false,
   share_links: false,

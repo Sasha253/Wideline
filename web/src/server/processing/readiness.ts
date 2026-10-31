@@ -1,7 +1,6 @@
 // No "server-only" marker: the worker (plain Node, src/worker/) runs this.
 import type { Prisma } from "@/generated/prisma/client";
 import type { ProcessingJobType } from "@/generated/prisma/enums";
-import { fromStatusesFor } from "../matches/status";
 
 /**
  * When a match is review-ready (C08; MATCH07): every required processing job
@@ -16,7 +15,10 @@ export const REQUIRED_JOB_TYPES: readonly ProcessingJobType[] = ["transcode", "c
 /**
  * Moves the match Processing to Awaiting review if every required job of the
  * video has succeeded. Call it inside the transaction that marks a job
- * succeeded. Returns true when the match moved.
+ * succeeded. Returns true when the match moved. Only ever from Processing
+ * (C10, A-18): a late job success (a clips backfill, a watchdog repair) must
+ * never pull a match out of review, so this does not use
+ * fromStatusesFor("awaiting_review"), which also lists In review.
  */
 export async function moveToAwaitingReviewIfReady(
   tx: Prisma.TransactionClient,
@@ -40,7 +42,7 @@ export async function moveToAwaitingReviewIfReady(
     where: {
       id: matchId,
       organisationId,
-      status: { in: fromStatusesFor("awaiting_review") },
+      status: "processing",
     },
     data: { status: "awaiting_review" },
   });

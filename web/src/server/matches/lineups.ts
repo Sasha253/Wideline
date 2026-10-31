@@ -5,6 +5,7 @@ import { maxSubstitutionMinute } from "@/lib/match-clock";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
 import { consentVisibleTo } from "../consent/visibility";
+import { lockMatchShared } from "../db/locks";
 import { prismaErrorCode } from "../squad/errors";
 import { ACTIVE_PLAYER, activePlayers, type PlayerRow } from "../squad/players";
 import { asTransactionClient } from "../squad/tx";
@@ -165,7 +166,10 @@ export async function pickerFor(ctx: AuthContext, teamId: string): Promise<Playe
 type Tx = Parameters<Parameters<AuthContext["db"]["$transaction"]>[0]>[0];
 
 /** The match, checked editable, and the side's team, checked to be in it. */
-async function editableSide(tx: Tx, matchId: string, teamId: string) {
+async function editableSide(tx: Tx, organisationId: string, matchId: string, teamId: string) {
+  // C10 (A-6): FOR SHARE on the match first, so a review claim (FOR UPDATE)
+  // either sees this save or makes it wait and then see In review (locked).
+  await lockMatchShared(tx, organisationId, matchId);
   const match = await tx.match.findFirst({
     where: { id: matchId },
     select: { status: true, halfLengthMinutes: true, homeTeamId: true, awayTeamId: true },
@@ -247,7 +251,7 @@ export async function saveLineup(
 
   try {
     return await ctx.db.$transaction(async (tx) => {
-      await editableSide(tx, matchId, teamId);
+      await editableSide(tx, ctx.organisationId, matchId, teamId);
       const existing = await sideRows(tx, matchId, teamId);
       // SQUAD09: a departed player's row stays as it is; input for it is ignored.
       const departed = existing.filter((r) => r.player.clubStatus === "departed");
@@ -421,7 +425,7 @@ export async function addSubstitution(
   requireSquadOrg(ctx);
   const data = substitutionSchema.parse(input);
   await ctx.db.$transaction(async (tx) => {
-    const match = await editableSide(tx, matchId, data.teamId);
+    const match = await editableSide(tx, ctx.organisationId, matchId, data.teamId);
     const max = maxSubstitutionMinute(match.halfLengthMinutes);
     if (data.minute < 1 || data.minute > max) {
       throw new MatchError("invalid", minuteRangeError(max), "minute");
@@ -490,7 +494,7 @@ export async function removeSubstitution(
 ): Promise<{ minute: number }> {
   requireSquadOrg(ctx);
   return ctx.db.$transaction(async (tx) => {
-    await editableSide(tx, matchId, teamId);
+    await editableSide(tx, ctx.organisationId, matchId, teamId);
     const rows = await sideRows(tx, matchId, teamId);
     const off = rows.find((r) => r.id === offLineupId && r.endedAt !== null);
     if (!off) throw new MatchError("not_found");

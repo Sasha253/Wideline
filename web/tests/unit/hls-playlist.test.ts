@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  claimHlsBase,
+  matchHlsBase,
   PlaylistError,
   rewriteMasterPlaylist,
   rewriteMediaPlaylist,
@@ -8,6 +10,8 @@ import {
 // C07 (NFR17): playlists are served by the app, with every entry pointing at a
 // session-checked route, never at the bucket. An entry outside the ladder (a
 // path out of the rendition, a URL, raw footage) is refused.
+
+const B = matchHlsBase("m1");
 
 const MASTER = `#EXTM3U
 #EXT-X-VERSION:7
@@ -32,7 +36,7 @@ seg_00001.m4s\r
 
 describe("rewriteMasterPlaylist", () => {
   it("points every variant at the rendition route and keeps tags byte for byte", () => {
-    const out = rewriteMasterPlaylist(MASTER, "m1");
+    const out = rewriteMasterPlaylist(MASTER, B);
     expect(out).toBe(
       MASTER.replace("1080p/index.m3u8", "/api/matches/m1/hls/1080p/index.m3u8").replace(
         "480p/index.m3u8",
@@ -49,25 +53,25 @@ describe("rewriteMasterPlaylist", () => {
     "/etc/passwd",
   ])("refuses %s", (entry) => {
     expect(() =>
-      rewriteMasterPlaylist(`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n${entry}\n`, "m1"),
+      rewriteMasterPlaylist(`#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n${entry}\n`, B),
     ).toThrow(PlaylistError);
   });
 
   it("rewrites and checks URI attributes of media tags", () => {
     const out = rewriteMasterPlaylist(
       '#EXTM3U\n#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1,URI="720p/index.m3u8"\n',
-      "m1",
+      B,
     );
     expect(out).toContain('URI="/api/matches/m1/hls/720p/index.m3u8"');
     expect(() =>
-      rewriteMasterPlaylist('#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,URI="../raw/v.mp4"\n', "m1"),
+      rewriteMasterPlaylist('#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,URI="../raw/v.mp4"\n', B),
     ).toThrow(PlaylistError);
   });
 });
 
 describe("rewriteMediaPlaylist", () => {
   it("rewrites the init segment and media segments, keeping CRLF and tags", () => {
-    const out = rewriteMediaPlaylist(MEDIA, "m1", "720p");
+    const out = rewriteMediaPlaylist(MEDIA, B, "720p");
     expect(out).toBe(
       MEDIA.replace('URI="init.mp4"', 'URI="/api/matches/m1/hls/720p/init.mp4"')
         .replace("seg_00000.m4s", "/api/matches/m1/hls/720p/seg_00000.m4s")
@@ -82,23 +86,38 @@ describe("rewriteMediaPlaylist", () => {
     "index.m3u8",
     "seg_1.m4s",
   ])("refuses the entry %s", (entry) => {
-    expect(() => rewriteMediaPlaylist(`#EXTM3U\n#EXTINF:4,\n${entry}\n`, "m1", "720p")).toThrow(
+    expect(() => rewriteMediaPlaylist(`#EXTM3U\n#EXTINF:4,\n${entry}\n`, B, "720p")).toThrow(
       PlaylistError,
     );
   });
 
   it("refuses another init segment and an unknown rendition", () => {
     expect(() =>
-      rewriteMediaPlaylist('#EXTM3U\n#EXT-X-MAP:URI="../raw/v.mp4"\n', "m1", "720p"),
+      rewriteMediaPlaylist('#EXTM3U\n#EXT-X-MAP:URI="../raw/v.mp4"\n', B, "720p"),
     ).toThrow(PlaylistError);
-    expect(() => rewriteMediaPlaylist(MEDIA, "m1", "../raw" as unknown as "720p")).toThrow(
+    expect(() => rewriteMediaPlaylist(MEDIA, B, "../raw" as unknown as "720p")).toThrow(
       PlaylistError,
     );
   });
 
   it("encodes the match id into the route", () => {
-    expect(rewriteMediaPlaylist("seg_00000.m4s", "a/b", "480p")).toBe(
+    expect(rewriteMediaPlaylist("seg_00000.m4s", matchHlsBase("a/b"), "480p")).toBe(
       "/api/matches/a%2Fb/hls/480p/seg_00000.m4s",
     );
+  });
+});
+
+// C10: a reviewer's playlists point at the claim's routes, which check the
+// claim on every request, never at the club's match routes.
+describe("claim routes", () => {
+  it("points master and media entries at /api/review/claims/{claimId}/hls", () => {
+    const base = claimHlsBase("c1");
+    expect(rewriteMasterPlaylist(MASTER, base)).toContain(
+      "/api/review/claims/c1/hls/1080p/index.m3u8",
+    );
+    const media = rewriteMediaPlaylist(MEDIA, base, "720p");
+    expect(media).toContain('URI="/api/review/claims/c1/hls/720p/init.mp4"');
+    expect(media).toContain("/api/review/claims/c1/hls/720p/seg_00001.m4s");
+    expect(media).not.toContain("/api/matches/");
   });
 });

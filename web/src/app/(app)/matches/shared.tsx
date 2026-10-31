@@ -1,10 +1,8 @@
 import { CircleAlert, Clock, LoaderCircle, TriangleAlert, Upload, X } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { Missing } from "@/components/templates/DataTable";
 import { cx } from "@/components/ui/cx";
-import { expiryLevel, formatTimeLeft } from "@/components/ui/expiry";
-import { ExpiryLabel } from "@/components/ui/ExpiryBanner";
+import { FootageTimeLeft, InlineStatus } from "@/components/ui/ExpiryBanner";
 import { iconProps } from "@/components/ui/icons";
 import type { FootageState } from "@/components/ui/StatusChip";
 import { TeamMarker } from "@/components/ui/TeamMarker";
@@ -34,20 +32,27 @@ export function doneMessage(map: Record<string, string>, done: string | undefine
   return done && Object.hasOwn(map, done) ? map[done]! : null;
 }
 
-/** The fixture as home and away TeamMarkers, "v" between (Surface 1). */
+/**
+ * The fixture as home and away TeamMarkers, "v" between (Surface 1). Takes
+ * any row with team names (C10 queue rows too). `wrap` lets long names wrap
+ * in stacked cards instead of truncating: the review queue needs the full
+ * names, so a scout can recognise a conflict (docs/build/design/C10.md).
+ */
 export function FixtureMarkers({
   match,
   stacked = false,
+  wrap = false,
 }: {
-  match: MatchSummary;
+  match: { homeTeam: { name: string }; awayTeam: { name: string } };
   stacked?: boolean;
+  wrap?: boolean;
 }) {
   if (stacked) {
     return (
       <span className="flex min-w-0 flex-col gap-1">
-        <TeamMarker side="home" name={match.homeTeam.name} truncate />
+        <TeamMarker side="home" name={match.homeTeam.name} truncate={!wrap} />
         <span className="sr-only"> v </span>
-        <TeamMarker side="away" name={match.awayTeam.name} truncate />
+        <TeamMarker side="away" name={match.awayTeam.name} truncate={!wrap} />
       </span>
     );
   }
@@ -57,23 +62,6 @@ export function FixtureMarkers({
       <span className="text-ink-muted"> v </span>
       <TeamMarker side="away" name={match.awayTeam.name} />
     </>
-  );
-}
-
-function InlineStatus({
-  tone,
-  icon: Icon,
-  children,
-}: {
-  tone: "muted" | "warn" | "danger";
-  icon: typeof Clock;
-  children: ReactNode;
-}) {
-  return (
-    <span className={cx("wl-inline-status caption", `wl-inline-status--${tone}`)}>
-      <Icon {...iconProps} />
-      {children}
-    </span>
   );
 }
 
@@ -128,13 +116,7 @@ export function FootageLine({ match, now }: { match: MatchSummary; now: Date }) 
     case "in_review": {
       const expires = rawExpiry(video);
       if (!expires || expires.getTime() <= now.getTime()) return <Missing />;
-      if (expiryLevel(expires, now) !== "none")
-        return <ExpiryLabel expiresAt={expires} now={now} />;
-      return (
-        <InlineStatus tone="muted" icon={Clock}>
-          Footage deleted in {formatTimeLeft(expires.getTime() - now.getTime())}
-        </InlineStatus>
-      );
+      return <FootageTimeLeft expiresAt={expires} now={now} />;
     }
     default:
       return <Missing />;

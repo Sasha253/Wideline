@@ -123,10 +123,11 @@ describe("org B's scoped client and org A's consent", () => {
       playerWasMinor: true,
       requestId,
     });
-    for (const db of [rawDb, ctxB.db]) {
-      const err = await errorOf(db.consent.create({ data: row(requestA) }));
-      expect(prismaErrorCode(err)).toBe("P2003");
-    }
+    // Two calls, not a loop over [rawDb, ctxB.db]: the union of the two client
+    // types is too deep for tsc once the schema grew (C10).
+    const viaRaw = await errorOf(rawDb.consent.create({ data: row(requestA) }));
+    const viaScoped = await errorOf(ctxB.db.consent.create({ data: row(requestA) }));
+    for (const err of [viaRaw, viaScoped]) expect(prismaErrorCode(err)).toBe("P2003");
     expect(
       prismaErrorCode(await errorOf(rawDb.consent.create({ data: row("no-such-link") }))),
     ).toBe("P2003");

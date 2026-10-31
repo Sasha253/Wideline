@@ -15,6 +15,9 @@ export const warningExpiry = new Date(now.getTime() + 48 * HOUR);
 /** Six hours away: the danger level. */
 export const dangerExpiry = new Date(now.getTime() + 6 * HOUR);
 
+/** Time-left examples for the C10 pieces: hours from `now`. */
+export const hoursFromNow = (h: number) => new Date(now.getTime() + h * HOUR);
+
 export const HOME_TEAM = "Orlando Pirates U17";
 export const AWAY_TEAM = "SuperSport Academy U17";
 

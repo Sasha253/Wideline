@@ -74,6 +74,16 @@ export const LIMIT_KEYS = {
     // 8 GiB, the C06 upload cap.
     fallback: 8_589_934_592,
   },
+  // C10 (REVIEW01, Q-050): read from the scout network organisation for every
+  // reviewer (A-7). The 48-hour claim length is a product rule, not a limit (A-4).
+  review_claims_active: {
+    label: "Claimed matches per scout",
+    description: "Matches one scout can hold claimed at the same time.",
+    unit: "count",
+    noun: ["match", "matches"],
+    release: "v0",
+    fallback: 1,
+  },
 } as const satisfies Record<string, LimitDef>;
 
 /** Feature flags. Every one is off unless the plan, an override or a flag turns it on. */

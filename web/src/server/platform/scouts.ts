@@ -22,6 +22,7 @@ import {
   organisationsByName,
   type LinkableOrganisation,
 } from "../scouts/conflicts";
+import { releaseClaimsForScout, releaseConflictedClaims } from "../review/lifecycle";
 import { REVIEWER_TERMS_VERSION } from "../scouts/terms";
 import { assertPlatformAdmin } from "./assert";
 import { rejectionReasonField } from "./organisations";
@@ -332,7 +333,8 @@ export const suspensionReasonField = z
 /**
  * Suspends an approved scout's review access (ADMIN06). requireReviewer reads
  * the status on every request, so access ends on the scout's next request.
- * Open review claims are released by C10, which owns them.
+ * Their open review claims are released in the same transaction (C10, reason
+ * suspended), so the matches go back to the queue at once.
  */
 export async function suspendScout(
   ctx: AuthContext,
@@ -343,12 +345,14 @@ export async function suspendScout(
   const suspensionReason = suspensionReasonField.parse(reason);
   const p = await loadProfile(id);
   await rawDb.$transaction(async (tx) => {
+    const now = new Date();
     const { count } = await tx.scoutProfile.updateMany({
       where: { id, status: "approved" },
-      data: { status: "suspended", suspendedAt: new Date(), suspensionReason },
+      data: { status: "suspended", suspendedAt: now, suspensionReason },
     });
     if (count !== 1) throw new ScoutDecisionError("not_approved");
     await auditDecision(tx, ctx, "scout.suspended", p, { reason: suspensionReason });
+    await releaseClaimsForScout(tx, p.userId, "suspended", now, ctx.user.id);
   });
   const emailSent = await send(
     p.user.email,
@@ -437,6 +441,8 @@ async function linkMatches(
       tx,
     );
   }
+  // C10 (A-9): a newly linked affiliation releases the claims it conflicts with.
+  if (linked > 0) await releaseConflictedClaims(tx, scoutUserId, new Date(), ctx.user.id);
   return linked;
 }
 
@@ -491,6 +497,8 @@ export async function linkAffiliation(
       },
       tx,
     );
+    // C10 (A-9): the link may conflict with a match the scout holds.
+    await releaseConflictedClaims(tx, row.scoutUserId, new Date(), ctx.user.id);
   });
   return { name: row.name, organisationName };
 }

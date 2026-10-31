@@ -263,7 +263,8 @@ describe("getOrganisationEntitlements", () => {
     const view = await getOrganisationEntitlements(admin, org);
     expect(view.organisation.id).toBe(org);
     expect(view.plan?.name).toBe("Pilot");
-    expect(view.entitlements).toHaveLength(9);
+    // Every registry key: 6 limits (C10 added review_claims_active) and 4 flags.
+    expect(view.entitlements).toHaveLength(10);
     const flag = view.entitlements.find((e) => e.key === "scout_search")!;
     expect(flag.flagInfo).toMatchObject({ reason: "Asked by the coach", setByName: "Flags Admin" });
     expect(flag.overrideInfo).toBeNull();

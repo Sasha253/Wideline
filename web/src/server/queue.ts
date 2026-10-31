@@ -18,6 +18,11 @@ export const QUEUES = {
   cvWatchdog: "cv-watchdog",
   // C09 (CV11): cut one clip per event after the CV ingest (src/worker/clips.ts).
   clips: "clips",
+  // C10 (REVIEW01, REVIEW13): every minute, expires review claims past their
+  // 48 hours, releases the claims of suspended or conflicted scouts, and emails
+  // platform admins about unreviewed footage near deletion
+  // (src/worker/review-sweep.ts). No payload.
+  reviewSweep: "review-sweep",
   // C05 (NFR11): a consent change took visibility away. Payload
   // ConsentWithdrawnJob. The handler is a stub until C12, C13 and C17 have
   // derived artefacts to purge (src/worker/index.ts).

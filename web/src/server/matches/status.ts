@@ -7,12 +7,16 @@ import type { MatchStatus } from "@/generated/prisma/enums";
  * Processing to Failed (NFR30). C08: once every required processing job of
  * the accepted video has succeeded (src/server/processing/readiness.ts),
  * Processing moves to Awaiting review; a CV job that fails its last attempt
- * moves it to Failed. C10 to C12 own the later moves.
+ * moves it to Failed. C10 owns the review claim moves: a claim moves Awaiting
+ * review to In review, and a release or expiry moves it back
+ * (src/server/review/). C11 and C12 add In review to Published.
  */
 export const MATCH_TRANSITIONS: Partial<Record<MatchStatus, readonly MatchStatus[]>> = {
   draft: ["uploading"],
   uploading: ["draft", "processing"],
   processing: ["awaiting_review", "failed"],
+  awaiting_review: ["in_review"],
+  in_review: ["awaiting_review"],
 };
 
 export function canMove(from: MatchStatus, to: MatchStatus): boolean {

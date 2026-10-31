@@ -1,11 +1,11 @@
 /**
  * Worker entry point: a long-running process that consumes pg-boss queues.
  * Same codebase as the web app, separate container. C06 adds probe and
- * retention, C07 transcode, C08 cv and cv-watchdog, C09 clips.
+ * retention, C07 transcode, C08 cv and cv-watchdog, C09 clips, C10 review-sweep.
  *
  * WORKER_QUEUES (comma-separated) picks the queues this process consumes;
  * unset, it consumes all of them. Compose runs two: the transcode worker
- * (probe, transcode, clips, retention, consent-withdrawn) and the cv
+ * (probe, transcode, clips, review-sweep, retention, consent-withdrawn) and the cv
  * dispatcher (cv, cv-watchdog), which alone mounts the Docker socket.
  */
 import type {
@@ -31,6 +31,7 @@ const { handleTranscode } = await import("./transcode");
 const { handleCvJob } = await import("./cv");
 const { handleCvWatchdog } = await import("./cv-watchdog");
 const { handleClips } = await import("./clips");
+const { handleReviewSweep } = await import("./review-sweep");
 const { purgeUnattributablePlayerTracks } = await import("../server/cv/withdrawal");
 
 const boss = await getBoss();
@@ -114,6 +115,17 @@ if (consumes(QUEUES.cvWatchdog)) {
     await handleCvWatchdog({ boss });
   });
   started.push(QUEUES.cvWatchdog);
+}
+
+// C10 (REVIEW01, REVIEW13): every minute, expire review claims past their 48
+// hours, release suspended or conflicted scouts' claims, and alert platform
+// admins about unreviewed footage near deletion.
+if (consumes(QUEUES.reviewSweep)) {
+  await boss.schedule(QUEUES.reviewSweep, "* * * * *");
+  await boss.work(QUEUES.reviewSweep, async () => {
+    await handleReviewSweep();
+  });
+  started.push(QUEUES.reviewSweep);
 }
 
 // C06 (MATCH08, NFR32): purge a deleted match's storage. C17 adds its sweep here.

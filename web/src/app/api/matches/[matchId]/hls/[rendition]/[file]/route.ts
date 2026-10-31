@@ -3,6 +3,7 @@ import { requireSquadOrg } from "@/server/matches/access";
 import { errorResponse } from "@/server/matches/http";
 import {
   canPlay,
+  matchHlsBase,
   NO_STORE,
   PLAYLIST_TYPE,
   readPlaylist,
@@ -32,7 +33,7 @@ export const GET = withRole<Params>(
       const key = `${video.prefix}${rendition}/${file}`;
       if (file === MEDIA_PLAYLIST) {
         const text = await readPlaylist(key);
-        return new Response(rewriteMediaPlaylist(text, matchId, rendition), {
+        return new Response(rewriteMediaPlaylist(text, matchHlsBase(matchId), rendition), {
           headers: { "Content-Type": PLAYLIST_TYPE, ...NO_STORE },
         });
       }

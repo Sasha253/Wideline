@@ -8,7 +8,9 @@ import { PROFILE_TERMS_REQUIRED } from "@/lib/scout-fields";
 import { sendEmailConfirmation } from "@/server/auth/email-verification";
 import { PasswordError, setOwnPassword } from "@/server/auth/password";
 import { requireRole, SCOUT_ROLES } from "@/server/auth/session";
+import { formatDate } from "@/lib/labels";
 import { log } from "@/server/log";
+import { coolingOffUntil } from "@/server/scouts/conflicts";
 import {
   acceptCurrentTerms,
   addOwnAffiliation,
@@ -74,6 +76,13 @@ export async function addAffiliationAction(
         formError: `You can have up to 30 ${type === "club" ? "clubs" : "players"} on your list. Remove one first.`,
       };
     }
+    if (err instanceof ScoutProfileError && err.code === "cooling_off_limit") {
+      return {
+        ok: false,
+        formError:
+          "You can have up to 30 players, counting players you removed in the last 90 days. You can add another 90 days after a removal.",
+      };
+    }
     return failed(err, "scout affiliation add");
   }
 }
@@ -89,7 +98,13 @@ export async function removeAffiliationAction(
       String(formData.get("affiliationId") ?? ""),
     );
     revalidatePath(PATH);
-    return { ok: true, message: `Removed ${row.name}.`, key: randomUUID() };
+    // Q-006 (C10): a removed entry keeps blocking for the cooling-off period.
+    const until = formatDate(coolingOffUntil(new Date()));
+    return {
+      ok: true,
+      message: `Removed ${row.name}. It keeps blocking matches until ${until}.`,
+      key: randomUUID(),
+    };
   } catch (err) {
     if (err instanceof ScoutProfileError && err.code === "already_removed") {
       revalidatePath(PATH);

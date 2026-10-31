@@ -39,6 +39,11 @@ const RAW_DB_ALLOWED = [
   // organisationId.
   "src/server/clips/**",
   "src/server/lab/**",
+  // C10: the review queue reads across organisations (match-level facts
+  // only), and claims are written only here. Every page-facing export takes
+  // the caller's ReviewerContext and touches only that scout's claims; C11
+  // reads claimed matches through claimScope() (NFR16).
+  "src/server/review/**",
   "prisma/seed.ts",
   "scripts/**",
   "tests/**",

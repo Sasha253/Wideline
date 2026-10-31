@@ -3,6 +3,7 @@ import { requireSquadOrg } from "@/server/matches/access";
 import { errorResponse } from "@/server/matches/http";
 import {
   canPlay,
+  matchHlsBase,
   NO_STORE,
   PLAYLIST_TYPE,
   readPlaylist,
@@ -22,7 +23,7 @@ export const GET = withRole<Params>(MATCH_ROLES, async (_req, ctx, { matchId }) 
     const video = await canPlay({ kind: "club", ctx }, matchId);
     if (!video) return Response.json({ error: "not_found" }, { status: 404, headers: NO_STORE });
     const text = await readPlaylist(`${video.prefix}${MASTER_PLAYLIST}`);
-    return new Response(rewriteMasterPlaylist(text, matchId), {
+    return new Response(rewriteMasterPlaylist(text, matchHlsBase(matchId)), {
       headers: { "Content-Type": PLAYLIST_TYPE, ...NO_STORE },
     });
   } catch (err) {

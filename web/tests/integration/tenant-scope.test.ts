@@ -422,3 +422,55 @@ describe("scoped client: plans and entitlements", () => {
     ).rejects.toBeInstanceOf(TenantScopeError);
   });
 });
+
+// C10 (NFR16): review claims are readable through the scoped client (a club
+// sees when its review is due) but written only by src/server/review/, so a
+// scoped client refuses every write, directly or nested in a match write.
+describe("scoped client: review claims", () => {
+  const claim = {
+    videoId: "v",
+    scoutUserId: "u",
+    claimedAt: new Date(),
+    expiresAt: new Date(Date.now() + 48 * 3600_000),
+  };
+
+  it("allows reads", async () => {
+    const asA = scopedDb(orgA);
+    expect(await asA.reviewClaim.findFirst({ where: { matchId: matchA } })).toBeNull();
+    expect(await asA.reviewClaim.count()).toBe(0);
+  });
+
+  it("refuses create, update, upsert, delete and deleteMany", async () => {
+    const asA = scopedDb(orgA);
+    const where = { id: "no-such-claim" };
+    for (const call of [
+      () => asA.reviewClaim.create({ data: { ...claim, matchId: matchA } as never }),
+      () => asA.reviewClaim.createMany({ data: [{ ...claim, matchId: matchA } as never] }),
+      () => asA.reviewClaim.update({ where, data: { status: "released" } }),
+      () => asA.reviewClaim.updateMany({ where, data: { status: "released" } }),
+      () =>
+        asA.reviewClaim.upsert({
+          where,
+          create: { ...claim, matchId: matchA } as never,
+          update: { status: "released" },
+        }),
+      () => asA.reviewClaim.delete({ where }),
+      () => asA.reviewClaim.deleteMany({ where }),
+    ]) {
+      await expect(call()).rejects.toBeInstanceOf(TenantScopeError);
+    }
+  });
+
+  it("refuses nested claim writes through a match", async () => {
+    const asA = scopedDb(orgA);
+    await expect(
+      asA.match.update({
+        where: { id: matchA },
+        data: { reviewClaims: { create: { ...claim } as never } },
+      }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(
+      asA.match.update({ where: { id: matchA }, data: { reviewClaims: { deleteMany: {} } } }),
+    ).rejects.toBeInstanceOf(TenantScopeError);
+  });
+});

@@ -10,7 +10,10 @@ import {
   LoaderCircle,
   Plus,
   RotateCcw,
+  Timer,
+  TimerOff,
   TriangleAlert,
+  Undo2,
   Upload,
   UserMinus,
   X,
@@ -21,6 +24,7 @@ import type {
   MatchStatus,
   OrganisationStatus,
   ProcessingJobStatus,
+  ReviewClaimStatus,
   ScoutStatus,
   VideoStatus,
 } from "@/generated/prisma/enums";
@@ -150,6 +154,17 @@ export const JOB_STATES: Record<JobChipState, Preset> = {
   failed: { tone: "danger", icon: CircleAlert, label: "Failed" },
 };
 
+/**
+ * A review claim's state (docs/build/design/C10.md, "Chip preset"). Active is
+ * warn: the claim has a deadline and needs the scout's attention.
+ */
+export const CLAIM_STATES: Record<ReviewClaimStatus, Preset> = {
+  active: { tone: "warn", icon: Timer, label: "Claimed" },
+  submitted: { tone: "ok", icon: Check, label: "Reviewed" },
+  released: { tone: "neutral", icon: Undo2, label: "Released" },
+  expired: { tone: "neutral", icon: TimerOff, label: "Expired" },
+};
+
 export function jobChipState(status: ProcessingJobStatus, attempts: number): JobChipState {
   return status === "queued" && attempts >= 1 ? "retrying" : status;
 }
@@ -186,6 +201,10 @@ export function ScoutStatusChip({ status }: { status: ScoutStatus }) {
 
 export function FlagStateChip({ on }: { on: boolean }) {
   return <StatusChip {...FLAG_STATES[on ? "on" : "off"]} />;
+}
+
+export function ClaimStatusChip({ status }: { status: ReviewClaimStatus }) {
+  return <StatusChip {...CLAIM_STATES[status]} />;
 }
 
 export function FootageChip({ state }: { state: FootageState }) {

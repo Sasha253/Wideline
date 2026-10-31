@@ -127,6 +127,8 @@ model Organisation {
   clipFavourites    ClipFavourite[]
   pitchCalibrations PitchCalibration[]
   benchmarkTags     BenchmarkTag[]
+  // C10: review claims on this organisation's matches (REVIEW01).
+  reviewClaims      ReviewClaim[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -325,9 +327,11 @@ model ScoutProfile {
 }
 
 // AUTH10: a club the scout works for or with, or a player they represent, as
-// declared (free text). A platform admin links it to a Wideline organisation;
-// only linked rows block review claims (scoutConflicts, C10). Removal is soft
-// (removedAt), so the history stays.
+// declared (free text). A platform admin links it to a Wideline organisation.
+// It blocks review claims (scoutConflicts and src/server/review/conflicts.ts,
+// C10) by link, by an equal organisation name, and by team and lineup names.
+// Removal is soft (removedAt), so the history stays, and a removed row keeps
+// blocking for 90 days (Q-006).
 model ScoutAffiliation {
   id             String               @id @default(cuid())
   scoutUserId    String
@@ -619,6 +623,8 @@ model Match {
   // C09: clips (CV11) and Lab ground truth (BenchmarkTag).
   clips          Clip[]
   benchmarkTags  BenchmarkTag[]
+  // C10: review claims (REVIEW01); at most one active.
+  reviewClaims   ReviewClaim[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playedAt])
@@ -731,16 +737,23 @@ model Video {
   // video) and when a platform admin calibrates in the Lab.
   pitchCalibrationId  String?
   pitchCalibration    PitchCalibration? @relation(fields: [organisationId, pitchCalibrationId], references: [organisationId, id], onDelete: NoAction, onUpdate: NoAction)
+  // C10 (REVIEW13): set when platform admins were told that this video's
+  // unreviewed match is within 48 hours of raw deletion. A guarded claim, so
+  // the email goes once (src/server/review/alerts.ts), as ProcessingJob.alertedAt.
+  reviewAlertedAt     DateTime?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
   processingJobs ProcessingJob[]
+  // C10: the claims that review this video.
+  reviewClaims   ReviewClaim[]
 
   @@unique([organisationId, id])
   // Written as Postgres stores it (IN becomes = ANY), so migrate diff stays empty.
   @@unique([matchId], map: "Video_match_live_key", where: raw("status = ANY (ARRAY['uploading'::\"VideoStatus\", 'probing'::\"VideoStatus\", 'accepted'::\"VideoStatus\"])"))
   @@index([organisationId])
   @@index([matchId])
+  @@index([rawExpiresAt])
 }
 
 enum ProcessingJobType {
@@ -1250,6 +1263,71 @@ model UsageEvent {
   @@unique([organisationId, metric, sourceType, sourceId])
   @@unique([organisationId, id])
   @@index([organisationId, metric, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// Review (REVIEW01, REVIEW02, REVIEW13; NFR16)
+// ---------------------------------------------------------------------------
+
+// C10. submitted is written by C11 ("Mark as reviewed").
+enum ReviewClaimStatus {
+  active
+  submitted
+  released
+  expired
+}
+
+// Why a claim was released. admin is reserved for C18.
+enum ReviewReleaseReason {
+  scout
+  suspended
+  conflict
+  no_profile
+  admin
+}
+
+// C10 (REVIEW01): a scout's 48-hour claim on one awaiting_review match. A
+// tenant table: organisationId is the match's organisation. Scoped clients may
+// read it (a club sees when its review is due) but never write it; only
+// src/server/review/ writes claims. At most one active claim per match (the
+// partial unique index "ReviewClaim_match_active_key"). scoutUserId is a plain
+// column with no relation (the createdByUserId pattern), so a club's scoped
+// include can never reach the reviewer's User row, and a deleted user's claims
+// keep the id as history. Raw SQL CHECKs (migration c10_review_rules):
+// "ReviewClaim_window", "ReviewClaim_ended_consistent",
+// "ReviewClaim_submitted_has_time", "ReviewClaim_release_reason" and
+// "ReviewClaim_counts_nonneg".
+model ReviewClaim {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId        String
+  match          Match                @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  // The accepted video the claim reviews.
+  videoId        String
+  video          Video                @relation(fields: [organisationId, videoId], references: [organisationId, id], onDelete: Cascade)
+  scoutUserId    String
+  status         ReviewClaimStatus    @default(active)
+  claimedAt      DateTime
+  // claimedAt + 48 h (CLAIM_DURATION_MS in src/lib/review-rules.ts).
+  expiresAt      DateTime
+  // Set on submit, release or expiry.
+  endedAt        DateTime?
+  // Written by C11.
+  submittedAt    DateTime?
+  releaseReason  ReviewReleaseReason?
+  // Written by C11.
+  eventsReviewed Int                  @default(0)
+  corrections    Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([organisationId, id])
+  // Written as Postgres stores it, so migrate diff stays empty.
+  @@unique([matchId], map: "ReviewClaim_match_active_key", where: raw("(status = 'active'::\"ReviewClaimStatus\")"))
+  @@index([scoutUserId, status])
+  @@index([status, expiresAt])
+  @@index([organisationId, matchId])
 }
 
 // ---------------------------------------------------------------------------

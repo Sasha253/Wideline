@@ -5,6 +5,22 @@ import { deliverMail } from "../mail-transport";
 import type { JobRef } from "./jobs";
 
 /**
+ * Every accepted platform_admin of the platform organisation, once each. Also
+ * the recipients of the review expiry alert (C10, src/server/review/alerts.ts).
+ */
+export async function platformAdminEmails(): Promise<string[]> {
+  const admins = await rawDb.membership.findMany({
+    where: {
+      role: "platform_admin",
+      acceptedAt: { not: null },
+      organisation: { type: "platform" },
+    },
+    select: { user: { select: { email: true } } },
+  });
+  return [...new Set(admins.map((a) => a.user.email))];
+}
+
+/**
  * NFR30: a platform admin is told when a processing job fails for good. One
  * plain email per job to every accepted platform_admin of the platform
  * organisation, sent once: ProcessingJob.alertedAt is claimed with a guarded
@@ -24,14 +40,6 @@ export async function alertPlatformAdmins(job: JobRef, reason: string): Promise<
     });
     if (count === 0) return false;
     claimed = true;
-    const admins = await rawDb.membership.findMany({
-      where: {
-        role: "platform_admin",
-        acceptedAt: { not: null },
-        organisation: { type: "platform" },
-      },
-      select: { user: { select: { email: true } } },
-    });
     const appUrl = process.env.APP_URL ?? "http://wideline.localhost";
     const subject = `Processing failed: ${job.type} job ${job.id}`;
     const text = [
@@ -44,7 +52,7 @@ export async function alertPlatformAdmins(job: JobRef, reason: string): Promise<
       `Admin area: ${appUrl}/admin`,
       "The Wideline team",
     ].join("\n\n");
-    const emails = [...new Set(admins.map((a) => a.user.email))];
+    const emails = await platformAdminEmails();
     for (const to of emails) await deliverMail(to, subject, text);
     log.error(
       {
