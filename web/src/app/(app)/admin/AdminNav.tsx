@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /** The admin sub-nav (docs/build/design/C02.md, Surface 5): links, not ARIA tabs, because each one is a URL. */
-export function AdminNav({ current }: { current: "organisations" | "scouts" }) {
+export function AdminNav({ current }: { current: "organisations" | "scouts" | "users" }) {
   return (
     <nav aria-label="Admin" className="wl-tabs mt-6">
       <Link
@@ -17,6 +17,13 @@ export function AdminNav({ current }: { current: "organisations" | "scouts" }) {
         aria-current={current === "scouts" ? "page" : undefined}
       >
         Scouts
+      </Link>
+      <Link
+        href="/admin/users"
+        className="body-strong"
+        aria-current={current === "users" ? "page" : undefined}
+      >
+        Users
       </Link>
     </nav>
   );

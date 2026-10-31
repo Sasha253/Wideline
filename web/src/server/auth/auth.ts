@@ -9,6 +9,7 @@ import { verifyEmailEmail } from "../emails/scout";
 import { env } from "../env";
 import { log } from "../log";
 import { sendMail } from "../mail";
+import { impersonation } from "./impersonation";
 import { revokeUnprovenAccess } from "./password";
 
 function createAuth() {
@@ -85,19 +86,23 @@ function createAuth() {
           log.info({ email }, "magic link sent");
         },
       }),
+      impersonation(),
       nextCookies(),
     ],
     databaseHooks: {
       session: {
         create: {
           after: async (session) => {
+            // "Log in as" (./impersonation.ts): the platform admin is the actor.
+            const impersonatedBy = (session as { impersonatedBy?: string | null }).impersonatedBy;
             await audit({
               organisationId: null,
-              actorUserId: session.userId,
-              action: "auth.login",
+              actorUserId: impersonatedBy ?? session.userId,
+              action: impersonatedBy ? "auth.impersonate.start" : "auth.login",
               targetType: "Session",
               targetId: session.id,
               metadata: {
+                ...(impersonatedBy ? { userId: session.userId } : {}),
                 ipAddress: session.ipAddress ?? null,
                 userAgent: session.userAgent ?? null,
               },

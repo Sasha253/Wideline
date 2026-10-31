@@ -18,6 +18,11 @@ const PUBLIC_ACTIONS = new Set([
   // guardianWithdraw re-check the link on every call.
   "guardianDecisionAction",
   "guardianWithdrawAction",
+  // Ending "Log in as": it must work whatever role the impersonated user has, so no
+  // role list fits. The capability is the caller's own impersonation session: it
+  // redirects unless getUserContext() has an impersonator, and the plugin's
+  // stopImpersonation only restores that session's admin (asserted below).
+  "stopImpersonatingAction",
 ]);
 
 const appDir = join(import.meta.dirname, "../../src/app");
@@ -122,6 +127,23 @@ describe("server actions", () => {
         /requireRole\(CONSENT_ADMIN_ROLES\)/,
       );
     }
+  });
+
+  it("lets stopImpersonatingAction run only in an impersonation session", () => {
+    const file = actionFiles.find((f) => f.endsWith("(app)/admin/users/actions.ts"));
+    expect(file).toBeDefined();
+    const actions = exportedActions(readFileSync(file!, "utf8"));
+    const stop = actions.find((a) => a.name === "stopImpersonatingAction");
+    expect(stop).toBeDefined();
+    // The session check comes before the plugin call.
+    const check = stop!.body.search(/if\s*\(!ctx\?\.impersonator\)\s*redirect\(/);
+    expect(check).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(stop!.body.indexOf("stopImpersonation("));
+    // Starting is never public.
+    expect(PUBLIC_ACTIONS.has("impersonateAction")).toBe(false);
+    expect(actions.find((a) => a.name === "impersonateAction")?.body).toMatch(
+      /requireRole\(PLATFORM_ROLES\)/,
+    );
   });
 
   it("keeps the public allowlist to actions that exist", () => {

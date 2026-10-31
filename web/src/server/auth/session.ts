@@ -48,6 +48,8 @@ type SessionUser = { id: string; name: string; email: string };
 type BaseContext = {
   sessionId: string;
   user: SessionUser;
+  /** The platform admin behind a "Log in as" session (./impersonation.ts), or null. */
+  impersonator: SessionUser | null;
   /** Every active organisation with an accepted membership, sorted by name. */
   organisations: OrganisationSummary[];
 };
@@ -94,11 +96,19 @@ export async function contextForSession({
   sessionId,
   user,
   activeOrganisationId,
+  impersonatedBy,
 }: {
   sessionId: string;
   user: SessionUser;
   activeOrganisationId: string | null | undefined;
+  impersonatedBy?: string | null;
 }): Promise<UserContext> {
+  const impersonator = impersonatedBy
+    ? await rawDb.user.findUnique({
+        where: { id: impersonatedBy },
+        select: { id: true, name: true, email: true },
+      })
+    : null;
   const memberships = await rawDb.membership.findMany({
     where: {
       userId: user.id,
@@ -124,7 +134,7 @@ export async function contextForSession({
     org.roles.sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b));
   }
   const organisations = [...byOrg.values()].sort((a, b) => a.name.localeCompare(b.name, "en-ZA"));
-  const base = { sessionId, user, organisations };
+  const base = { sessionId, user, impersonator, organisations };
 
   const activeId =
     activeOrganisationId && byOrg.has(activeOrganisationId)
@@ -167,6 +177,7 @@ const loadContext = cache(async (): Promise<UserContext | null> => {
     sessionId: session.session.id,
     user: { id: session.user.id, name: session.user.name, email: session.user.email },
     activeOrganisationId: session.session.activeOrganisationId,
+    impersonatedBy: session.session.impersonatedBy,
   });
 });
 

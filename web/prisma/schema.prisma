@@ -180,6 +180,9 @@ model Session {
   // relation on purpose (see the header). A stale value falls back to the
   // user's oldest active membership.
   activeOrganisationId String?
+  // The platform admin who opened this session with "Log in as"
+  // (src/server/auth/impersonation.ts). No relation, like activeOrganisationId.
+  impersonatedBy       String?
   userId               String
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt            DateTime @default(now())

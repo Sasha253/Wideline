@@ -51,6 +51,7 @@ function context(roles: Role[], organisations: OrganisationSummary[] = [DEMO]): 
   return {
     sessionId: "s1",
     user: { id: "u1", name: "Thandi Mokoena", email: "thandi@example.com" },
+    impersonator: null,
     organisations,
     organisationId: active.id,
     organisationName: active.name,
@@ -63,6 +64,7 @@ function context(roles: Role[], organisations: OrganisationSummary[] = [DEMO]): 
 const noOrganisation: UserContext = {
   sessionId: "s1",
   user: { id: "u1", name: "Thandi Mokoena", email: "thandi@example.com" },
+  impersonator: null,
   organisations: [],
   organisationId: null,
   organisationName: null,

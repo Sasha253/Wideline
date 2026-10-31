@@ -5,6 +5,7 @@ import { ORG_TYPE_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { navForRoles } from "@/lib/nav";
 import type { UserContext } from "@/server/auth/session";
 import { AccountMenu } from "./AccountMenu";
+import { ImpersonationBanner } from "./ImpersonationBanner";
 import { NavLinks } from "./NavLinks";
 import { OrgSwitcher, type SwitcherOrganisation } from "./OrgSwitcher";
 import { Logo } from "@/components/ui/Logo";
@@ -78,7 +79,12 @@ export function AppShell({ ctx, children }: { ctx: UserContext; children: ReactN
           hasTabBar && "wl-main--tabbar",
         )}
       >
-        <div className="mx-auto max-w-7xl">{children}</div>
+        <div className="mx-auto max-w-7xl">
+          {ctx.impersonator && (
+            <ImpersonationBanner user={ctx.user} impersonator={ctx.impersonator} />
+          )}
+          {children}
+        </div>
       </main>
 
       {hasTabBar && (
