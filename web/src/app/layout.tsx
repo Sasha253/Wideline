@@ -1,22 +1,21 @@
 import type { Metadata } from "next";
-import { Barlow_Condensed, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { Archivo, JetBrains_Mono } from "next/font/google";
 import { ThemeScript } from "@/components/ui/theme";
 import "./globals.css";
 
-const barlow = Barlow_Condensed({
+// Floodlight type (docs/design-handoff/README.md): Archivo with its width axis
+// (wdth 62..125, so font-stretch 100%, 112.5% and 125% all work) and weight 300..900,
+// and JetBrains Mono for data. Both are variable fonts, so every weight in range loads.
+const archivo = Archivo({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-barlow",
+  axes: ["wdth"],
+  variable: "--font-archivo",
+  display: "swap",
 });
-const instrument = Instrument_Sans({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-instrument",
-});
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-plex-mono",
+  variable: "--font-jetbrains",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -26,10 +25,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // ThemeScript sets data-theme before hydration, so React must not warn about it.
+    // Dark is the default. ThemeScript swaps in the stored choice before first paint,
+    // so React must not warn about the data-theme attribute.
     <html
       lang="en-ZA"
-      className={`${barlow.variable} ${instrument.variable} ${plexMono.variable}`}
+      data-theme="dark"
+      className={`${archivo.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <head>

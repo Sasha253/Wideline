@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   IMPERSONATION_REFUSED,
+  IMPERSONATION_REVIEW_REFUSED,
   REVIEW_ERROR_COPY,
   ReviewError,
   reviewErrorCopy,
@@ -19,6 +20,14 @@ const CODES: ReviewErrorCode[] = [
   "declaration_required",
   "claim_ended",
   "impersonation_refused",
+  // C11
+  "not_attributable",
+  "not_in_lineup",
+  "raw_footage_gone",
+  "out_of_range",
+  "events_pending",
+  "favourite_cap",
+  "sides_confirmed",
 ];
 
 describe("review error copy", () => {
@@ -38,6 +47,21 @@ describe("review error copy", () => {
     );
     expect(reviewErrorCopy(new ReviewError("claim_limit", 3))).toBe(
       "You already hold 3 claimed matches. Finish or release one to claim another.",
+    );
+  });
+
+  it("words events_pending for one and for more than one (C11)", () => {
+    expect(reviewErrorCopy(new ReviewError("events_pending", 1))).toBe(
+      "Check the 1 event left before you mark the match as reviewed.",
+    );
+    expect(reviewErrorCopy(new ReviewError("events_pending", 4))).toBe(
+      "Check the 4 events left before you mark the match as reviewed.",
+    );
+    expect(REVIEW_ERROR_COPY.not_attributable).toBe(
+      "This player's events cannot be recorded. Choose another player, or leave the event with the team.",
+    );
+    expect(IMPERSONATION_REVIEW_REFUSED).toBe(
+      "You are logged in as this scout. Only the scout can make review decisions.",
     );
   });
 

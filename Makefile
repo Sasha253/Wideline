@@ -1,9 +1,11 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 WEB := $(COMPOSE) exec web
+# Production (DEPLOY.md): the standalone prod file with .env.production.
+PROD_COMPOSE := $(COMPOSE) -f docker-compose.prod.yml --env-file .env.production
 
-.PHONY: help env up down logs ps migrate migrate-new seed fixtures test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run cv-image reset
-.PHONY: cv-bench cv-image-gpu cv-golden
+.PHONY: help env up down logs ps migrate migrate-new seed demo fixtures test test-web test-e2e test-e2e-update test-cv lint typecheck cv-run cv-image reset
+.PHONY: cv-bench cv-image-gpu cv-golden prod-up
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -25,6 +27,10 @@ down: ## Stop the stack (data is kept)
 reset: ## Stop the stack and delete all data volumes
 	$(COMPOSE) down -v
 
+prod-up: ## Production: build and start docker-compose.prod.yml (needs .env.production and the edge network)
+	@test -f .env.production || { echo "No .env.production: copy .env.production.example and fill it in"; exit 1; }
+	$(PROD_COMPOSE) up -d --build --wait
+
 logs: ## Follow logs
 	$(COMPOSE) logs -f --tail=100
 
@@ -39,6 +45,9 @@ migrate-new: ## Create a migration from schema changes: make migrate-new name=ad
 
 seed: ## Seed the organisation, admin user, teams and a match
 	$(WEB) pnpm prisma db seed
+
+demo: ## Add demo squads, consent, matches, staff, scouts and applications (after seed)
+	$(WEB) pnpm tsx scripts/seed-demo.ts
 
 test: test-web test-cv ## Run all tests
 

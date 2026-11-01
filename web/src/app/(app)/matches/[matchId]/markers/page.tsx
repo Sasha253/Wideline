@@ -9,6 +9,9 @@ import { lockedMessage } from "@/server/matches/errors";
 import { signedRawUrl } from "@/server/matches/markers";
 import { playableVideo } from "@/server/matches/playback";
 import { loadMatch } from "../load";
+import { StepFooter } from "../StepFooter";
+import { UploadStrip } from "../upload/UploadStrip";
+import { UploadSteps } from "../UploadSteps";
 import { MarkerTool } from "./MarkerTool";
 
 export const metadata = { title: "Kickoff and half-time" };
@@ -32,11 +35,15 @@ export default async function MarkersPage({ params }: { params: Promise<{ matchI
 
   return (
     <>
+      <UploadStrip matchId={match.id} />
       <PageHeader
         back={{ href: `/matches/${match.id}`, label: "Match" }}
+        eyebrow="Step 3 of 3 · Markers"
         title="Kickoff and half-time"
         intro="Mark four moments in the video, so video time maps to match minutes."
-      />
+      >
+        <UploadSteps match={match} current={3} />
+      </PageHeader>
       {!video ? (
         <div className="mt-6">
           <EmptyState
@@ -73,7 +80,20 @@ export default async function MarkersPage({ params }: { params: Promise<{ matchI
             halfLengthMinutes={match.halfLengthMinutes}
             initial={video.markers}
             locked={locked}
+            durationMs={video.durationSec !== null ? Math.round(video.durationSec * 1000) : 0}
           />
+          {!locked && (
+            <StepFooter
+              id="markers-step"
+              back={{ href: `/matches/${match.id}/lineup`, label: "Lineup" }}
+              next={{
+                label: "Finish and process",
+                // Enabled once full time is saved; processing then runs on its own.
+                href: video.markers.fullTimeMs !== null ? `/matches/${match.id}` : null,
+                reason: "Set full time to continue",
+              }}
+            />
+          )}
         </>
       )}
     </>

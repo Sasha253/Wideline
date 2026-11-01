@@ -27,14 +27,22 @@ describe("HlsPlayer", () => {
     expect(out).toMatch(
       /<input type="range" class="wl-videoplayer__seek" aria-label="Seek" aria-valuetext="0:00 of 0:00"[^>]*disabled=""/,
     );
-    expect(out).toContain('<span class="data wl-videoplayer__time">0:00 / 0:00</span>');
-    expect(out).toMatch(/<button[^>]*aria-label="Play"[^>]*disabled=""/);
+    // Floodlight: the time is mono-l, the duration muted.
+    expect(out).toMatch(
+      /<span class="wl-videoplayer__time font-mono text-mono-l tabular-nums">0:00<span class="font-normal text-ink-muted"> \/ 0:00<\/span><\/span>/,
+    );
+    // IconButton renders disabled as aria-disabled (stays focusable, clicks
+    // ignored; src/components/ui/Button.tsx), so Play is aria-disabled here.
+    expect(out).toMatch(/<button aria-disabled="true"[^>]*aria-label="Play"/);
     expect(out).toContain('title="Play (K)"');
     expect(out).toContain('<span class="sr-only">Loading video…</span>');
     expect(out).toContain('class="wl-skeleton wl-skeleton--video');
     expect(out).toMatch(/<video[^>]*playsInline=""|<video[^>]*playsinline=""/);
-    // Custom controls only: the native ones are off.
-    expect(out).not.toMatch(/<video[^>]*\scontrols/);
+    // Custom controls only: the native ones are off (controlsList is not controls).
+    expect(out).not.toMatch(/<video[^>]*\scontrols(?![A-Za-z])/);
+    // C11 (REVIEW11): stream only, no download, picture-in-picture or speed menu.
+    expect(out).toMatch(/<video[^>]*controlsList="nodownload noplaybackrate"/i);
+    expect(out).toMatch(/<video[^>]*disablePictureInPicture=""/i);
     // No captions passed: no captions control and no track.
     expect(out).not.toContain('aria-label="Captions"');
     expect(out).not.toContain("<track");
@@ -109,7 +117,7 @@ describe("HlsPlayer", () => {
         text={
           <>
             {q.name}
-            <span className="hidden md:inline">{q.detail}</span>
+            <span className="hidden tablet:inline">{q.detail}</span>
           </>
         }
         icon={Settings2}

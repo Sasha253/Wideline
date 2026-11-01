@@ -129,6 +129,8 @@ model Organisation {
   benchmarkTags     BenchmarkTag[]
   // C10: review claims on this organisation's matches (REVIEW01).
   reviewClaims      ReviewClaim[]
+  // C11: review decisions on this organisation's events (REVIEW09).
+  eventCorrections  EventCorrection[]
 
   // Refused by the scoped client: it would reveal which scouts declared a
   // conflict with this organisation.
@@ -609,6 +611,9 @@ model Match {
   halfLengthMinutes Int          @default(45)
   // A plain column, no relation: the match outlives the user.
   createdByUserId   String?
+  // C11 (REVIEW08): when the reviewed match was published. Read by C12 and by
+  // the C18 dispute window (7 days). CHECK "Match_published_at" in raw SQL.
+  publishedAt       DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -625,6 +630,8 @@ model Match {
   benchmarkTags  BenchmarkTag[]
   // C10: review claims (REVIEW01); at most one active.
   reviewClaims   ReviewClaim[]
+  // C11: review decisions (REVIEW09).
+  eventCorrections EventCorrection[]
 
   @@unique([organisationId, id])
   @@index([organisationId, playedAt])
@@ -861,6 +868,12 @@ enum EventStatus {
   manual
 }
 
+// C11: where an event's player came from (Event.playerSource).
+enum EventPlayerSource {
+  track
+  reviewer
+}
+
 // One tracked person in one CV result. Keyed on (jobId, trackIndex), so a
 // re-ingest of the same result writes nothing twice (NFR06). playerId is set
 // only for a player who passed attributablePlayerIds() at ingest (NFR08);
@@ -957,8 +970,16 @@ model Event {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
+  // C11: who named the player. track: from the event's linked track (CV or
+  // a reviewer relink); reviewer: reassigned on its own (REVIEW04), so it may
+  // have a player and no track (CHECK "Event_player_needs_track", c11_review_rules).
+  // Null: no player, or a CV event untouched by review.
+  playerSource   EventPlayerSource?
+
   // C09 (CV11): the event's clip, once cut.
-  clip Clip?
+  clip        Clip?
+  // C11 (REVIEW09): every review decision on it.
+  corrections EventCorrection[]
 
   @@unique([organisationId, id])
   @@unique([jobId, sourceKey])
@@ -1322,12 +1343,60 @@ model ReviewClaim {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
+  // C11: the decisions made under this claim.
+  eventCorrections EventCorrection[]
+
   @@unique([organisationId, id])
   // Written as Postgres stores it, so migrate diff stays empty.
   @@unique([matchId], map: "ReviewClaim_match_active_key", where: raw("(status = 'active'::\"ReviewClaimStatus\")"))
   @@index([scoutUserId, status])
   @@index([status, expiresAt])
   @@index([organisationId, matchId])
+}
+
+// C11 (REVIEW09): what a review decision did to an event.
+enum EventCorrectionKind {
+  confirmed
+  rejected
+  edited
+  reassigned
+  relinked
+  added
+  sides_swapped
+}
+
+// C11 (REVIEW09, Q-067): one review decision on one event, the training set
+// for later models. Every decision is a row, plain confirmations included
+// (kind confirmed; not counted in ReviewClaim.corrections). Written only by
+// src/server/review/, in the same transaction as the change it records.
+// previousValue and newValue are eventSnapshot()s without player ids; the
+// player ids sit in the plain columns previousPlayerId and newPlayerId (no
+// relation), so a consent withdrawal or an erasure nulls them with one
+// updateMany (NFR08; src/server/cv/withdrawal.ts). correctedByUserId is a
+// plain column too: the training row outlives the user. Tenant table: in
+// TENANT_SCOPED; organisationId is the match's organisation.
+model EventCorrection {
+  id                String              @id @default(cuid())
+  organisationId    String
+  organisation      Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matchId           String
+  match             Match               @relation(fields: [organisationId, matchId], references: [organisationId, id], onDelete: Cascade)
+  eventId           String
+  event             Event               @relation(fields: [organisationId, eventId], references: [organisationId, id], onDelete: Cascade)
+  claimId           String
+  claim             ReviewClaim         @relation(fields: [organisationId, claimId], references: [organisationId, id], onDelete: Cascade)
+  correctedByUserId String
+  kind              EventCorrectionKind
+  previousValue     Json
+  newValue          Json
+  previousPlayerId  String?
+  newPlayerId       String?
+  correctedAt       DateTime            @default(now())
+
+  @@unique([organisationId, id])
+  @@index([organisationId, matchId])
+  @@index([claimId, kind])
+  @@index([eventId])
 }
 
 // ---------------------------------------------------------------------------

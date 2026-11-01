@@ -4,19 +4,23 @@ import {
   Ban,
   Check,
   CircleDashed,
+  Clock,
   Link2,
   MailCheck,
   MailWarning,
   RotateCcw,
   TriangleAlert,
+  Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Banner, Field, fieldError, SubmitButton, SuccessBanner } from "@/components/forms";
 import { useSectionAction, type SectionForm } from "@/components/section-result";
 import { iconProps } from "@/components/ui/icons";
-import { ScoutStatusChip } from "@/components/ui/StatusChip";
+import { StateMessage } from "@/components/ui/StateMessage";
+import { StatusChip, type ChipTone } from "@/components/ui/StatusChip";
 import type { ScoutStatus } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action-result";
 import {
@@ -82,14 +86,26 @@ const EMPTY: Record<ScoutStatus, string> = {
   rejected: "No registrations turned down.",
 };
 
+/** The applicant's status chip (Floodlight, "Scout approvals"): shape, icon and word. */
+const STATUS_LOOK: Record<ScoutStatus, { tone: ChipTone; icon: LucideIcon; label: string }> = {
+  pending: { tone: "warn", icon: Clock, label: "Waiting" },
+  approved: { tone: "ok", icon: Check, label: "Approved" },
+  suspended: { tone: "danger", icon: Ban, label: "Suspended" },
+  rejected: { tone: "danger", icon: X, label: "Rejected" },
+};
+
+function ScoutChip({ status }: { status: ScoutStatus }) {
+  return <StatusChip size="s" {...STATUS_LOOK[status]} />;
+}
+
 function EmailState({ verified }: { verified: boolean }) {
   return verified ? (
-    <span className="wl-inline-status wl-inline-status--ok caption">
+    <span className="wl-inline-status wl-inline-status--ok text-body-s font-semibold">
       <MailCheck {...iconProps} />
       Email confirmed
     </span>
   ) : (
-    <span className="wl-inline-status wl-inline-status--warn caption">
+    <span className="wl-inline-status wl-inline-status--warn text-body-s font-semibold">
       <MailWarning {...iconProps} />
       Email not confirmed
     </span>
@@ -99,9 +115,9 @@ function EmailState({ verified }: { verified: boolean }) {
 function TermsLine({ item }: { item: ScoutItem }) {
   return (
     <>
-      <span className="caption block text-ink-muted">Terms {item.termsVersion}</span>
+      <span className="block text-body-s text-ink-muted">Terms {item.termsVersion}</span>
       {!item.termsCurrent && (
-        <span className="wl-inline-status wl-inline-status--warn caption">
+        <span className="wl-inline-status wl-inline-status--warn text-body-s">
           <TriangleAlert {...iconProps} />
           Not on current terms
         </span>
@@ -135,12 +151,12 @@ function LinkForm({
       className={
         stacked
           ? "mt-1 flex flex-col gap-2"
-          : "mt-1 flex flex-col items-start gap-2 xl:flex-row xl:items-end"
+          : "mt-1 flex flex-col items-start gap-2 wide:flex-row wide:items-end"
       }
     >
       <input type="hidden" name="affiliationId" value={affiliation.id} />
       <input type="hidden" name="name" value={item.name} />
-      <label className={stacked ? "block" : "wl-link-select block w-full xl:flex-1"}>
+      <label className={stacked ? "block" : "wl-link-select block w-full wide:flex-1"}>
         <span className="sr-only">Wideline organisation for {affiliation.name}</span>
         <select name="organisationId" defaultValue={affiliation.selected} className="wl-input">
           <option value="">Not matched</option>
@@ -153,8 +169,8 @@ function LinkForm({
       </label>
       <SubmitButton
         variant="secondary"
-        size="sm"
-        pendingLabel="Saving…"
+        size="s"
+        pendingLabel="Saving"
         aria-label={`Save match for ${affiliation.name}`}
         className={stacked ? "w-full justify-center" : undefined}
       >
@@ -178,35 +194,36 @@ function Conflicts({
   if (item.affiliations.length === 0) {
     return (
       <>
-        <span className="text-ink-muted">–</span>
-        <span className="caption block text-ink-muted">Declared no conflicts</span>
+        <span className="block text-body-s text-ink-muted">None declared</span>
       </>
     );
   }
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="m-0 flex list-none flex-col gap-3 p-0">
       {item.affiliations.map((a) => (
         <li key={a.id}>
-          <span className="body-strong block break-words">{a.name}</span>
-          <span className="caption block text-ink-muted">{a.meta}</span>
+          <span className="inline-flex h-5 max-w-full items-center rounded-control border border-line-strong px-1.5 text-body-s font-medium">
+            <span className="truncate">{a.name}</span>
+          </span>
+          <span className="block text-body-s text-ink-muted">{a.meta}</span>
           {a.linkedName ? (
-            <span className="wl-inline-status wl-inline-status--ok caption">
+            <span className="wl-inline-status wl-inline-status--ok text-body-s">
               <Link2 {...iconProps} />
               Matched to {a.linkedName}
             </span>
           ) : a.checked ? (
-            <span className="wl-inline-status wl-inline-status--muted caption">
+            <span className="wl-inline-status wl-inline-status--muted text-body-s">
               <Check {...iconProps} />
               Checked: not matched
             </span>
           ) : (
-            <span className="wl-inline-status wl-inline-status--warn caption">
+            <span className="wl-inline-status wl-inline-status--warn text-body-s">
               <CircleDashed {...iconProps} />
               Not checked yet
             </span>
           )}
           {!a.linkedName && a.suggestionName && (
-            <span className="caption block text-ink-muted">
+            <span className="block text-body-s text-ink-muted">
               Same name as {a.suggestionName}, so it counts as a conflict with it.
             </span>
           )}
@@ -253,9 +270,9 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
               {item.emailVerified ? (
                 <SubmitButton
                   variant="secondary"
-                  size="sm"
+                  size="s"
                   icon={Check}
-                  pendingLabel="Approving…"
+                  pendingLabel="Approving"
                   aria-label={`Approve ${item.name}`}
                   className={block ? "w-full justify-center" : undefined}
                 >
@@ -267,7 +284,7 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
                   disabled
                   aria-label={`Approve ${item.name}`}
                   aria-describedby={noteId}
-                  className={`wl-btn wl-btn--secondary wl-btn--sm${block ? " w-full justify-center" : ""}`}
+                  className={`wl-btn wl-btn--secondary wl-btn--s${block ? " w-full justify-center" : ""}`}
                 >
                   <Check {...iconProps} />
                   Approve
@@ -277,7 +294,8 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
             <ConfirmDialog
               trigger={{
                 label: "Reject",
-                variant: "danger",
+                // Danger only inside the dialog (Floodlight); the trigger is secondary.
+                variant: "secondary",
                 icon: X,
                 ariaLabel: `Reject ${item.name}`,
               }}
@@ -287,7 +305,7 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
               hidden={hidden}
               submit={{
                 label: "Reject registration",
-                pendingLabel: "Rejecting…",
+                pendingLabel: "Rejecting",
                 variant: "danger",
               }}
             >
@@ -295,7 +313,10 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
             </ConfirmDialog>
           </div>
           {!item.emailVerified && (
-            <p id={noteId} className={`caption mt-2 text-ink-muted${block ? "" : " text-right"}`}>
+            <p
+              id={noteId}
+              className={`m-0 mt-2 text-body-s text-ink-muted${block ? "" : " text-right"}`}
+            >
               Approve once their email is confirmed.
             </p>
           )}
@@ -307,7 +328,7 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
           <ConfirmDialog
             trigger={{
               label: "Suspend",
-              variant: "danger",
+              variant: "secondary",
               icon: Ban,
               ariaLabel: `Suspend ${item.name}`,
             }}
@@ -315,7 +336,7 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
             body={`${item.name} loses access to the review queue on their next page load. We email them the reason.`}
             form={forms.suspend}
             hidden={hidden}
-            submit={{ label: "Suspend scout", pendingLabel: "Suspending…", variant: "danger" }}
+            submit={{ label: "Suspend scout", pendingLabel: "Suspending", variant: "danger" }}
           >
             {(visible) => <ReasonField visible={visible} required />}
           </ConfirmDialog>
@@ -335,7 +356,7 @@ function Actions({ item, forms, block }: { item: ScoutItem; forms: Forms; block?
             body={`${item.name} can review matches again once they have accepted the current terms. We email them to say so.`}
             form={forms.reinstate}
             hidden={hidden}
-            submit={{ label: "Reinstate scout", pendingLabel: "Reinstating…", variant: "primary" }}
+            submit={{ label: "Reinstate scout", pendingLabel: "Reinstating", variant: "primary" }}
           />
         </div>
       );
@@ -388,13 +409,19 @@ export function ScoutApplications({
       </div>
 
       {items.length === 0 ? (
-        <p className="body-lg mt-6 text-ink-muted">
-          {uncheckedOnly ? "Every club and player here has been checked." : EMPTY[status]}
-        </p>
+        <div className="mt-6">
+          <StateMessage
+            kind="empty"
+            icon={Users}
+            headingLevel={3}
+            title={uncheckedOnly ? "Everything here is checked" : "No scouts here"}
+            body={uncheckedOnly ? "Every club and player here has been checked." : EMPTY[status]}
+          />
+        </div>
       ) : (
         <>
           <div
-            className="wl-card wl-table-wrap mt-6 hidden p-0 md:block"
+            className="wl-table-wrap mt-4 hidden border border-line bg-panel tablet:block"
             role="region"
             aria-label={caption}
             tabIndex={0}
@@ -403,21 +430,16 @@ export function ScoutApplications({
               <caption className="sr-only">{caption}</caption>
               <thead>
                 <tr>
-                  <th scope="col" className="label">
-                    Scout
-                  </th>
-                  <th scope="col" className="label">
-                    Identity
-                  </th>
-                  <th scope="col" className="label">
+                  <th scope="col">Applicant</th>
+                  <th scope="col" aria-sort={status === "pending" ? "ascending" : "descending"}>
                     {items[0]!.dateLabel}
                   </th>
-                  <th scope="col" className="label">
-                    {rejected ? "Reason" : "Conflicts"}
-                  </th>
+                  <th scope="col">{rejected ? "Reason" : "Declared clubs"}</th>
+                  <th scope="col">ID document</th>
+                  <th scope="col">Status</th>
                   {!rejected && (
-                    <th scope="col" className="label num">
-                      Actions
+                    <th scope="col" className="num">
+                      <span className="sr-only">Actions</span>
                     </th>
                   )}
                 </tr>
@@ -426,29 +448,35 @@ export function ScoutApplications({
                 {items.map((i) => (
                   <tr key={i.id} className="align-top">
                     <td>
-                      <span className="body-strong block break-words">{i.name}</span>
-                      <span className="caption block break-all text-ink-muted">{i.email}</span>
+                      <span className="block font-semibold break-words">{i.name}</span>
+                      <span className="block font-mono text-body-s break-all text-ink-muted">
+                        {i.email} · {i.phone}
+                      </span>
                       <EmailState verified={i.emailVerified} />
-                      <span className="data block">{i.phone}</span>
                     </td>
-                    <td className="body">{i.identity}</td>
                     <td>
-                      <span className="data block whitespace-nowrap">{i.date}</span>
+                      <span className="block font-mono text-mono-m whitespace-nowrap text-ink-muted tabular-nums">
+                        {i.date}
+                      </span>
                       <TermsLine item={i} />
                       {i.status === "suspended" && i.reason && (
-                        <span className="body block">Reason: {i.reason}</span>
+                        <span className="block text-body-s">Reason: {i.reason}</span>
                       )}
                     </td>
                     <td>
                       {rejected ? (
                         i.reason ? (
-                          <span className="body">{i.reason}</span>
+                          <span>{i.reason}</span>
                         ) : (
                           <span className="text-ink-muted">–</span>
                         )
                       ) : (
                         <Conflicts item={i} organisations={organisations} forms={forms} />
                       )}
+                    </td>
+                    <td className="text-body-s">{i.identity}</td>
+                    <td>
+                      <ScoutChip status={i.status} />
                     </td>
                     {!rejected && (
                       <td>
@@ -461,33 +489,35 @@ export function ScoutApplications({
             </table>
           </div>
 
-          <ul role="list" className="mt-6 flex flex-col gap-3 md:hidden">
+          <ul role="list" className="wl-listrows mt-4 tablet:hidden">
             {items.map((i) => (
-              <li key={i.id} className="wl-card flex flex-col gap-2">
+              <li key={i.id} className="flex flex-col gap-3 border-b border-line p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="body-strong min-w-0 break-words">{i.name}</span>
-                  {i.status !== "pending" && <ScoutStatusChip status={i.status} />}
+                  <span className="min-w-0 font-semibold break-words">{i.name}</span>
+                  <ScoutChip status={i.status} />
                 </div>
                 <div>
-                  <span className="caption block break-all">{i.email}</span>
+                  <span className="block font-mono text-body-s break-all">{i.email}</span>
                   <EmailState verified={i.emailVerified} />
-                  <span className="data block">{i.phone}</span>
+                  <span className="block font-mono text-body-s tabular-nums">{i.phone}</span>
                 </div>
-                <div className="caption text-ink-muted">
+                <div className="text-body-s text-ink-muted">
                   <span className="block">{i.identity}</span>
                   <span className="block">
-                    {i.dateLabel} {i.date}
+                    {i.dateLabel} <span className="font-mono tabular-nums">{i.date}</span>
                   </span>
                   <TermsLine item={i} />
                 </div>
                 {i.reason && i.status !== "pending" && (
-                  <p className="body">
+                  <p className="m-0">
                     {i.status === "suspended" ? `Reason: ${i.reason}` : i.reason}
                   </p>
                 )}
                 {!rejected && (
                   <>
-                    <h3 className="label">Conflicts</h3>
+                    <h3 className="m-0 font-mono text-overline uppercase text-ink-muted">
+                      Declared clubs
+                    </h3>
                     <Conflicts item={i} organisations={organisations} forms={forms} stacked />
                   </>
                 )}

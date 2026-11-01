@@ -11,12 +11,12 @@ describe("PlayerShortcuts", () => {
     expect(out).toContain("Play or pause");
     expect(out).toContain("Full screen");
     expect(out).not.toContain("Captions on or off");
-    expect(out).not.toContain(">C</span>");
+    expect(out).not.toContain(">C</kbd>");
   });
 
   it("adds the captions row when captions are passed", () => {
     const out = renderToStaticMarkup(<PlayerShortcuts captions />);
     expect(out).toContain("Captions on or off");
-    expect(out).toContain('<span class="wl-kbd">C</span>');
+    expect(out).toContain('<kbd class="wl-kbd">C</kbd>');
   });
 });

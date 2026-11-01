@@ -4,7 +4,8 @@ import { ORG_ADMIN_ROLES, requirePageRole } from "@/server/auth/session";
 import { listInvitations } from "@/server/organisations/invitations";
 import { listMembers } from "@/server/organisations/members";
 import { assignableRoles, canManageMembership } from "@/server/organisations/roles";
-import { SettingsNav } from "../SettingsNav";
+import { isSquadOrg } from "@/server/squad/access";
+import { adminSettingsTabs, SettingsNav } from "../SettingsNav";
 import { InvitationsSection, type InvitationItem } from "./InvitationsSection";
 import { InviteCard } from "./InviteCard";
 import { MembersSection, type MemberItem } from "./MembersSection";
@@ -48,9 +49,10 @@ export default async function MembersPage() {
     <>
       <PageHeader
         title="Members"
+        eyebrow={`${ctx.organisationName} / Settings`}
         intro={`People who can sign in to ${ctx.organisationName}, and invitations that are still open.`}
       />
-      <SettingsNav current="members" />
+      <SettingsNav current="members" tabs={adminSettingsTabs(isSquadOrg(ctx.organisationType))} />
       <InviteCard orgName={ctx.organisationName} roles={roles} isOwner={isOwner} />
       <InvitationsSection invitations={invitationItems} />
       <MembersSection

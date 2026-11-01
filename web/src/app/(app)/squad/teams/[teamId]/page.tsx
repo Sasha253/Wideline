@@ -74,7 +74,11 @@ export default async function TeamPage({ params, searchParams }: Props) {
       </div>
 
       <section aria-labelledby="team-details" className="mt-8">
-        <h2 id="team-details" tabIndex={-1} className="heading-2">
+        <h2
+          id="team-details"
+          tabIndex={-1}
+          className="font-display text-heading-section uppercase stretch-wide"
+        >
           Details
         </h2>
         <div className="wl-card mt-4 max-w-xl">
@@ -105,49 +109,59 @@ export default async function TeamPage({ params, searchParams }: Props) {
 
       {team.isOpposition ? (
         <section aria-labelledby="team-placeholders" className="mt-8">
-          <h2 id="team-placeholders" tabIndex={-1} className="heading-2">
+          <h2
+            id="team-placeholders"
+            tabIndex={-1}
+            className="font-display text-heading-section uppercase stretch-wide"
+          >
             Placeholder players
           </h2>
-          <p className="body mt-2 max-w-prose text-ink-muted">
+          <p className="mt-2 max-w-prose text-ink-muted">
             Shirt numbers for this team&apos;s players. Events in their matches are recorded against
             these numbers, never against names.
           </p>
           {team.numbers.length > 0 ? (
             <>
-              <p className="caption mt-4 text-ink-muted">
+              <p className="text-body-s mt-4 text-ink-muted">
                 {plural(team.numbers.length, "placeholder player", "placeholder players")}
               </p>
-              <p className="data mt-1 break-words">{team.numbers.join(", ")}</p>
+              <p className="font-mono text-mono-m tabular-nums mt-1 break-words">
+                {team.numbers.join(", ")}
+              </p>
             </>
           ) : (
-            <p className="body mt-4 text-ink-muted">No placeholder players yet.</p>
+            <p className="mt-4 text-ink-muted">No placeholder players yet.</p>
           )}
           {admin && <PlaceholderForm teamId={team.id} />}
         </section>
       ) : (
         <section aria-labelledby="team-players" className="mt-8">
-          <h2 id="team-players" tabIndex={-1} className="heading-2">
+          <h2
+            id="team-players"
+            tabIndex={-1}
+            className="font-display text-heading-section uppercase stretch-wide"
+          >
             Players
           </h2>
-          <p className="body mt-2">
+          <p className="mt-2">
             {team.activeCount === 0
               ? "No players yet."
               : `${plural(team.activeCount, "current player", "current players")}.`}
           </p>
           <div className="wl-row mt-4">
-            <ButtonLink variant="secondary" size="sm" href={`/squad?team=${team.id}`}>
+            <ButtonLink variant="secondary" size="s" href={`/squad?team=${team.id}`}>
               View in squad
             </ButtonLink>
             {admin && (
               <>
                 <ButtonLink
                   variant="secondary"
-                  size="sm"
+                  size="s"
                   href={`/squad/players/new?team=${team.id}`}
                 >
                   Add player
                 </ButtonLink>
-                <ButtonLink variant="secondary" size="sm" href={`/squad/import?team=${team.id}`}>
+                <ButtonLink variant="secondary" size="s" href={`/squad/import?team=${team.id}`}>
                   Import from CSV
                 </ButtonLink>
               </>
@@ -158,16 +172,20 @@ export default async function TeamPage({ params, searchParams }: Props) {
 
       {admin && (
         <section aria-labelledby="team-delete" className="mt-8">
-          <h2 id="team-delete" tabIndex={-1} className="heading-2">
+          <h2
+            id="team-delete"
+            tabIndex={-1}
+            className="font-display text-heading-section uppercase stretch-wide"
+          >
             Delete team
           </h2>
           {inUse ? (
-            <p className="body mt-2 max-w-prose text-ink-muted">
+            <p className="mt-2 max-w-prose text-ink-muted">
               {inUseMessage(usage, team.isOpposition)}
             </p>
           ) : (
             <>
-              <p className="body mt-2 text-ink-muted">
+              <p className="mt-2 text-ink-muted">
                 This team has no players, matches or lineups, so you can delete it.
               </p>
               <div className="mt-4">

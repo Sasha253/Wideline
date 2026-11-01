@@ -3,12 +3,19 @@
 import { Check } from "lucide-react";
 import { useActionState } from "react";
 import { FormErrorBanner, SubmitButton } from "@/components/forms";
-import { StatusChip } from "@/components/ui/StatusChip";
+import { orgInitials } from "@/components/shell/OrgSwitcher";
+import { cx } from "@/components/ui/cx";
+import { iconProps } from "@/components/ui/icons";
 import { switchOrganisation } from "./actions";
 
 type Item = { id: string; name: string; meta: string; roles: string };
 
-/** The organisation cards. The current one is marked; every other one has a Switch form. */
+/**
+ * The organisation rows (Floodlight, as the organisation switcher's list): an initials
+ * tile, the name, type and place, and your roles. The current one has the selected fill,
+ * a 2px ink inset and "Current" with a check (never lime); every other one has a Switch
+ * form.
+ */
 export function OrganisationList({
   currentId,
   organisations,
@@ -24,30 +31,46 @@ export function OrganisationList({
           <FormErrorBanner result={state} />
         </div>
       )}
-      <ul role="list" className="mt-6 flex max-w-2xl flex-col gap-3">
+      <ul
+        role="list"
+        className="m-0 mt-6 flex max-w-2xl list-none flex-col border border-line bg-panel p-0"
+      >
         {organisations.map((o) => {
           const current = o.id === currentId;
           return (
             <li
               key={o.id}
               aria-current={current ? "true" : undefined}
-              className={`wl-card flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 ${current ? "border-pitch" : ""}`}
+              className={cx(
+                "flex flex-col gap-3 border-b border-line p-4 last:border-b-0 tablet:flex-row tablet:items-center tablet:gap-4",
+                current && "bg-selected shadow-[inset_2px_0_0_var(--wl-color-ink)]",
+              )}
             >
-              <div className="min-w-0">
-                <p className="body-strong break-words">{o.name}</p>
-                <p className="caption text-ink-muted">{o.meta}</p>
-                <p className="body">Your roles: {o.roles}</p>
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <span
+                  className="grid size-10 flex-none place-items-center rounded-control bg-ink font-display text-label font-extrabold stretch-wide text-ink-inverse"
+                  aria-hidden="true"
+                >
+                  {orgInitials(o.name)}
+                </span>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="m-0 font-semibold break-words">{o.name}</p>
+                  <p className="m-0 text-body-s text-ink-muted">{o.meta}</p>
+                  <p className="m-0 text-body-s">Your roles: {o.roles}</p>
+                </div>
               </div>
               <div className="shrink-0">
                 {current ? (
-                  <StatusChip tone="ok" icon={Check} label="Current" />
+                  <span className="inline-flex items-center gap-1.5 text-label">
+                    <Check {...iconProps} />
+                    Current
+                  </span>
                 ) : (
                   <form action={action}>
                     <input type="hidden" name="organisationId" value={o.id} />
                     <SubmitButton
                       variant="secondary"
                       block
-                      className="justify-center"
                       pendingLabel="Switching…"
                       aria-label={`Switch to ${o.name}`}
                     >

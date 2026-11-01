@@ -1,20 +1,22 @@
-import { ShieldOff } from "lucide-react";
+import { Lock } from "lucide-react";
 import { iconProps } from "@/components/ui/icons";
 
+/** The reason line's second sentence. It never says which club or player, or why (A-8). */
+export const CONFLICT_REASON = "You are linked to a club or player in it.";
+
 /**
- * Shown in place of the Claim button on a conflicted row (REVIEW02, AUTH10;
- * docs/build/design/C10.md, "Conflict note"). Text, not a control. It never
- * says which club or player, or why (A-8).
+ * The reason on a locked queue row (Floodlight, Screens B "Review queue"; REVIEW02,
+ * AUTH10): a lock, then the sentence. Text, not a control: the row's Locked button points
+ * at it with `aria-describedby` (pass `id`). The match stays in the list so the queue
+ * never looks shorter than it is.
  */
-export function ConflictNote() {
+export function ConflictNote({ id }: { id?: string }) {
   return (
-    <span className="block">
-      <span className="wl-inline-status wl-inline-status--muted caption">
-        <ShieldOff {...iconProps} />
-        <span className="body-strong">You cannot claim this match</span>
-      </span>
-      <span className="caption block text-ink-muted">
-        You are linked to a club or player in it.
+    <span id={id} className="flex items-start gap-1.5 text-body-s text-ink-muted">
+      <Lock {...iconProps} size={14} className="mt-0.5 shrink-0" />
+      <span>
+        <span className="font-semibold text-ink">You cannot claim this match.</span>{" "}
+        {CONFLICT_REASON}
       </span>
     </span>
   );

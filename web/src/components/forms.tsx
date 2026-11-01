@@ -14,7 +14,12 @@ import {
   type RefObject,
 } from "react";
 import { useFormStatus } from "react-dom";
-import { Button, type ButtonVariant } from "@/components/ui/Button";
+import {
+  Button,
+  type ButtonSize,
+  type ButtonVariant,
+  type LegacyButtonSize,
+} from "@/components/ui/Button";
 import { iconProps } from "@/components/ui/icons";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -77,7 +82,11 @@ export function useFormActionWithAlternate<S>(
   };
 }
 
-/** A submit button that disables itself and shows pendingLabel while its form's action runs. */
+/**
+ * A submit button that shows the loading state while its form's action runs: a spinner
+ * replaces the icon, the label becomes pendingLabel and the width stays. Clicks are
+ * ignored while it is pending.
+ */
 export function SubmitButton({
   variant = "primary",
   size,
@@ -90,7 +99,7 @@ export function SubmitButton({
   ...rest
 }: {
   variant?: ButtonVariant;
-  size?: "md" | "sm";
+  size?: ButtonSize | LegacyButtonSize;
   icon?: LucideIcon;
   block?: boolean;
   pendingLabel: string;
@@ -116,11 +125,12 @@ export function SubmitButton({
       icon={icon}
       block={block}
       className={className}
-      disabled={pending}
+      loading={pending}
+      loadingLabel={pendingLabel}
       data-alternate={rest.formAction ? "true" : undefined}
       {...rest}
     >
-      {pending ? pendingLabel : children}
+      {children}
     </Button>
   );
 }
@@ -161,7 +171,9 @@ type ControlProps = {
 
 /**
  * A labelled form field: label, control, hint and error, in that DOM order. The
- * control gets its id, aria-invalid and aria-describedby from the render prop.
+ * control gets its id, aria-invalid and aria-describedby from the render prop; give it
+ * the class wl-input. New code: prefer TextField, TextArea, Select and SearchSelect
+ * (components/ui/TextField), which draw the Floodlight field with its icons.
  */
 export function Field({
   label,
@@ -183,7 +195,7 @@ export function Field({
   const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
   return (
     <div className={className ? `wl-field ${className}` : "wl-field"}>
-      <label htmlFor={id} className="label">
+      <label htmlFor={id} className="wl-field__label">
         {label}
       </label>
       {children({
@@ -192,7 +204,7 @@ export function Field({
         ...(describedBy && { "aria-describedby": describedBy }),
       })}
       {hint && (
-        <p id={hintId} className="wl-field__hint caption">
+        <p id={hintId} className="wl-field__hint">
           {hint}
         </p>
       )}
@@ -203,9 +215,9 @@ export function Field({
 
 export function FieldErrorText({ id, message }: { id?: string; message: string }) {
   return (
-    <p id={id} className="wl-field__error caption">
+    <p id={id} className="wl-field__error">
       <CircleAlert {...iconProps} />
-      {message}
+      <span>{message}</span>
     </p>
   );
 }
@@ -228,7 +240,7 @@ export function Banner({
   return (
     <div className={cls} role={tone === "danger" ? "alert" : "status"}>
       <Icon {...iconProps} />
-      <p className="body">{children}</p>
+      <p className="text-body">{children}</p>
     </div>
   );
 }

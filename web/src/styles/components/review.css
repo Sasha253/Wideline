@@ -1,0 +1,18 @@
+/* C11 review workspace screen rules. One rule per line (in .prettierignore with the other component CSS). */
+/* The review workspace itself (review/claims/[claimId]) is built from utilities and the domain
+   components (ReviewEventRow, .wl-elist); only the reviewer watermark needs rules here.
+   Floodlight --wl-* tokens only. The old .wl-event, .wl-review__*, .wl-nudge and
+   .wl-tabs [role="tab"] rules were removed at the Floodlight integration: nothing used them. */
+@media (prefers-reduced-motion: reduce) {
+  .wl-watermark { transition: none; }
+}
+/* The reviewer watermark (REVIEW11, Q-068): over the screen area, never over a control. */
+.wl-videoplayer__screen > .wl-watermark { z-index: 2; }
+.wl-watermark { position: absolute; pointer-events: none; user-select: none; padding: var(--wl-space-1) var(--wl-space-2); border-radius: var(--wl-radius-1); color: color-mix(in srgb, var(--wl-color-ink) 60%, transparent); background: color-mix(in srgb, var(--wl-color-bg-sunken) 40%, transparent); transition: opacity 200ms ease-out; white-space: nowrap; }
+.wl-watermark--tl { top: var(--wl-space-4); left: var(--wl-space-4); }
+.wl-watermark--tr { top: var(--wl-space-4); right: var(--wl-space-4); }
+.wl-watermark--ml { top: 50%; left: var(--wl-space-4); transform: translateY(-50%); }
+.wl-watermark--mr { top: 50%; right: var(--wl-space-4); transform: translateY(-50%); }
+.wl-watermark--bl { bottom: var(--wl-space-4); left: var(--wl-space-4); }
+.wl-watermark--br { bottom: var(--wl-space-4); right: var(--wl-space-4); }
+.wl-watermark[data-fading] { opacity: 0; }

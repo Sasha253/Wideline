@@ -64,7 +64,70 @@ vi.mock("@/server/review/claims", async (importOriginal) => ({
   })),
 }));
 
+// C11: the claimed page reads the workspace through claimScope(). In a real
+// "Log in as" session ctx.user is the scout, so claimScope() matches the
+// claim's scoutUserId; here it and the workspace reads are stubbed (no DB).
+vi.mock("@/server/review/scope", () => ({
+  claimScope: vi.fn(async () => ({
+    claim: {
+      id: "c-1",
+      organisationId: "o-1",
+      matchId: "m-1",
+      videoId: "v-1",
+      claimedAt: new Date(now - HOUR),
+      expiresAt: new Date(now + 47 * HOUR),
+    },
+    db: {},
+  })),
+}));
+
+vi.mock("@/server/review/workspace", () => ({
+  loadWorkspace: vi.fn(async () => ({
+    match: { id: "m-1", halfLengthMinutes: 35 },
+    video: {
+      durationMs: 4_200_000,
+      hls: true,
+      section: "waiting",
+      markers: { kickoffMs: 0, halfTimeMs: null, secondHalfKickoffMs: null, fullTimeMs: null },
+    },
+    entries: [{ id: "l-7", side: "home", shirtNumber: 7, label: "Home #7" }],
+    tracks: [{ id: "t-1", index: 22, side: "home", entryId: "l-7" }],
+    events: [
+      {
+        id: "e-1",
+        timestampMs: 60_000,
+        type: "shot",
+        onTarget: true,
+        status: "pending_review",
+        side: "home",
+        trackId: "t-1",
+        entryId: "l-7",
+        confidence: 0.6,
+        clipId: "clip-1",
+        clipStartMs: 55_000,
+        clipEndMs: 65_000,
+        corrected: false,
+        manual: false,
+        toCheck: true,
+      },
+    ],
+  })),
+  claimFacts: vi.fn(async () => ({
+    thresholds: { goal: 0.9, shot: 0.75, touch: 0.8 },
+    sidesUnconfirmed: false,
+    favouritedClipIds: [],
+    counts: { eventsReviewed: 0, corrections: 0, added: 0 },
+  })),
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+}));
+
 const { IMPERSONATION_REFUSED, REVIEW_ERROR_COPY } = await import("@/server/review/errors");
+const { IMPERSONATION_REVIEW_REFUSED } =
+  await import("@/app/(app)/review/claims/[claimId]/ReviewWorkspace");
 const ClaimMatchPage = (await import("@/app/(app)/review/matches/[matchId]/claim/page")).default;
 const ClaimedMatchPage = (await import("@/app/(app)/review/claims/[claimId]/page")).default;
 
@@ -113,9 +176,29 @@ describe('review pages in a "Log in as" session (Q-064)', () => {
     expect(html).not.toContain("Release match");
   });
 
+  it("the claimed page renders the workspace read-only (AUTH06, AUTH07)", async () => {
+    state.impersonator = admin;
+    const html = await claimedPage();
+    expect(html).toContain(IMPERSONATION_REVIEW_REFUSED);
+    // The event list is there; no write control is.
+    expect(html).toContain("Home #7");
+    expect(html).not.toContain("Mark as reviewed");
+    expect(html).not.toContain("Add missed event");
+    expect(html).not.toMatch(/>Confirm</);
+    expect(html).not.toMatch(/>Reject</);
+    // No closed write dialog either: edit and track link are not mounted.
+    expect(html).not.toContain("Save and confirm");
+    expect(html).not.toContain("Unlink track");
+    expect(html).toContain("J, K and ? work");
+  });
+
   it("the scout's own session keeps the Release trigger and no banner", async () => {
     const html = await claimedPage();
     expect(html).not.toContain(IMPERSONATION_REFUSED);
+    expect(html).not.toContain(IMPERSONATION_REVIEW_REFUSED);
     expect(html).toContain("Release match");
+    expect(html).toContain("Mark as reviewed");
+    expect(html).toContain("Save and confirm");
+    expect(html).toContain("J, K, Y, N, E, A and ? work");
   });
 });

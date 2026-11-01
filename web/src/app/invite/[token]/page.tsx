@@ -108,7 +108,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
               mode="join"
               joinLabel={`Join as ${ROLE_LABELS[inv.role].toLowerCase()}`}
             />
-            <p className="caption mt-4 text-ink-muted">
+            <p className="m-0 mt-4 text-body-s text-ink-muted">
               Signed in as <span className="break-all">{ctx.user.email}</span>.
             </p>
           </>
@@ -174,19 +174,20 @@ function Frame({
   content?: ReactNode;
   signInLine?: boolean;
 }) {
+  // The auth pattern (Floodlight, Screens A "Sign in", form column): the logo, an
+  // overline, the title in title-guardian (sentence case, never caps), one muted line,
+  // then the content in a column of at most 400px.
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4 py-12">
-      <p className="heading-2">
-        <Logo />
-      </p>
-      <p className="eyebrow mt-6 text-ink-muted">Invitation</p>
-      <h1 className="heading-2 mt-1 break-words">{title}</h1>
-      <p className="body mt-2 text-ink-muted">{children}</p>
+    <main className="mx-auto flex min-h-screen w-full max-w-100 flex-col justify-center px-5 py-12">
+      <Logo />
+      <p className="m-0 mt-10 font-mono text-overline uppercase text-ink-muted">Invitation</p>
+      <h1 className="m-0 mt-2 text-title-guardian stretch-semi break-words">{title}</h1>
+      <p className="m-0 mt-3 text-ink-muted">{children}</p>
       {content && <div className="mt-6">{content}</div>}
       {signInLine && (
-        <p className="caption mt-6">
+        <p className="m-0 mt-6 text-body-s text-ink-muted">
           Already have an account?{" "}
-          <Link href="/login" className="text-pitch underline">
+          <Link href="/login" className="text-brand-text underline underline-offset-3">
             Sign in
           </Link>
         </p>
@@ -196,20 +197,31 @@ function Frame({
 }
 
 function Summary({ inv }: { inv: InvitationView }) {
+  const row =
+    "flex items-baseline justify-between gap-4 border-b border-line py-2.5 last:border-b-0";
+  const term = "font-mono text-overline uppercase text-ink-muted";
   return (
-    <dl className="wl-card grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-      <dt className="label text-ink-muted">Organisation</dt>
-      <dd className="body-strong break-words">{inv.orgName}</dd>
-      <dt className="label text-ink-muted">Role</dt>
-      <dd className="body-strong">{ROLE_LABELS[inv.role]}</dd>
+    <dl className="m-0 border border-line bg-panel px-4 py-1.5">
+      <div className={row}>
+        <dt className={term}>Organisation</dt>
+        <dd className="m-0 text-right font-semibold break-words">{inv.orgName}</dd>
+      </div>
+      <div className={row}>
+        <dt className={term}>Role</dt>
+        <dd className="m-0 text-right font-semibold">{ROLE_LABELS[inv.role]}</dd>
+      </div>
       {inv.inviterName && (
-        <>
-          <dt className="label text-ink-muted">Invited by</dt>
-          <dd className="body-strong break-words">{inv.inviterName}</dd>
-        </>
+        <div className={row}>
+          <dt className={term}>Invited by</dt>
+          <dd className="m-0 text-right font-semibold break-words">{inv.inviterName}</dd>
+        </div>
       )}
-      <dt className="label text-ink-muted">Expires</dt>
-      <dd className="data">{formatDate(inv.expiresAt)}</dd>
+      <div className={row}>
+        <dt className={term}>Expires</dt>
+        <dd className="m-0 text-right font-mono text-mono-m tabular-nums">
+          {formatDate(inv.expiresAt)}
+        </dd>
+      </div>
     </dl>
   );
 }

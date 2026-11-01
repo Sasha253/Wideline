@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/templates/PageHeader";
+import { SegmentedFilter } from "@/components/ui/SegmentedFilter";
 import { formatDate, locationText, ORG_TYPE_LABELS } from "@/lib/labels";
 import { PLATFORM_ROLES, requirePageRole } from "@/server/auth/session";
 import {
@@ -49,35 +49,28 @@ export default async function OrganisationApplicationsPage({
     <>
       <PageHeader
         title="Organisation applications"
+        eyebrow="Admin / Organisations"
         intro="Academies, clubs and agencies that asked to join the pilot. Approving one emails the applicant an owner invitation."
       />
-      <AdminNav current="organisations" />
-      <nav aria-label="Organisation list" className="wl-tabs mt-6">
-        <Link
-          href="/admin/organisations?status=pending"
-          className="body-strong"
-          aria-current={status === "pending" ? "page" : undefined}
-        >
-          Pending <span className="data">{pendingCount}</span>
-        </Link>
-        <Link
-          href="/admin/organisations?status=decided"
-          className="body-strong"
-          aria-current={status === "decided" ? "page" : undefined}
-        >
-          Decided
-        </Link>
-        <Link
-          href="/admin/organisations?status=all"
-          className="body-strong"
-          aria-current={status === "all" ? "page" : undefined}
-        >
-          All
-        </Link>
-      </nav>
+      <AdminNav current="organisations" counts={{ organisations: pendingCount }} />
+      <SegmentedFilter
+        aria-label="Organisation list"
+        className="mt-5"
+        value={status}
+        options={[
+          {
+            value: "pending",
+            label: "Pending",
+            count: pendingCount,
+            href: "/admin/organisations?status=pending",
+          },
+          { value: "decided", label: "Decided", href: "/admin/organisations?status=decided" },
+          { value: "all", label: "All", href: "/admin/organisations?status=all" },
+        ]}
+      />
       {status === "all" ? (
         <>
-          <p className="body mt-4 max-w-prose text-ink-muted">
+          <p className="mt-4 max-w-prose text-ink-muted">
             Every organisation on Wideline, including Wideline&apos;s own. Open one to change its
             flags and limits.
           </p>

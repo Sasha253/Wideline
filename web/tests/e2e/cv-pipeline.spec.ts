@@ -9,7 +9,7 @@ import { DEMO, switchTo, unique } from "./helpers/orgs";
 // processing, to events in the database"): footage uploaded on the match page
 // is probed, transcoded and sent to the cv-dispatcher, whose docker provider
 // runs the wideline-cv-worker image in synthetic mode; the callback, ingest
-// and the clips job follow, and the match shows Awaiting review with "Clips
+// and the clips job follow, and the match shows Ready for review with "Clips
 // ready". The Events and Clips rows are checked in the database.
 //
 // Needs the whole compose stack, the cv-worker image (`make cv-image`) and
@@ -61,7 +61,7 @@ test("upload to review-ready through the synthetic CV pipeline and the clips job
       { timeout: 10 * 60_000, intervals: [15_000] },
     )
     .toBe(true);
-  await expect(page.getByText("Awaiting review").first()).toBeVisible();
+  await expect(page.getByText("Ready for review").first()).toBeVisible();
   await expectNoAxeViolations(page);
 
   if (databaseUrl) {

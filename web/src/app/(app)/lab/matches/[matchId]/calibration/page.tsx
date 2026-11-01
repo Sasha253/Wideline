@@ -123,19 +123,19 @@ export default async function CalibrationPage({
     <>
       {header}
       {current?.source === "manual" ? (
-        <p className="body mt-4">
+        <p className="mt-4">
           {manualSummary(current.reprojectionErrorM, current.pointCount)}, saved{" "}
           {formatDate(current.createdAt)}.
         </p>
       ) : (
-        <p className="body mt-4">
+        <p className="mt-4">
           <span className="wl-inline-status wl-inline-status--warn">
             <TriangleAlert {...iconProps} />
             Current: not calibrated. Positions are approximate.
           </span>
         </p>
       )}
-      <p className="caption mt-1 text-ink-muted">
+      <p className="text-body-s mt-1 text-ink-muted">
         {venue
           ? `Applies to later matches at ${match.venue} filmed at ${video.width} × ${video.height}.`
           : "This match has no venue, so later matches cannot reuse this calibration."}

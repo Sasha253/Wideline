@@ -11,6 +11,8 @@ import {
   Minimize,
   Pause,
   Play,
+  RotateCcw,
+  RotateCw,
   Settings2,
   TriangleAlert,
   Volume2,
@@ -25,11 +27,13 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 import { usePopover } from "@/components/shell/usePopover";
 import { Skeleton } from "@/components/states/Skeleton";
 import { Button, ButtonLink, IconButton } from "@/components/ui/Button";
+import { cx } from "@/components/ui/cx";
 import { iconProps } from "@/components/ui/icons";
 import { formatVideoTime } from "@/lib/labels";
 
@@ -48,6 +52,10 @@ import { formatVideoTime } from "@/lib/labels";
  * position; a second failure in a row shows the error panel.
  *
  * Children's data: never shows or stores names; nothing goes to storage.
+ *
+ * C11 (REVIEW11): `overlay` renders over the screen area, inside the player
+ * root, so it stays on screen in full screen (the review watermark). The
+ * video never offers a download, picture-in-picture or its context menu.
  */
 
 export type PlayerSource =
@@ -73,6 +81,8 @@ type Quality = { index: number; height: number; name: string };
 
 const SEEK_STEP_MS = 5000;
 const BUFFERING_DELAY_MS = 500;
+/** Playback speeds (Floodlight, Screens B "Workspace · desktop"). */
+const RATES = [0.5, 1, 2] as const;
 
 const MESSAGES: Record<"failed" | "cannot_play" | "signed_out" | "gone", string> = {
   failed: "The video stopped loading.",
@@ -129,6 +139,7 @@ export function HlsPlayer({
   onTimeUpdate,
   onStateChange,
   onPlayingChange,
+  overlay,
   ref,
 }: {
   source: PlayerSource;
@@ -141,6 +152,8 @@ export function HlsPlayer({
   onStateChange?: (state: PlayerState) => void;
   /** Playing or paused, for a host's own Play button (the marker tool). */
   onPlayingChange?: (playing: boolean) => void;
+  /** Drawn over the screen area, never over the controls (C11 watermark). */
+  overlay?: ReactNode;
   ref?: Ref<HlsPlayerHandle>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -171,6 +184,7 @@ export function HlsPlayer({
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [announce, setAnnounce] = useState("");
+  const [rate, setRate] = useState(1);
 
   const ready = phase === "ready";
   const onStateChangeRef = useRef(onStateChange);
@@ -396,6 +410,14 @@ export function HlsPlayer({
     [play, pause, toggle, seekTo, seekBy],
   );
 
+  function chooseRate(r: number) {
+    const v = videoRef.current;
+    if (!v || !ready) return;
+    v.playbackRate = r;
+    setRate(r);
+    setAnnounce(`Speed ${r}×.`);
+  }
+
   function toggleMute() {
     const v = videoRef.current;
     if (!v || !ready) return;
@@ -519,10 +541,15 @@ export function HlsPlayer({
           playsInline
           preload="metadata"
           tabIndex={-1}
+          controlsList="nodownload noplaybackrate"
+          disablePictureInPicture
+          onContextMenu={(e) => e.preventDefault()}
           onClick={toggle}
           onDoubleClick={toggleFullscreen}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
+            // A new source resets the speed: keep the one the viewer chose.
+            v.playbackRate = rate;
             setDurationMs(Number.isFinite(v.duration) ? Math.round(v.duration * 1000) : 0);
             setMuted(v.muted);
             setPhase((p) => (p === "loading" || p === "ready" ? "ready" : p));
@@ -565,11 +592,12 @@ export function HlsPlayer({
             />
           ))}
         </video>
+        {overlay}
         {phase === "loading" && (
           <Skeleton shape="video" className="absolute inset-0 h-full w-full" />
         )}
         {ready && buffering && (
-          <div className="wl-videoplayer__status caption">
+          <div className="wl-videoplayer__status text-body-s">
             <LoaderCircle {...iconProps} />
             Loading…
           </div>
@@ -581,10 +609,12 @@ export function HlsPlayer({
             ) : (
               <CircleAlert {...iconProps} className="text-danger" />
             )}
-            <p className="body-strong">{MESSAGES[message]}</p>
+            <p className="m-0 font-semibold">{MESSAGES[message]}</p>
             {message === "failed" && (
               <>
-                <p className="caption text-ink-muted">Check your connection, then try again.</p>
+                <p className="m-0 text-body-s text-ink-muted">
+                  Check your connection, then try again.
+                </p>
                 <Button
                   ref={messageActionRef as Ref<HTMLButtonElement>}
                   variant="secondary"
@@ -595,12 +625,12 @@ export function HlsPlayer({
               </>
             )}
             {message === "cannot_play" && (
-              <p className="caption text-ink-muted">
+              <p className="m-0 text-body-s text-ink-muted">
                 Use a recent version of Chrome, Edge, Firefox or Safari.
               </p>
             )}
             {message === "gone" && (
-              <p className="caption text-ink-muted">
+              <p className="m-0 text-body-s text-ink-muted">
                 It may have been deleted, or your access has changed.
               </p>
             )}
@@ -632,13 +662,29 @@ export function HlsPlayer({
         />
         <div className="wl-videoplayer__bar">
           <IconButton
-            ref={playRef}
             className="wl-videoplayer__btn"
+            icon={RotateCcw}
+            aria-label="Back 5 seconds"
+            title={shortcut("Back 5 seconds", "←")}
+            disabled={!ready}
+            onClick={() => seekBy(-SEEK_STEP_MS)}
+          />
+          <IconButton
+            ref={playRef}
+            className="wl-videoplayer__btn wl-videoplayer__play"
             icon={playing ? Pause : Play}
             aria-label={playing ? "Pause" : "Play"}
             title={shortcut(playing ? "Pause" : "Play", "K")}
             disabled={!ready}
             onClick={toggle}
+          />
+          <IconButton
+            className="wl-videoplayer__btn"
+            icon={RotateCw}
+            aria-label="Forward 5 seconds"
+            title={shortcut("Forward 5 seconds", "→")}
+            disabled={!ready}
+            onClick={() => seekBy(SEEK_STEP_MS)}
           />
           <IconButton
             className="wl-videoplayer__btn"
@@ -649,10 +695,35 @@ export function HlsPlayer({
             disabled={!ready}
             onClick={toggleMute}
           />
-          <span className="data wl-videoplayer__time">
-            {`${formatVideoTime(currentMs, 0)} / ${formatVideoTime(durationMs, 0)}`}
+          <span className="wl-videoplayer__time font-mono text-mono-l tabular-nums">
+            {formatVideoTime(currentMs, 0)}
+            <span className="font-normal text-ink-muted">{` / ${formatVideoTime(durationMs, 0)}`}</span>
           </span>
           <span className="wl-videoplayer__spacer" />
+          <span
+            role="group"
+            aria-label="Playback speed"
+            data-review-keys="off"
+            className="hidden gap-0.5 rounded-control border border-line p-0.5 tablet:flex"
+          >
+            {RATES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={rate === r}
+                disabled={!ready}
+                className={cx(
+                  "min-h-8 rounded-control px-2 font-mono text-mono-m tabular-nums",
+                  rate === r
+                    ? "bg-selected text-ink"
+                    : "bg-transparent text-ink-muted hover:text-ink",
+                )}
+                onClick={() => chooseRate(r)}
+              >
+                {r}×
+              </button>
+            ))}
+          </span>
           {(tracks.length > 0 || captions.length > 0) &&
             (tracks.length > 1 ? (
               <PlayerMenu
@@ -688,7 +759,7 @@ export function HlsPlayer({
               text={
                 <>
                   {quality.name}
-                  {quality.detail && <span className="hidden md:inline">{quality.detail}</span>}
+                  {quality.detail && <span className="hidden tablet:inline">{quality.detail}</span>}
                 </>
               }
               icon={Settings2}
@@ -775,7 +846,7 @@ export function PlayerMenu({
   }
 
   return (
-    <div className="wl-videoplayer__menuwrap" {...wrapperProps}>
+    <div className="wl-videoplayer__menuwrap" data-review-keys="off" {...wrapperProps}>
       {text === null ? (
         <button
           type="button"
@@ -791,13 +862,13 @@ export function PlayerMenu({
       ) : (
         <button
           type="button"
-          className="wl-btn wl-btn--ghost wl-btn--sm wl-videoplayer__quality"
+          className="wl-btn wl-btn--ghost wl-btn--s wl-videoplayer__quality"
           aria-label={label}
           disabled={disabled}
           {...triggerProps}
         >
           <Icon {...iconProps} />
-          <span className="label wl-videoplayer__qualitytext">{text}</span>
+          <span className="wl-videoplayer__qualitytext text-label">{text}</span>
         </button>
       )}
       {open && (
@@ -807,12 +878,12 @@ export function PlayerMenu({
           className="wl-popover wl-videoplayer__menu"
           onKeyDown={onPanelKeyDown}
         >
-          <p className="wl-popover__heading label">{heading}</p>
+          <p className="wl-popover__heading text-label">{heading}</p>
           {items.map((item, i) => (
             <Fragment key={item.value}>
               <button
                 type="button"
-                className="wl-popover__item body"
+                className="wl-popover__item"
                 aria-pressed={item.value === current}
                 onClick={() => {
                   onChoose(item.value);
@@ -826,7 +897,9 @@ export function PlayerMenu({
                 )}
                 {item.label}
               </button>
-              {note && i === 0 && <p className="caption px-3 pb-2 text-ink-muted">{note}</p>}
+              {note && i === 0 && (
+                <p className="m-0 px-3 pb-2 text-body-s text-ink-muted">{note}</p>
+              )}
             </Fragment>
           ))}
         </div>

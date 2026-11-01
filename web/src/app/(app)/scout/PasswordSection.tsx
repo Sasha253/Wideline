@@ -31,7 +31,12 @@ export function PasswordSection({ email }: { email: string }) {
 
   return (
     <section aria-labelledby="scout-password-heading" className="mt-8">
-      <h2 id="scout-password-heading" ref={headingRef} tabIndex={-1} className="heading-2">
+      <h2
+        id="scout-password-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="m-0 font-display text-heading-section uppercase stretch-wide"
+      >
         Set a password
       </h2>
       <div aria-live="polite" className="mt-4 empty:mt-0">
@@ -39,7 +44,7 @@ export function PasswordSection({ email }: { email: string }) {
       </div>
       {!state?.ok && (
         <>
-          <p className="body mt-2 text-ink-muted">
+          <p className="mt-2 text-ink-muted">
             You can always sign in with a link we email you. Set a password to sign in with your
             email and password instead.
           </p>

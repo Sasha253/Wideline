@@ -46,3 +46,60 @@ export function eventStatusFor(
 ): "auto_accepted" | "pending_review" {
   return confidence >= thresholds[type] ? "auto_accepted" : "pending_review";
 }
+
+export const AUTO_ACCEPT_TYPES: readonly AutoAcceptType[] = ["goal", "shot", "touch"];
+
+/** C11 (docs/build/design/C11.md, Surface 6): the one field error. */
+export const THRESHOLD_ERROR = "Enter a number from 0.00 to 1.00.";
+
+/**
+ * One threshold as typed: a confidence score from 0 to 1 with at most 2
+ * decimals ("0.75", ".9", "1"), the same form the review meter shows (Q-072).
+ * Stored as typed: a fraction, so no conversion.
+ */
+const thresholdInput = z
+  .string({ error: THRESHOLD_ERROR })
+  .trim()
+  .regex(/^(?:0?\.\d{1,2}|[01](?:\.\d{1,2})?)$/, THRESHOLD_ERROR)
+  .transform(Number)
+  .refine((v) => v >= 0 && v <= 1, THRESHOLD_ERROR);
+
+/** The threshold settings form (REVIEW10): one score per event type. */
+export const thresholdsInputSchema = z.object({
+  goal: thresholdInput,
+  shot: thresholdInput,
+  touch: thresholdInput,
+});
+
+export type ThresholdsInput = z.input<typeof thresholdsInputSchema>;
+
+/**
+ * The organisation's settings JSON with autoAccept replaced by these
+ * thresholds. Every other key is kept as it was.
+ */
+export type SettingsJsonValue =
+  string | number | boolean | null | SettingsJsonValue[] | { [key: string]: SettingsJsonValue };
+
+export function mergeAutoAccept(
+  settings: unknown,
+  thresholds: AutoAcceptThresholds,
+): { [key: string]: SettingsJsonValue } {
+  // The settings column is JSON, so its values are JSON values.
+  const base =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? (settings as { [key: string]: SettingsJsonValue })
+      : {};
+  return { ...base, autoAccept: { ...thresholds } };
+}
+
+/** "0.75", for the settings screen and the coach's read-only view. */
+export function formatThreshold(value: number): string {
+  return value.toFixed(2);
+}
+
+/** The settings screen's field labels (docs/build/design/C11.md, Surface 6). */
+export const THRESHOLD_LABELS: Record<AutoAcceptType, string> = {
+  goal: "Goals",
+  shot: "Shots",
+  touch: "Touches",
+};

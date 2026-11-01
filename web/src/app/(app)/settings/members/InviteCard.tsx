@@ -3,7 +3,6 @@
 import { Send } from "lucide-react";
 import { useEffect, useRef } from "react";
 import {
-  Field,
   fieldError,
   FormBusy,
   FormErrorBanner,
@@ -12,6 +11,7 @@ import {
   useFocusFirstInvalid,
   useFormAction,
 } from "@/components/forms";
+import { FieldMessage, Select, TextField } from "@/components/ui/TextField";
 import type { ActionResult } from "@/lib/action-result";
 import { inviteMember } from "./actions";
 
@@ -40,73 +40,70 @@ export function InviteCard({
   }, [state]);
 
   return (
-    <section aria-labelledby="invite-heading" className="wl-card mt-8">
-      <h2 id="invite-heading" tabIndex={-1} className="heading-2">
+    <section
+      aria-labelledby="invite-heading"
+      className="mt-6 flex flex-col gap-4 border border-line bg-panel p-4 tablet:p-5"
+    >
+      <h2
+        id="invite-heading"
+        tabIndex={-1}
+        className="m-0 font-display text-heading-section stretch-wide uppercase"
+      >
         Invite someone
       </h2>
-      <div aria-live="polite" className="mt-4 empty:mt-0">
+      <div aria-live="polite" className="empty:hidden">
         <SuccessBanner result={state} />
       </div>
       <form
         ref={formRef}
         {...formProps}
         noValidate
-        className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-2 lg:grid-cols-12 lg:gap-6"
+        className="grid grid-cols-1 items-start gap-4 tablet:grid-cols-2 desktop:grid-cols-12 desktop:gap-5"
       >
         <FormBusy formRef={formRef} />
-        <Field label="Email" error={fieldError(state, "email")} className="lg:col-span-5">
-          {(p) => (
-            <input
-              {...p}
-              ref={emailRef}
-              type="email"
-              name="email"
-              autoComplete="off"
-              required
-              className="wl-input"
-            />
-          )}
-        </Field>
-        <Field
+        <TextField
+          ref={emailRef}
+          label="Email"
+          type="email"
+          name="email"
+          autoComplete="off"
+          placeholder="name@club.co.za"
+          required
+          error={fieldError(state, "email")}
+          className="desktop:col-span-5"
+        />
+        <TextField
           label="Name (optional)"
-          hint="Used in the email greeting."
+          name="name"
+          autoComplete="off"
+          maxLength={120}
+          help="Used in the email greeting."
           error={fieldError(state, "name")}
-          className="lg:col-span-3"
-        >
-          {(p) => (
-            <input {...p} name="name" autoComplete="off" maxLength={120} className="wl-input" />
-          )}
-        </Field>
-        <Field
+          className="desktop:col-span-3"
+        />
+        <Select
           label="Role"
-          hint={isOwner ? undefined : "Only an owner can invite another owner."}
-          className="lg:col-span-2"
-        >
-          {(p) => (
-            <select {...p} name="role" defaultValue="coach" className="wl-input">
-              {roles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
+          name="role"
+          defaultValue="coach"
+          options={roles}
+          help={isOwner ? undefined : "Only an owner can invite another owner."}
+          className="desktop:col-span-2"
+        />
         {/* An invisible label-sized spacer lines the button up with the inputs, whatever
             hints sit under them. */}
-        <div className="wl-field md:self-start lg:col-span-2">
-          <span className="label invisible hidden md:block" aria-hidden="true">
+        <div className="wl-field tablet:self-start desktop:col-span-2">
+          <span className="wl-field__label invisible hidden tablet:block" aria-hidden="true">
             Send
           </span>
-          <SubmitButton icon={Send} block pendingLabel="Sending…" className="justify-center">
+          <SubmitButton icon={Send} block pendingLabel="Sending…">
             Send invitation
           </SubmitButton>
         </div>
-        <div className="flex flex-col gap-2 md:col-span-2 lg:col-span-12">
+        <div className="flex flex-col gap-2 tablet:col-span-2 desktop:col-span-12">
           <FormErrorBanner result={state} />
-          <p className="wl-field__hint caption">
+          <FieldMessage>
             Invitations expire after 14 days. We email a link to join {orgName}.
-          </p>
+          </FieldMessage>
         </div>
       </form>
     </section>

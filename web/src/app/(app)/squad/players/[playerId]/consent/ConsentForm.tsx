@@ -60,7 +60,7 @@ export function ConsentForm({
       <input type="hidden" name="playerId" value={playerId} />
 
       <div className="flex flex-col gap-6">
-        <h2 className="heading-2">Who decided</h2>
+        <h2 className="font-display text-heading-section uppercase stretch-wide">Who decided</h2>
         {minor ? (
           <>
             <Field
@@ -91,7 +91,7 @@ export function ConsentForm({
           </>
         ) : (
           <>
-            <p className="body">The player decides: {name}.</p>
+            <p>The player decides: {name}.</p>
             <input type="hidden" name="relationship" value="self" />
             {err("relationship") && <FieldErrorText message={err("relationship")!} />}
           </>
@@ -99,7 +99,9 @@ export function ConsentForm({
       </div>
 
       <div className="flex flex-col gap-6 border-t border-line pt-6">
-        <h2 className="heading-2 mt-2">How and when</h2>
+        <h2 className="font-display text-heading-section uppercase stretch-wide mt-2">
+          How and when
+        </h2>
         <RadioGroup
           name="method"
           legend="How did they give their answer?"
@@ -126,13 +128,15 @@ export function ConsentForm({
       </div>
 
       <div className="flex flex-col gap-6 border-t border-line pt-6">
-        <h2 className="heading-2 mt-2">What they chose</h2>
+        <h2 className="font-display text-heading-section uppercase stretch-wide mt-2">
+          What they chose
+        </h2>
         <div>
-          <p className="label">What they were shown</p>
-          <div className="mt-2 rounded-md bg-surface-sunken p-4">{wording}</div>
+          <p className="text-label">What they were shown</p>
+          <div className="mt-2 rounded-control bg-sunken p-4">{wording}</div>
           <Link
             href={`/squad/players/${playerId}/consent/print`}
-            className="body mt-2 inline-block text-pitch underline"
+            className="mt-2 inline-block text-brand-text underline"
           >
             Print the paper form
           </Link>
@@ -157,7 +161,7 @@ export function ConsentForm({
           error={err("scoutVisible")}
         />
         <div className="wl-field">
-          <label className="wl-choice wl-choice--top body">
+          <label className="wl-choice wl-choice--top">
             <input
               type="checkbox"
               name="seenWording"
@@ -165,7 +169,8 @@ export function ConsentForm({
               aria-describedby={seenError ? `consent-seen-error-${playerId}` : undefined}
             />
             <span>
-              The person deciding saw this wording (version <span className="data">{version}</span>
+              The person deciding saw this wording (version{" "}
+              <span className="font-mono text-mono-m tabular-nums">{version}</span>
               ).
             </span>
           </label>
@@ -177,7 +182,7 @@ export function ConsentForm({
 
       <FormErrorBanner result={state} />
       <div>
-        <SubmitButton variant="primary" block pendingLabel="Saving…" className="justify-center">
+        <SubmitButton variant="primary" block pendingLabel="Saving" className="justify-center">
           Save consent
         </SubmitButton>
       </div>

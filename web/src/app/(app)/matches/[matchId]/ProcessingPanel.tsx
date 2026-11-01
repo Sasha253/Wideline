@@ -6,6 +6,7 @@ import {
   RotateCcw,
   type LucideIcon,
 } from "lucide-react";
+import { cx } from "@/components/ui/cx";
 import { iconProps } from "@/components/ui/icons";
 import type { ProcessingStep } from "@/server/processing/summary";
 
@@ -212,6 +213,127 @@ export function clipsStep(job: ProcessingStep | null): Step {
   }
 }
 
+/** Where one pipeline step is: settled, running now, stopped, or not reached yet. */
+export type PipelineState = "done" | "current" | "failed" | "waiting" | "person";
+
+export type PipelineRow = {
+  name: string;
+  /** The state in words, always shown beside the disc (never colour alone). */
+  state: string;
+  caption: string | null;
+  status: PipelineState;
+};
+
+function rowOf(s: Step): PipelineRow {
+  // A queued retry (RotateCcw) is waiting on the system, not running: thin outline, no lime.
+  const status: PipelineState = s.done
+    ? "done"
+    : s.tone === "failed"
+      ? "failed"
+      : s.icon === LoaderCircle
+        ? "current"
+        : "waiting";
+  return { name: s.name, state: s.state, caption: s.caption, status };
+}
+
+/** The three job steps (transcode, CV, clips) as pipeline rows. */
+export function jobRows(steps: {
+  transcode: ProcessingStep | null;
+  cv: ProcessingStep | null;
+  clips?: ProcessingStep | null;
+}): PipelineRow[] {
+  return [playbackStep(steps.transcode), eventsStep(steps.cv), clipsStep(steps.clips ?? null)].map(
+    rowOf,
+  );
+}
+
+const DISC: Record<PipelineState, string> = {
+  // Solid: settled.
+  done: "bg-confirmed text-on-status border-2 border-confirmed",
+  // Ink outline: running now (the lime bar below says it is live).
+  current: "border-2 border-ink text-ink",
+  failed: "bg-rejected-subtle text-rejected border border-rejected",
+  // Thin outline: waiting on the system.
+  waiting: "border border-line-strong text-ink-muted",
+  // Dashed: waiting on a person.
+  person: "border-pending text-pending",
+};
+
+const DISC_ICON: Partial<Record<PipelineState, LucideIcon>> = {
+  done: Check,
+  current: LoaderCircle,
+  failed: CircleAlert,
+  person: CircleDashed,
+};
+
+/**
+ * The named pipeline steps of a processing match (Floodlight Screens A, "Match detail ·
+ * processing"): a numbered disc, the step name, its state in words and a caption. Only a
+ * running step gets the lime bar; there is no percentage for the whole job. Nothing spins.
+ */
+export function PipelineSteps({ rows }: { rows: PipelineRow[] }) {
+  return (
+    <ol role="list" className="flex flex-col">
+      {rows.map((r, i) => {
+        const Icon = DISC_ICON[r.status];
+        return (
+          <li
+            key={r.name}
+            data-state={r.status}
+            className={cx(
+              "grid grid-cols-[28px_minmax(0,1fr)] items-center gap-4 border-b border-line px-5 py-3.5 last:border-b-0 touch:px-4",
+              r.status === "current" && "bg-raised",
+            )}
+          >
+            <span
+              aria-hidden
+              className={cx(
+                "box-border grid size-7 place-items-center rounded-full font-mono text-mono-m font-semibold tabular-nums",
+                DISC[r.status],
+              )}
+            >
+              {Icon ? <Icon {...iconProps} size={14} /> : i + 1}
+            </span>
+            <span className="flex min-w-0 flex-col gap-1.5">
+              <span
+                className={cx(
+                  "text-body leading-tight",
+                  r.status === "current" ? "font-semibold" : "font-medium",
+                  r.status === "waiting" ? "text-ink-muted" : "text-ink",
+                )}
+              >
+                {r.name}
+              </span>
+              <span className="text-body-s text-ink-muted">
+                <span
+                  className={cx(
+                    "font-semibold",
+                    r.status === "failed" ? "text-rejected" : "text-ink",
+                  )}
+                >
+                  {r.state}
+                </span>
+                {r.caption && <> · {r.caption}</>}
+              </span>
+              {r.status === "current" && (
+                // No step progress is reported yet, so a short static segment marks the
+                // live step; a full bar would read as complete.
+                <span aria-hidden className="mt-1 block h-1.5 bg-selected">
+                  <span className="block h-full w-1/4 border border-brand-edge bg-brand" />
+                </span>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * The job steps alone, for callers that only have the processing summary. The match page
+ * uses PipelineSteps with the full six rows.
+ */
 export function ProcessingPanel({
   steps,
 }: {
@@ -223,32 +345,12 @@ export function ProcessingPanel({
       }
     | "unavailable";
 }) {
-  return (
-    <>
-      <h3 className="body-strong mt-6">Processing</h3>
-      {steps === "unavailable" ? (
-        <p className="body mt-2 text-ink-muted">
-          Processing status is not available right now. This page updates every 30 seconds.
-        </p>
-      ) : (
-        <ol className="wl-checklist mt-2" role="list">
-          {[
-            playbackStep(steps.transcode),
-            eventsStep(steps.cv),
-            clipsStep(steps.clips ?? null),
-          ].map((s) => (
-            <li key={s.name} data-done={s.done ? "true" : undefined} data-state={s.tone}>
-              <s.icon {...iconProps} />
-              <div>
-                <span className="body">
-                  {s.name} · <span className="body-strong">{s.state}</span>
-                </span>
-                {s.caption && <p className="caption text-ink-muted">{s.caption}</p>}
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </>
-  );
+  if (steps === "unavailable") {
+    return (
+      <p className="px-5 py-3.5 text-ink-muted">
+        Processing status is not available right now. This page updates every 30 seconds.
+      </p>
+    );
+  }
+  return <PipelineSteps rows={jobRows(steps)} />;
 }

@@ -129,7 +129,7 @@ test("queue, claim, claimed page, release: end to end", async ({ browser }) => {
   expect(at(danger)).toBeLessThan(at(blocked));
   expect(at(blocked)).toBeLessThan(at(later));
   const dangerRow = rows.filter({ hasText: danger.home });
-  await expect(dangerRow.locator(".wl-chip--danger")).toContainText(/1[89] hours/);
+  await expect(dangerRow.locator(".wl-xchip--urgent")).toContainText(/1[89] hours/);
   const blockedRow = rows.filter({ hasText: blocked.home });
   await expect(blockedRow.getByText("You cannot claim this match")).toBeVisible();
   await expect(blockedRow.getByRole("link", { name: /^Claim/ })).toHaveCount(0);
@@ -141,7 +141,7 @@ test("queue, claim, claimed page, release: end to end", async ({ browser }) => {
   // 2. Cards under 768px: the table is hidden, each match is a card with full names.
   await page.setViewportSize({ width: 375, height: 900 });
   await expect(waitingTable(page)).toBeHidden();
-  const card = page.locator("li.wl-card").filter({ hasText: danger.home });
+  const card = page.locator("li.wl-queue-card").filter({ hasText: danger.home });
   await expect(card).toBeVisible();
   await expect(card.getByRole("link", { name: /^Claim/ })).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -179,9 +179,9 @@ test("queue, claim, claimed page, release: end to end", async ({ browser }) => {
   }
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // 4. The queue now shows Your matches, and Claim is disabled with the limit note.
+  // 4. The queue now shows Your claimed match, and Claim is disabled with the limit note.
   await page.goto("/review");
-  await expect(page.getByRole("heading", { name: /Your matches/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your claimed match/ })).toBeVisible();
   await expect(page.locator("#review-limit-note")).toContainText(
     "Finish or release your claimed match to claim another.",
   );

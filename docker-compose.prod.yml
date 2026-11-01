@@ -1,0 +1,177 @@
+# Production stack for the shared server (DEPLOY.md). Standalone: the dev
+# file's bind mounts, dev targets and its own Caddy do not apply.
+#
+#   make prod-up
+#   (docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build --wait)
+#
+# The shared Caddy terminates TLS and reaches three services over the external
+# `edge` network:
+#   wideline-web:3000     https://wideline.$SSLIP_HOST
+#   wideline-rustfs:9000  https://s3.wideline.$SSLIP_HOST    (presigned uploads, HLS)
+#   wideline-mail:8025    https://mail.wideline.$SSLIP_HOST  (Mailpit, basic auth; demo only)
+#
+# web and transcode-worker also join `edge` so that s3.wideline.$SSLIP_HOST
+# resolves to Caddy from inside them (a network alias on Caddy), and a
+# presigned URL works the same from a container as from a browser.
+#
+# Other apps share `edge`, and compose registers every service name there. So
+# this stack addresses its own services by wideline-* aliases, never by bare
+# service names like `postgres` that another app could also answer to.
+#
+# Named wideline-prod so it can never adopt the dev stack's (`wideline`)
+# containers or volumes on a machine that runs both.
+
+name: wideline-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-app: &app
+  env_file: .env.production
+  restart: unless-stopped
+  logging: *logging
+  environment: &app-environment
+    NODE_ENV: production
+    DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@wideline-postgres:5432/${POSTGRES_DB:?}
+    # Server-side S3 calls (and the workers' presigned ffmpeg inputs) go
+    # straight to RustFS; browsers get URLs for S3_PUBLIC_ENDPOINT.
+    S3_INTERNAL_ENDPOINT: http://wideline-rustfs:9000
+    S3_FORCE_PATH_STYLE: "true"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      default:
+        aliases: [wideline-postgres]
+    logging: *logging
+
+  # S3-compatible storage on the server's disk. Swapping to Hetzner Object
+  # Storage is configuration only (S3_* and drop this service).
+  rustfs:
+    image: rustfs/rustfs:1.0.3
+    restart: unless-stopped
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:?}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:?}
+    volumes:
+      - rustfs-data:/data
+    networks:
+      default:
+        aliases: [wideline-rustfs]
+      edge:
+        aliases: [wideline-rustfs]
+    logging: *logging
+
+  # Catches all outgoing mail until there is a real SMTP provider (then set
+  # SMTP_* in .env.production and drop this service and its Caddy route).
+  # Messages live in memory and go with a restart.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_MAX_MESSAGES: "2000"
+    networks:
+      default:
+        aliases: [wideline-mail]
+      edge:
+        aliases: [wideline-mail]
+    logging: *logging
+
+  # One-shot: apply migrations and create the bucket, then exit. Reruns on
+  # every `up`, so an update migrates before web restarts.
+  init:
+    <<: *app
+    build:
+      context: ./web
+      target: init
+    image: wideline-init:prod
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_started
+
+  web:
+    <<: *app
+    build:
+      context: ./web
+      target: web
+    image: wideline-web:prod
+    environment:
+      <<: *app-environment
+      # Docker sets HOSTNAME to the container id; Next's standalone server
+      # would then listen on that address only.
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    # Shared server: bounded like the transcode worker.
+    mem_limit: ${WEB_MEM_LIMIT:-1g}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      default:
+      edge:
+        aliases: [wideline-web]
+
+  transcode-worker:
+    <<: *app
+    build:
+      context: ./web
+      target: worker
+    image: wideline-worker:prod
+    environment:
+      <<: *app-environment
+      WIDELINE_SERVICE: transcode-worker
+      # No cv or cv-watchdog: CV is off in production for now (DEPLOY.md).
+      WORKER_QUEUES: probe,transcode,clips,review-sweep,retention,consent-withdrawn
+      TRANSCODE_THREADS: ${TRANSCODE_THREADS:-2}
+    # Bounded so a 1080p encode cannot starve web, postgres or the other apps
+    # on this server. ffmpeg scratch goes to /tmp in the container layer:
+    # about twice the HLS size (~6 GB per 90-minute match).
+    mem_limit: ${TRANSCODE_MEM_LIMIT:-2g}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    networks:
+      default:
+      edge:
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  postgres-data:
+  rustfs-data:

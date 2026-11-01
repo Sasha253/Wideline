@@ -1,7 +1,8 @@
-import { TriangleAlert } from "lucide-react";
+import { Building2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { DataTable } from "@/components/templates/DataTable";
-import { iconProps } from "@/components/ui/icons";
+import { DataListRow, DataTable } from "@/components/templates/DataTable";
+import { iconProps, ICON_SIZE_DENSE } from "@/components/ui/icons";
+import { StateMessage } from "@/components/ui/StateMessage";
 import { OrganisationStatusChip } from "@/components/ui/StatusChip";
 import type { OrganisationStatus } from "@/generated/prisma/enums";
 
@@ -15,23 +16,24 @@ export type OrganisationItem = {
   planName: string | null;
 };
 
-function NoPlan() {
-  return (
-    <span className="wl-inline-status wl-inline-status--warn caption">
-      <TriangleAlert {...iconProps} />
-      No plan, uses Pilot
-    </span>
-  );
+/**
+ * The initials square for an organisation: the first letter of its first two words, or the
+ * first two letters of a one-word name. Kept here, not imported from the client OrgSwitcher,
+ * because this is a server component.
+ */
+function orgInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters =
+    words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : (words[0]?.slice(0, 2) ?? "");
+  return letters.toUpperCase();
 }
 
-function NameLink({ item, className }: { item: OrganisationItem; className?: string }) {
+function NoPlan() {
   return (
-    <Link
-      href={`/admin/organisations/${item.id}`}
-      className={`body-strong text-pitch underline ${className ?? ""}`}
-    >
-      {item.name}
-    </Link>
+    <span className="wl-inline-status wl-inline-status--warn text-body-s">
+      <TriangleAlert {...iconProps} size={ICON_SIZE_DENSE} />
+      No plan, uses Pilot
+    </span>
   );
 }
 
@@ -41,47 +43,57 @@ function NameLink({ item, className }: { item: OrganisationItem; className?: str
  */
 export function OrganisationsTable({ items }: { items: OrganisationItem[] }) {
   return (
-    <section aria-labelledby="all-organisations-heading" className="mt-6">
+    <section aria-labelledby="all-organisations-heading" className="mt-5">
       <h2 id="all-organisations-heading" className="sr-only">
         Organisations
       </h2>
       {items.length === 0 ? (
-        <p className="body-lg mt-6 text-ink-muted">No organisations yet.</p>
+        <StateMessage kind="empty" icon={Building2} headingLevel={3} title="No organisations yet" />
       ) : (
         <DataTable
           caption="All organisations, by name"
           columns={[
             { id: "organisation", header: "Organisation" },
-            { id: "status", header: "Status" },
-            { id: "plan", header: "Plan" },
+            { id: "status", header: "Status", width: "11rem" },
+            { id: "plan", header: "Plan", width: "13rem" },
           ]}
           rows={items.map((i) => ({
             id: i.id,
             cells: [
-              <>
-                <NameLink item={i} />
-                <span className="caption block text-ink-muted">{i.meta}</span>
-              </>,
-              <OrganisationStatusChip key="status" status={i.status} />,
-              i.planName ?? <NoPlan />,
+              <span key="org" className="flex min-w-0 flex-col gap-1">
+                <Link
+                  href={`/admin/organisations/${i.id}`}
+                  className="font-semibold text-ink underline-offset-3 hover:underline"
+                >
+                  {i.name}
+                </Link>
+                <span className="text-body-s text-ink-muted">{i.meta}</span>
+              </span>,
+              <OrganisationStatusChip key="status" status={i.status} size="s" />,
+              i.planName ?? <NoPlan key="plan" />,
             ],
           }))}
           cards={items.map((i) => (
-            <li key={i.id} className="wl-card flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-3">
-                <NameLink item={i} className="min-w-0 break-words" />
-                <OrganisationStatusChip status={i.status} />
-              </div>
-              <p className="caption text-ink-muted">{i.meta}</p>
-              {i.planName ? (
-                <p className="caption text-ink-muted">Plan: {i.planName}</p>
-              ) : (
-                <p>
-                  <NoPlan />
-                </p>
-              )}
-            </li>
+            <DataListRow
+              key={i.id}
+              href={`/admin/organisations/${i.id}`}
+              initials={orgInitials(i.name)}
+              title={i.name}
+              meta={
+                <>
+                  {i.meta} · {i.planName ?? <NoPlan />}
+                </>
+              }
+              status={<OrganisationStatusChip status={i.status} size="s" />}
+            />
           ))}
+          footer={
+            <span className="flex-1">
+              Showing <span className="font-mono tabular-nums">1–{items.length}</span> of{" "}
+              <span className="font-mono tabular-nums">{items.length}</span>{" "}
+              {items.length === 1 ? "organisation" : "organisations"}
+            </span>
+          }
         />
       )}
     </section>

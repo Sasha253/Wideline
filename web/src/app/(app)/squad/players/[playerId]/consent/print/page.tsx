@@ -31,13 +31,22 @@ export async function generateMetadata({ params }: Props) {
   return { title: player ? `Paper consent form for ${playerName(player)}` : "Paper consent form" };
 }
 
+// The sheet's parts, in utilities only (no legacy screens.css rules).
+const SECTION = "mt-8 break-inside-avoid";
+const LINES = "grid grid-cols-1 gap-4 tablet:grid-cols-2 tablet:gap-6";
+
 function Box() {
-  return <span className="wl-paper__box" aria-hidden="true" />;
+  return (
+    <span
+      className="inline-block size-5 flex-none rounded-control border border-ink"
+      aria-hidden="true"
+    />
+  );
 }
 
 function Option({ children }: { children: string }) {
   return (
-    <p className="wl-paper__option body-lg">
+    <p className="m-0 flex min-h-8 items-center gap-2 text-body">
       <Box />
       {children}
     </p>
@@ -47,8 +56,8 @@ function Option({ children }: { children: string }) {
 function Line({ label }: { label: string }) {
   return (
     <div>
-      <p className="label">{label}</p>
-      <span className="wl-paper__line" />
+      <p className="m-0 text-label">{label}</p>
+      <span className="block min-h-8 border-b border-ink" />
     </div>
   );
 }
@@ -81,22 +90,25 @@ export default async function PrintConsentPage({ params }: Props) {
           actions={<PrintButton />}
         />
         <noscript>
-          <p className="caption mt-2">Use your browser&apos;s print command.</p>
+          <p className="text-body-s mt-2">Use your browser&apos;s print command.</p>
         </noscript>
         {departed && (
-          <p className="body mt-4 text-ink-muted">
+          <p className="mt-4 text-ink-muted">
             {first} has left the club. Use this form only to record a withdrawal.
           </p>
         )}
       </div>
 
       <ThemeScope theme="light" className="mt-8">
-        <article className="wl-paper" aria-labelledby={titleId}>
-          <p className="heading-2">
+        <article
+          className="mx-auto max-w-192 rounded-none border border-line bg-raised p-4 tablet:p-8 print:max-w-none print:border-0 print:p-0"
+          aria-labelledby={titleId}
+        >
+          <p className="font-display text-heading-section uppercase stretch-wide">
             <Logo />
           </p>
-          <p className="eyebrow text-ink-muted">{club}</p>
-          <h1 id={titleId} className="heading-1 mt-4 break-words">
+          <p className="font-mono text-overline uppercase text-ink-muted">{club}</p>
+          <h1 id={titleId} className="text-title-guardian stretch-semi mt-4 break-words">
             Consent for {name}
           </h1>
           <dl className="wl-facts mt-4">
@@ -108,13 +120,13 @@ export default async function PrintConsentPage({ params }: Props) {
               ] as [string, string | null][]
             ).map(([label, value]) => (
               <Fragment key={label}>
-                <dt className="label">{label}</dt>
-                <dd className="body">{value ?? <Missing />}</dd>
+                <dt className="text-label">{label}</dt>
+                <dd>{value ?? <Missing />}</dd>
               </Fragment>
             ))}
           </dl>
 
-          <section className="wl-paper__section">
+          <section className={SECTION}>
             <ConsentWording
               version={CONSENT_WORDING_VERSION}
               audience={minor ? "guardian" : "player"}
@@ -123,28 +135,32 @@ export default async function PrintConsentPage({ params }: Props) {
             />
           </section>
 
-          <section className="wl-paper__section">
-            <h2 className="heading-2">Your answers</h2>
-            <p className="body-lg">Tick one box for each question.</p>
-            <p className="body-lg body-strong mt-4">
+          <section className={SECTION}>
+            <h2 className="font-display text-heading-section uppercase stretch-wide">
+              Your answers
+            </h2>
+            <p className="text-body">Tick one box for each question.</p>
+            <p className="text-body font-semibold mt-4">
               1. Can {club} record {first}&apos;s stats?
             </p>
             <Option>Yes, the club can record them</Option>
             <Option>No, do not record them</Option>
-            <p className="body-lg body-strong mt-4">2. Can scouts see {first}&apos;s stats?</p>
-            <p className="caption">Only answer this if you said yes to question 1.</p>
+            <p className="text-body font-semibold mt-4">2. Can scouts see {first}&apos;s stats?</p>
+            <p className="text-body-s">Only answer this if you said yes to question 1.</p>
             <Option>Yes, scouts can see them</Option>
             <Option>No, keep them inside the club</Option>
           </section>
 
-          <section className="wl-paper__section">
-            <h2 className="heading-2">Who is answering</h2>
+          <section className={SECTION}>
+            <h2 className="font-display text-heading-section uppercase stretch-wide">
+              Who is answering
+            </h2>
             <div className="mt-4 flex flex-col gap-4">
               <Line label="Your full name" />
               {minor ? (
                 <>
                   <div>
-                    <p className="body-lg">How are you related to {first}?</p>
+                    <p className="text-body">How are you related to {first}?</p>
                     {GUARDIAN_RELATIONSHIPS.map((r) => (
                       <Option key={r}>{RELATIONSHIP_LABELS[r]}</Option>
                     ))}
@@ -154,23 +170,24 @@ export default async function PrintConsentPage({ params }: Props) {
               ) : (
                 <Option>I am 18 or over and I decide for myself.</Option>
               )}
-              <div className="wl-paper__lines">
+              <div className={LINES}>
                 <Line label="Signature" />
                 <Line label="Date" />
               </div>
             </div>
           </section>
 
-          <section className="wl-paper__section border-t border-line pt-6">
-            <p className="label text-ink-muted">For the club</p>
-            <div className="wl-paper__lines mt-4">
+          <section className={`${SECTION} border-t border-line pt-6`}>
+            <p className="text-label text-ink-muted">For the club</p>
+            <div className={`${LINES} mt-4`}>
               <Line label="Recorded on Wideline by" />
               <Line label="Date recorded" />
             </div>
           </section>
 
-          <p className="caption mt-8 text-ink-muted">
-            Wording version <span className="data">{CONSENT_WORDING_VERSION}</span>
+          <p className="text-body-s mt-8 text-ink-muted">
+            Wording version{" "}
+            <span className="font-mono text-mono-m tabular-nums">{CONSENT_WORDING_VERSION}</span>
           </p>
         </article>
       </ThemeScope>

@@ -1,0 +1,120 @@
+/* Wideline component styles · screens: rules that belong to one screen, not to a component group. Each section names its route.
+   Owner: the integrator. Prefer utilities in the markup; add a rule here only for what utilities can't express.
+   Moved from the old styles/components.css and put on --wl-* tokens at the Floodlight integration; rules
+   nothing used any more were removed then. */
+/* The admin scouts table (admin/scouts): the affiliation match select keeps 144px, so a narrow Conflicts
+   column makes the table region scroll sideways instead of crushing the control. */
+.wl-table .wl-link-select { min-width: calc(var(--wl-space-12) * 3); }
+
+/* Squad (squad/players): the player form. One column on phones, two from 768px; banners and buttons span the row. */
+.wl-form-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--wl-space-4); }
+.wl-form-grid > .wl-form-grid__full { grid-column: 1 / -1; }
+@media (min-width: 768px) {
+  .wl-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--wl-space-6); }
+}
+
+/* Consent (squad/players/[playerId]): the guardian link copy box: input, then Copy and Share; one row from 768px. */
+.wl-copybox { display: flex; flex-direction: column; gap: var(--wl-space-2); }
+.wl-copybox > input { flex: 1 1 auto; min-width: 0; }
+@media (min-width: 768px) {
+  .wl-copybox { flex-direction: row; align-items: center; }
+}
+
+/* Upload progress (the dev gallery's progress fixtures). The fill width is data (--wl-progress, set inline).
+   Upload progress is live, so the fill is lime. */
+.wl-progress { display: block; height: var(--wl-space-2); border-radius: var(--wl-radius-full); background: var(--wl-color-bg-sunken); box-shadow: inset 0 0 0 1px var(--wl-color-border-control); overflow: hidden; }
+.wl-progress__fill { display: block; height: 100%; width: var(--wl-progress, 0%); background: var(--wl-color-brand); border-radius: var(--wl-radius-full); transition: width 200ms ease-out; }
+.wl-progress--paused .wl-progress__fill { background: var(--wl-color-pending); }
+.wl-progress__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--wl-space-3); margin-bottom: var(--wl-space-2); }
+@media (prefers-reduced-motion: reduce) {
+  .wl-progress__fill { transition: none; }
+}
+
+/* CV Lab match page (lab/matches/[matchId]): footage issues: icon, then message and guidance in the second column. */
+.wl-issues { display: flex; flex-direction: column; gap: var(--wl-space-3); }
+.wl-issues > li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--wl-space-1) var(--wl-space-2); }
+.wl-issues > li > svg { width: 20px; height: 20px; flex: none; }
+.wl-issues > li > :not(svg) { grid-column: 2; }
+.wl-issues__reject > svg { color: var(--wl-color-rejected); }
+.wl-issues__warn > svg { color: var(--wl-color-pending); }
+
+/* Video player (components/video/HlsPlayer). The design names the block .wl-player, which PlayerCard
+   already uses, so the player is .wl-videoplayer. The playhead is live (lime); pressed buttons are selected (ink). */
+.wl-videoplayer { display: flex; flex-direction: column; background: var(--wl-color-bg-sunken); border-radius: var(--wl-radius-1); overflow: hidden; }
+.wl-videoplayer:fullscreen { border-radius: 0; background: var(--wl-color-bg-sunken); }
+.wl-videoplayer__screen { position: relative; aspect-ratio: 16 / 9; background: var(--wl-color-bg-sunken); }
+.wl-videoplayer__screen > video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.wl-videoplayer:fullscreen .wl-videoplayer__screen { aspect-ratio: auto; flex: 1; min-height: 0; }
+/* The buffering note, bottom left of the picture. */
+.wl-videoplayer__status { position: absolute; inset: auto auto var(--wl-space-3) var(--wl-space-3); display: inline-flex; gap: var(--wl-space-1); align-items: center; padding: var(--wl-space-1) var(--wl-space-2); background: var(--wl-color-bg-panel); color: var(--wl-color-ink); border-radius: var(--wl-radius-1); }
+.wl-videoplayer__status svg { width: 16px; height: 16px; }
+/* The error, signed-out and cannot-play panel over the picture. */
+.wl-videoplayer__message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--wl-space-3); padding: var(--wl-space-4); text-align: center; background: var(--wl-color-bg-sunken); color: var(--wl-color-ink); }
+.wl-videoplayer__message > svg { width: 20px; height: 20px; }
+.wl-videoplayer__controls { display: flex; flex-direction: column; gap: var(--wl-space-1); padding: var(--wl-space-2) var(--wl-space-3) var(--wl-space-3); background: var(--wl-color-bg-panel); border-top: 1px solid var(--wl-color-line); }
+.wl-videoplayer__bar { display: flex; align-items: center; gap: var(--wl-space-1); }
+.wl-videoplayer__time { margin-inline: var(--wl-space-2); white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--wl-color-ink); }
+.wl-videoplayer__spacer { flex: 1; }
+/* The seek slider. The played part (--wl-seek, set inline) is data, not a design value. */
+.wl-videoplayer__seek { appearance: none; -webkit-appearance: none; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; }
+.wl-videoplayer__seek:focus { outline: none; }
+.wl-videoplayer__seek::-webkit-slider-runnable-track { height: var(--wl-space-1); border-radius: var(--wl-radius-1); background: linear-gradient(to right, var(--wl-color-brand) var(--wl-seek, 0%), var(--wl-color-border-control) var(--wl-seek, 0%)); }
+.wl-videoplayer__seek::-moz-range-track { height: var(--wl-space-1); border-radius: var(--wl-radius-1); background: linear-gradient(to right, var(--wl-color-brand) var(--wl-seek, 0%), var(--wl-color-border-control) var(--wl-seek, 0%)); }
+.wl-videoplayer__seek::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: var(--wl-space-4); height: var(--wl-space-4); border-radius: var(--wl-radius-full); background: var(--wl-color-brand); border: 2px solid var(--wl-color-brand-edge); margin-top: calc((var(--wl-space-1) - var(--wl-space-4)) / 2); transition: transform 150ms ease-out; }
+.wl-videoplayer__seek::-moz-range-thumb { width: var(--wl-space-4); height: var(--wl-space-4); border-radius: var(--wl-radius-full); background: var(--wl-color-brand); border: 2px solid var(--wl-color-brand-edge); box-sizing: border-box; }
+.wl-videoplayer__seek:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--wl-color-focus); outline-offset: 2px; }
+.wl-videoplayer__seek:focus-visible::-moz-range-thumb { outline: 2px solid var(--wl-color-focus); outline-offset: 2px; }
+.wl-videoplayer__seek:disabled { cursor: not-allowed; opacity: .45; }
+/* Bar buttons: transparent icon buttons; pressed has the selected fill, an ink bar and the state in its label. */
+.wl-iconbtn.wl-videoplayer__btn { border-color: transparent; background: transparent; transition: background-color 150ms ease-out; }
+.wl-iconbtn.wl-videoplayer__btn:hover { background: var(--wl-color-bg-raised); }
+.wl-iconbtn.wl-videoplayer__btn[aria-pressed="true"] { background: var(--wl-color-bg-selected); color: var(--wl-color-ink); box-shadow: inset 0 calc(var(--wl-border-selected) * -1) 0 var(--wl-color-ink); }
+.wl-iconbtn.wl-videoplayer__btn:disabled, .wl-videoplayer__quality:disabled { cursor: not-allowed; opacity: .45; }
+.wl-videoplayer__qualitytext { white-space: nowrap; }
+.wl-videoplayer__menuwrap { position: relative; }
+.wl-popover.wl-videoplayer__menu { bottom: calc(100% + var(--wl-space-1)); right: 0; top: auto; min-width: calc(var(--wl-space-12) * 4); }
+/* The empty 18px slot that lines items up with the checked one. */
+.wl-videoplayer__menuslot { display: inline-block; width: 18px; height: 18px; flex: none; }
+@media (prefers-reduced-motion: reduce) {
+  .wl-videoplayer__seek::-webkit-slider-thumb, .wl-iconbtn.wl-videoplayer__btn { transition: none; }
+}
+@media (max-width: 767px) {
+  /* 44px touch targets; the quality trigger is icon only (its text stays for screen readers). */
+  .wl-videoplayer__quality { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .wl-videoplayer__qualitytext { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+}
+@media (min-width: 768px) {
+  .wl-videoplayer__bar { gap: var(--wl-space-2); }
+}
+
+/* CV Lab calibration (lab/matches/[matchId]/calibration). The selected point is the "next" target, so lime;
+   the selected row in the list is a selection, so ink. */
+.wl-calib { position: relative; background: var(--wl-color-bg-sunken); border-radius: var(--wl-radius-1); overflow: hidden; aspect-ratio: var(--wl-aspect); cursor: crosshair; touch-action: none; }
+.wl-calib__img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; pointer-events: none; }
+.wl-calib__overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wl-calib__line { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.wl-calib__line--halo { stroke: var(--wl-color-bg-sunken); stroke-width: 3.5; }
+.wl-calib__line--current { stroke: var(--wl-color-chalk); stroke-width: 1.5; stroke-dasharray: 6 4; paint-order: stroke; }
+.wl-calib__line--fit { stroke: var(--wl-color-brand-text); stroke-width: 2; }
+.wl-calib__line--fit-halo { stroke: var(--wl-color-bg-sunken); stroke-width: 4; }
+.wl-calib__point circle { fill: var(--wl-color-brand-text); stroke: var(--wl-color-bg-sunken); stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: grab; }
+.wl-calib__point text { fill: var(--wl-color-ink-inverse); font-family: var(--wl-font-mono); font-weight: 500; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.wl-calib__point[data-selected="true"] circle { fill: var(--wl-color-brand); stroke: var(--wl-color-brand-edge); }
+.wl-calib__point[data-selected="true"] text { fill: var(--wl-color-on-brand); }
+.wl-calib__point[data-dragging="true"] circle { cursor: grabbing; }
+.wl-calib__point circle.wl-calib__hit { fill: transparent; stroke: none; }
+.wl-calib__message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--wl-space-3); padding: var(--wl-space-4); text-align: center; background: var(--wl-color-bg-sunken); color: var(--wl-color-ink); cursor: default; }
+.wl-calib__message > svg { width: 20px; height: 20px; color: var(--wl-color-rejected); }
+.wl-calib__points { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.wl-calib__points fieldset { border: 0; border-top: 1px solid var(--wl-color-line); margin: 0; padding: var(--wl-space-3) var(--wl-space-2); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--wl-space-2) var(--wl-space-3); align-items: end; }
+.wl-calib__points legend { float: left; width: 100%; grid-column: 1 / -1; padding: 0; }
+.wl-calib__points .wl-calib__landmark { grid-column: 1 / -1; }
+.wl-calib__points li[data-selected="true"] { background: var(--wl-color-bg-selected); box-shadow: inset var(--wl-border-selected) 0 0 var(--wl-color-ink); }
+.wl-calib__map { max-width: 100%; }
+.wl-calib__map .lm { fill: none; stroke: var(--wl-color-chalk); stroke-width: .6; }
+.wl-calib__map .lm--used { fill: var(--wl-color-chalk); }
+.wl-calib__map .lm--selected { fill: var(--wl-color-brand); stroke: var(--wl-color-brand-edge); }
+.wl-calib__swatch { display: inline-block; width: 24px; height: 8px; vertical-align: middle; }
+@media (pointer: coarse) {
+  .wl-calib__point circle.wl-calib__hit { stroke: none; }
+}

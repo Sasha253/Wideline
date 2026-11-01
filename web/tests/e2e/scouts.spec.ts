@@ -45,15 +45,15 @@ function newScout(): Scout {
 async function fillSteps(page: Page, s: Scout, check?: (n: number) => Promise<void>) {
   await check?.(1);
   await step(page, 1).getByLabel("Your name").fill(s.name);
-  await step(page, 1).getByLabel("Email").fill(s.email);
-  await step(page, 1).getByLabel("Mobile number").fill("082 123 4567");
+  await step(page, 1)
+    .getByRole("radio", { name: /South African ID/ })
+    .check();
+  await step(page, 1).getByLabel("ID number").fill(s.id);
   await cont(page, 1).click();
   await expect(page.locator("#step-2-title")).toBeFocused();
   await check?.(2);
-  await step(page, 2)
-    .getByRole("radio", { name: /South African ID/ })
-    .check();
-  await step(page, 2).getByLabel("ID number").fill(s.id);
+  await step(page, 2).getByLabel("Email").fill(s.email);
+  await step(page, 2).getByLabel("Mobile number").fill("082 123 4567");
   await cont(page, 2).click();
   await expect(page.locator("#step-3-title")).toBeFocused();
   await check?.(3);
@@ -70,7 +70,7 @@ async function fillSteps(page: Page, s: Scout, check?: (n: number) => Promise<vo
 async function register(page: Page, s: Scout) {
   await page.goto("/register");
   await fillSteps(page, s);
-  await step(page, 4).getByRole("button", { name: "Register as a scout" }).click();
+  await step(page, 4).getByRole("button", { name: "Send application" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Check your email" })).toBeFocused();
   await expect(page.getByText(`We sent a link to ${s.email}.`)).toBeVisible();
 }
@@ -203,49 +203,49 @@ test("Back and Continue keep values; a server field error jumps to its step", as
 
   const s = newScout();
   await step(page, 1).getByLabel("Your name").fill(s.name);
-  await step(page, 1).getByLabel("Email").fill(s.email);
-  await step(page, 1).getByLabel("Mobile number").fill("+44 7700 900123");
-  await cont(page, 1).click();
-  await expect(page.locator("#step-2-title")).toBeFocused();
-  await expect(page).toHaveTitle("Your identity · Register as a scout · Wideline");
-
-  await step(page, 2)
+  await step(page, 1)
     .getByRole("radio", { name: /Passport/ })
     .check();
-  await step(page, 2).getByLabel("Passport number").fill("A1234567");
-  await step(page, 2).getByLabel("Country that issued your passport").selectOption("GB");
+  await step(page, 1).getByLabel("Passport number").fill("A1234567");
+  await step(page, 1).getByLabel("Country that issued your passport").selectOption("GB");
+  await cont(page, 1).click();
+  await expect(page.locator("#step-2-title")).toBeFocused();
+  await expect(page).toHaveTitle("Contact · Apply to scout · Wideline");
+
+  await step(page, 2).getByLabel("Email").fill(s.email);
+  await step(page, 2).getByLabel("Mobile number").fill("+44 7700 900123");
   await cont(page, 2).click();
   await step(page, 3).getByRole("button", { name: "Back" }).click();
   await expect(page.locator("#step-2-title")).toBeFocused();
-  await expect(step(page, 2).getByLabel("Passport number")).toHaveValue("A1234567");
+  await expect(step(page, 2).getByLabel("Mobile number")).toHaveValue("+44 7700 900123");
   await step(page, 2).getByRole("button", { name: "Back" }).click();
-  await expect(step(page, 1).getByLabel("Your name")).toHaveValue(s.name);
+  await expect(step(page, 1).getByLabel("Passport number")).toHaveValue("A1234567");
 
   // Switching document clears the number; an under-18 ID passes the client check only.
-  await cont(page, 1).click();
-  await step(page, 2)
+  await step(page, 1)
     .getByRole("radio", { name: /South African ID/ })
     .check();
-  await expect(step(page, 2).getByLabel("ID number")).toHaveValue("");
-  await step(page, 2).getByLabel("ID number").fill(childId());
+  await expect(step(page, 1).getByLabel("ID number")).toHaveValue("");
+  await step(page, 1).getByLabel("ID number").fill(childId());
+  await cont(page, 1).click();
   await cont(page, 2).click();
   await step(page, 3)
-    .getByRole("checkbox", { name: "I have no clubs or players to declare." })
+    .getByRole("checkbox", { name: "I'm not connected to any club or player." })
     .check();
   await expect(step(page, 3).getByLabel("Club name")).toBeHidden();
   await cont(page, 3).click();
   await step(page, 4)
     .getByRole("checkbox", { name: /I am 18 or older/ })
     .check();
-  await step(page, 4).getByRole("button", { name: "Register as a scout" }).click();
+  await step(page, 4).getByRole("button", { name: "Send application" }).click();
 
-  await expect(step(page, 2)).toBeVisible();
-  await expect(step(page, 2).getByRole("alert")).toContainText(
+  await expect(step(page, 1)).toBeVisible();
+  await expect(step(page, 1).getByRole("alert")).toContainText(
     "Some details need fixing. Check the highlighted fields.",
   );
-  await expect(step(page, 2).getByLabel("ID number")).toBeFocused();
+  await expect(step(page, 1).getByLabel("ID number")).toBeFocused();
   await expect(
-    step(page, 2).getByText("You need to be 18 or older to review matches."),
+    step(page, 1).getByText("You need to be 18 or older to review matches."),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/register/);
 });
@@ -266,18 +266,19 @@ test("keyboard only at 1280: Enter advances, never submits early", async ({ page
   await tabTo(step(page, 1).getByLabel("Your name"));
   await page.keyboard.type(s.name);
   await page.keyboard.press("Tab");
-  await page.keyboard.type(s.email);
-  await page.keyboard.press("Tab");
-  await page.keyboard.type("0821234567");
+  await page.keyboard.press("Space");
+  await expect(step(page, 1).getByRole("radio", { name: /South African ID/ })).toBeChecked();
+  await tabTo(step(page, 1).getByLabel("ID number"));
+  await page.keyboard.type(s.id);
   await page.keyboard.press("Enter");
   await expect(page.locator("#step-2-title")).toBeFocused();
   await expect(page).toHaveURL(/\/register$/);
 
   await page.keyboard.press("Tab");
-  await page.keyboard.press("Space");
-  await expect(step(page, 2).getByRole("radio", { name: /South African ID/ })).toBeChecked();
-  await tabTo(step(page, 2).getByLabel("ID number"));
-  await page.keyboard.type(s.id);
+  await expect(step(page, 2).getByLabel("Email")).toBeFocused();
+  await page.keyboard.type(s.email);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("0821234567");
   await page.keyboard.press("Enter");
   await expect(page.locator("#step-3-title")).toBeFocused();
 
@@ -290,7 +291,7 @@ test("keyboard only at 1280: Enter advances, never submits early", async ({ page
   await page.keyboard.press("Tab");
   await expect(step(page, 4).getByRole("checkbox", { name: /I am 18 or older/ })).toBeFocused();
   await page.keyboard.press("Space");
-  await tabTo(step(page, 4).getByRole("button", { name: "Register as a scout" }));
+  await tabTo(step(page, 4).getByRole("button", { name: "Send application" }));
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "Check your email" })).toBeFocused();
   await expect(page).toHaveURL(/\/register$/);
@@ -302,7 +303,7 @@ for (const width of WIDTHS) {
     await page.goto("/register");
     const s = newScout();
     await fillSteps(page, s, async () => expectNoAxeViolations(page));
-    await step(page, 4).getByRole("button", { name: "Register as a scout" }).click();
+    await step(page, 4).getByRole("button", { name: "Send application" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Check your email" })).toBeFocused();
     await expectNoAxeViolations(page);
   });
@@ -319,7 +320,7 @@ test("axe: /register without JavaScript at 375px, all steps stacked", async ({ b
   await expect(step(page, 5)).toHaveCount(0);
   await expect(page.getByLabel("Password")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Register as a scout" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Send application" })).toHaveCount(1);
   await expectNoAxeViolations(page);
   await context.close();
 });

@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/states/EmptyState";
 import { PageHeader } from "@/components/templates/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { ClubStatusChip } from "@/components/ui/StatusChip";
+import { cx } from "@/components/ui/cx";
 import { TeamMarker } from "@/components/ui/TeamMarker";
 import { fixtureText, formatDate, playerName, teamLabel } from "@/lib/labels";
 import { maxSubstitutionMinute } from "@/lib/match-clock";
@@ -20,6 +21,10 @@ import {
   type MatchLineups,
   type SideLineup,
 } from "@/server/matches/lineups";
+import { loadMatch } from "../load";
+import { StepFooter } from "../StepFooter";
+import { UploadStrip } from "../upload/UploadStrip";
+import { UploadSteps } from "../UploadSteps";
 import { LineupEditor, type EditorRow, type Selection } from "./LineupEditor";
 import { OppositionNumbers } from "./OppositionNumbers";
 import { Substitutions } from "./Substitutions";
@@ -71,12 +76,15 @@ export default async function LineupPage({ params, searchParams }: Props) {
   const sideKey =
     query.side === "home" || query.side === "away" ? query.side : defaultSide(lineups);
   const side: SideLineup = lineups[sideKey];
+  const otherSide = sideKey === "home" ? "away" : "home";
   const { match } = lineups;
   const locked = isLocked(match.status);
   const team = side.team;
   const label = teamLabel(team);
 
   const picker = await pickerFor(ctx, team.id);
+  // The upload steps over the page (cached per request; null only if it vanished meanwhile).
+  const detail = await loadMatch(ctx, match.id);
   const existing = new Map(side.rows.map((r) => [r.playerId, r]));
   const departed = side.rows.filter((r) => r.player.clubStatus === "departed");
   const editorRows = sortRows(
@@ -90,6 +98,8 @@ export default async function LineupPage({ params, searchParams }: Props) {
         selection: row ? (row.isStarter ? "starter" : "substitute") : "none",
         shirtNumber: row?.shirtNumber ?? p.squadNumber,
         position: row ? row.position : p.position,
+        // Consent is shown for the club's own players only (Screens A, "Upload · lineup").
+        consent: team.isOpposition ? undefined : p.consentState,
         lastName: p.lastName ?? "",
       };
     }),
@@ -117,9 +127,7 @@ export default async function LineupPage({ params, searchParams }: Props) {
     );
   } else if (picker.length === 0) {
     players = (
-      <p className="body mt-4">
-        No shirt numbers yet for {label}. Add the numbers their players wore.
-      </p>
+      <p className="mt-4">No shirt numbers yet for {label}. Add the numbers their players wore.</p>
     );
   } else {
     players = (
@@ -135,24 +143,45 @@ export default async function LineupPage({ params, searchParams }: Props) {
 
   return (
     <>
+      <UploadStrip matchId={match.id} />
       <PageHeader
         back={{ href: `/matches/${match.id}`, label: "Match" }}
+        eyebrow="Step 2 of 3 · Lineup"
         title="Lineups"
-        intro={`${fixtureText(match)} · ${formatDate(match.playedAt)}`}
-      />
-      <nav className="wl-tabs mt-6" aria-label="Side">
-        {(["home", "away"] as const).map((s) => (
-          <Link
-            key={s}
-            href={`/matches/${match.id}/lineup?side=${s}`}
-            className="body-strong"
-            aria-current={s === sideKey ? "page" : undefined}
-          >
-            <TeamMarker side={s} name={lineups[s].team.name} truncate />
-            <span className="data text-ink-muted">{lineups[s].rows.length}</span>
-            <span className="sr-only"> players</span>
-          </Link>
-        ))}
+        intro={
+          <span className="font-mono text-body-s tabular-nums">
+            {fixtureText(match)} · {formatDate(match.playedAt)}
+          </span>
+        }
+      >
+        {detail && <UploadSteps match={detail} current={2} />}
+      </PageHeader>
+      <nav
+        className="mt-6 grid grid-cols-2 gap-0.5 rounded-control border border-line p-0.5 tablet:inline-grid tablet:min-w-96"
+        aria-label="Side"
+      >
+        {(["home", "away"] as const).map((s) => {
+          const current = s === sideKey;
+          return (
+            <Link
+              key={s}
+              href={`/matches/${match.id}/lineup?side=${s}`}
+              className={cx(
+                "flex min-h-control-m min-w-0 items-center gap-2 rounded-control px-2.5 text-label touch:min-h-control-l",
+                current
+                  ? "bg-selected text-ink shadow-[inset_0_0_0_1px_var(--wl-color-ink)]"
+                  : "text-ink-muted hover:bg-raised hover:text-ink",
+              )}
+              aria-current={current ? "page" : undefined}
+            >
+              <TeamMarker side={s} name={lineups[s].team.name} truncate />
+              <span className="ml-auto font-mono text-body-s text-ink-muted tabular-nums">
+                {lineups[s].rows.length}
+              </span>
+              <span className="sr-only"> players</span>
+            </Link>
+          );
+        })}
       </nav>
       {locked && (
         <div className="mt-6">
@@ -162,31 +191,37 @@ export default async function LineupPage({ params, searchParams }: Props) {
         </div>
       )}
       <section aria-labelledby="players-heading" className="mt-6">
-        <h2 id="players-heading" tabIndex={-1} className="heading-2">
+        <h2
+          id="players-heading"
+          tabIndex={-1}
+          className="font-display text-heading-section stretch-wide uppercase outline-none"
+        >
           Players
         </h2>
-        <p className="body mt-2 max-w-prose text-ink-muted">
-          Choose who started and who was on the bench. Shirt numbers can differ from squad numbers.
+        <p className="mt-2 max-w-prose text-ink-muted">
+          {team.isOpposition
+            ? `Shirt numbers are enough to track the ${sideKey} side. ${sideKey === "home" ? "Home" : "Away"} names are never shown to scouts.`
+            : "Choose who started and who was on the bench. Shirt numbers can differ from squad numbers."}
         </p>
         {players}
         {departed.length > 0 && (
           <div className="max-w-4xl">
-            <h3 className="body-strong mt-6">Players who have left the club</h3>
-            <ul className="wl-lineup mt-2" role="list">
+            <h3 className="mt-6 font-semibold">Players who have left the club</h3>
+            <ul className="mt-2 border border-line bg-panel" role="list">
               {departed.map((r) => (
                 <li
                   key={r.id}
-                  className="flex flex-wrap items-center gap-3 border-t border-line py-3"
+                  className="flex flex-wrap items-center gap-3 border-b border-line px-3.5 py-3 last:border-b-0"
                 >
-                  <span className="body-strong">{playerName(r.player)}</span>
+                  <span className="font-medium">{playerName(r.player)}</span>
                   <ClubStatusChip status={r.player.clubStatus} />
-                  <span className="body">{r.isStarter ? "Starter" : "Substitute"}</span>
-                  <span className="data">{r.shirtNumber}</span>
-                  {r.position && <span className="body">{positionLabel(r.position)}</span>}
+                  <span>{r.isStarter ? "Starter" : "Substitute"}</span>
+                  <span className="font-mono tabular-nums">{r.shirtNumber}</span>
+                  {r.position && <span>{positionLabel(r.position)}</span>}
                 </li>
               ))}
             </ul>
-            <p className="caption mt-2 text-ink-muted">
+            <p className="mt-2 text-body-s text-ink-muted">
               They stay in this lineup. You cannot change their rows.
             </p>
           </div>
@@ -209,6 +244,22 @@ export default async function LineupPage({ params, searchParams }: Props) {
         hasLineup={side.rows.length > 0}
         locked={locked}
       />
+      {!locked && (
+        <StepFooter
+          id="lineup-step"
+          back={{ href: `/matches/${match.id}/upload`, label: "Recording" }}
+          next={{ label: "Continue to markers", href: `/matches/${match.id}/markers` }}
+          // Phones take one side at a time (Screens A, "Upload · phone lineup").
+          phoneNext={
+            sideKey === defaultSide(lineups)
+              ? {
+                  label: `Continue to ${otherSide} lineup`,
+                  href: `/matches/${match.id}/lineup?side=${otherSide}`,
+                }
+              : undefined
+          }
+        />
+      )}
     </>
   );
 }

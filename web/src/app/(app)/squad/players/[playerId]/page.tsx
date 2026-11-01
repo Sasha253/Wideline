@@ -3,6 +3,7 @@ import { cache } from "react";
 import { Banner } from "@/components/forms";
 import { DetailPage, type DetailSection } from "@/components/templates/DetailPage";
 import { ConsentBadge } from "@/components/ui/ConsentBadge";
+import { MiniPitch, type PitchSpot } from "@/components/ui/MiniPitch";
 import { initials } from "@/components/ui/PlayerCard";
 import { ClubStatusChip } from "@/components/ui/StatusChip";
 import {
@@ -65,6 +66,28 @@ export async function generateMetadata({ params }: Props) {
 const isoDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
 /**
+ * Where each recorded position sits on the mini pitch, in metres (attacking left to
+ * right, y from the top touchline, so the right flank is low). The club's recorded
+ * position, not tracking data.
+ */
+const PITCH_SPOTS: Record<string, Omit<PitchSpot, "label">> = {
+  GK: { x: 5, y: 34 },
+  RB: { x: 24, y: 58 },
+  CB: { x: 20, y: 34 },
+  LB: { x: 24, y: 10 },
+  RWB: { x: 38, y: 60 },
+  LWB: { x: 38, y: 8 },
+  DM: { x: 38, y: 34 },
+  CM: { x: 50, y: 34 },
+  AM: { x: 66, y: 34 },
+  RM: { x: 58, y: 58 },
+  LM: { x: 58, y: 10 },
+  RW: { x: 80, y: 58 },
+  LW: { x: 80, y: 10 },
+  ST: { x: 90, y: 34 },
+};
+
+/**
  * One player (SQUAD02, SQUAD09; docs/build/design/C04.md, Surface 5). Owners
  * and admins edit a current player and can mark them departed, and undo a
  * departure for DEPARTURE_UNDO_DAYS. Coaches, and everyone for a departed
@@ -97,17 +120,23 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       ? "/squad?status=departed"
       : "/squad";
 
-  let eyebrow: string;
-  if (departed) eyebrow = team ?? "No team";
-  else if (!team) eyebrow = "No team";
-  else eyebrow = player.squadNumber !== null ? `No. ${player.squadNumber} · ${team}` : team;
+  // Floodlight hero (Screens B "Player profile"): position, age and shirt number in the
+  // overline, the name in display-xl, then the team line. Departed players keep their last
+  // team but no current number.
+  const heroNumber = departed ? null : player.squadNumber;
+  const eyebrow =
+    metaText([
+      position,
+      age !== null && `Age ${age}`,
+      heroNumber !== null && `No. ${heroNumber}`,
+    ]) || undefined;
 
   const meta = metaText([
-    position,
+    team ? (departed ? `Last team ${team}` : team) : "No team",
     player.preferredFoot && FOOT_PHRASES[player.preferredFoot],
-    age !== null && `Age ${age}`,
     height,
   ]);
+  const spot = player.position ? PITCH_SPOTS[player.position] : undefined;
 
   const sections: DetailSection[] = [];
   let note: string | null = null;
@@ -157,7 +186,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         title: "Undo departure",
         content: (
           <>
-            <p className="body max-w-prose text-ink-muted">
+            <p className="m-0 max-w-prose text-ink-muted">
               Marked as departed by mistake? Undo it to put {firstName} back in the squad with the
               same details.
             </p>
@@ -203,7 +232,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         title: "Leaving the club",
         content: (
           <>
-            <p className="body max-w-prose text-ink-muted">
+            <p className="m-0 max-w-prose text-ink-muted">
               When a player leaves, mark them as departed. They leave squad lists, lineup pickers
               and dashboards. Nothing is deleted.
             </p>
@@ -269,7 +298,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           }
           notes={
             departed && consentAdmin ? (
-              <p className="caption mt-2 text-ink-muted">
+              <p className="m-0 mt-2 text-body-s text-ink-muted">
                 {firstName} has left the club. You can withdraw consent, but not record new consent.
               </p>
             ) : undefined
@@ -306,13 +335,28 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       <DetailPage
         back={{ href: back, label: "Squad" }}
         media={
-          <span className="wl-avatar" aria-hidden="true">
-            {player.isPlaceholder ? (player.squadNumber ?? "") : initials(name)}
-          </span>
+          // No photos: the shirt number, outlined, or initials when there is no number.
+          heroNumber !== null ? (
+            <span
+              aria-hidden="true"
+              className="block font-display text-display-xl leading-[0.78] font-extrabold tracking-[-0.04em] text-selected tabular-nums stretch-wide [-webkit-text-stroke:1px_var(--wl-color-ink-muted)] tablet:text-[7.5rem] tablet:[-webkit-text-stroke:1.5px_var(--wl-color-ink-muted)]"
+            >
+              {String(heroNumber).padStart(2, "0")}
+            </span>
+          ) : (
+            <span className="wl-avatar" aria-hidden="true">
+              {player.isPlaceholder ? "" : initials(name)}
+            </span>
+          )
         }
         eyebrow={eyebrow}
         title={name}
         meta={meta || undefined}
+        actions={
+          spot ? (
+            <MiniPitch usual={{ ...spot, label: player.position ?? "" }} className="w-32" />
+          ) : undefined
+        }
         badges={
           player.isPlaceholder ? undefined : (
             <>
@@ -329,7 +373,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
               )}
               {justRestored && <Banner tone="ok">{name} is back in the squad.</Banner>}
             </div>
-            {note && <p className="body mt-6 max-w-prose text-ink-muted">{note}</p>}
+            {note && <p className="m-0 mt-6 max-w-prose text-ink-muted">{note}</p>}
           </>
         }
         sections={sections}

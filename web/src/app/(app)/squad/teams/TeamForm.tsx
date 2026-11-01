@@ -57,8 +57,8 @@ export function TeamForm(
       )}
       {props.mode === "create" && (
         <fieldset className="wl-field">
-          <legend className="label">Whose team is this?</legend>
-          <label className="wl-choice body">
+          <legend className="text-label">Whose team is this?</legend>
+          <label className="wl-choice">
             <input
               type="radio"
               name="kind"
@@ -67,7 +67,7 @@ export function TeamForm(
             />
             Your club&apos;s team
           </label>
-          <label className="wl-choice body">
+          <label className="wl-choice">
             <input
               type="radio"
               name="kind"
@@ -77,7 +77,7 @@ export function TeamForm(
             />
             An opposition team
           </label>
-          <p id="team-kind-hint" className="wl-field__hint caption">
+          <p id="team-kind-hint" className="wl-field__hint text-body-s">
             Opposition teams hold unnamed players only: a shirt number, no name. This cannot change
             later.
           </p>
@@ -152,14 +152,14 @@ export function TeamForm(
       <FormErrorBanner result={state} />
       <div>
         {props.mode === "create" ? (
-          <SubmitButton block pendingLabel="Adding…" className="justify-center">
+          <SubmitButton block pendingLabel="Adding" className="justify-center">
             Add team
           </SubmitButton>
         ) : (
           <SubmitButton
             block
             variant={props.isOpposition ? "secondary" : "primary"}
-            pendingLabel="Saving…"
+            pendingLabel="Saving"
             className="justify-center"
           >
             Save changes

@@ -75,7 +75,7 @@ export default async function ConsentPage({ params }: Props) {
       />
       <p className="wl-row mt-4">
         <ConsentBadge state={player.consentState} />
-        <span className="body text-ink-muted">
+        <span className="text-ink-muted">
           {current.id
             ? `Current consent, recorded ${formatDate(current.createdAt)}`
             : "No consent recorded yet"}

@@ -76,10 +76,10 @@ export function ConsentSummary({
     <>
       <div className="wl-row">
         <ConsentBadge state={state} />
-        <p className="body">{sentence}</p>
+        <p>{sentence}</p>
       </div>
       {noDateOfBirth && (
-        <p className="caption mt-2 text-ink-muted">
+        <p className="text-body-s mt-2 text-ink-muted">
           No date of birth, so {firstName} is treated as under 18. Add it under Details.
         </p>
       )}
@@ -93,11 +93,11 @@ export function ConsentSummary({
                 "Decided by",
                 decision.relationship === "self" ? (
                   <>
-                    <span className="body-strong">{name}</span> (the player)
+                    <span className="font-semibold">{name}</span> (the player)
                   </>
                 ) : decision.grantedBy ? (
                   <>
-                    <span className="body-strong break-words">{decision.grantedBy}</span>
+                    <span className="font-semibold break-words">{decision.grantedBy}</span>
                     {decision.relationship && ` (${RELATIONSHIP_LABELS[decision.relationship]})`}
                   </>
                 ) : null,
@@ -110,10 +110,13 @@ export function ConsentSummary({
                 decision.wordingVersion ? (
                   <>
                     <span>
-                      Version <span className="data">{decision.wordingVersion}</span>
+                      Version{" "}
+                      <span className="font-mono text-mono-m tabular-nums">
+                        {decision.wordingVersion}
+                      </span>
                     </span>
                     <details className="mt-1">
-                      <summary className="body cursor-pointer text-pitch underline">
+                      <summary className="cursor-pointer text-brand-text underline">
                         Show the wording
                       </summary>
                       <ConsentWording
@@ -132,7 +135,7 @@ export function ConsentSummary({
         </div>
       )}
       {openUntil && (
-        <p className="body wl-inline-status mt-4">
+        <p className="wl-inline-status mt-4">
           <Hourglass {...iconProps} />A guardian link is open until {formatDate(openUntil)}.
         </p>
       )}
@@ -144,7 +147,7 @@ export function ConsentSummary({
 export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: string }) {
   if (rows.length === 0) {
     return (
-      <p className="body text-ink-muted">
+      <p className="text-ink-muted">
         No consent records yet. Records appear here when consent is recorded, requested or
         withdrawn.
       </p>
@@ -157,7 +160,7 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
       return (
         <>
           {name}
-          <span className="caption block text-ink-muted">The player</span>
+          <span className="text-body-s block text-ink-muted">The player</span>
         </>
       );
     }
@@ -166,7 +169,7 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
       <>
         <span className="break-words">{r.grantedBy}</span>
         {r.relationship && (
-          <span className="caption block text-ink-muted">
+          <span className="text-body-s block text-ink-muted">
             {RELATIONSHIP_LABELS[r.relationship]}
           </span>
         )}
@@ -199,7 +202,7 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
         rows={rows.map((r) => ({
           id: r.id,
           cells: [
-            <span key="when" className="data">
+            <span key="when" className="font-mono text-mono-m tabular-nums">
               {formatDateTime(r.createdAt)}
             </span>,
             <ConsentBadge key="state" state={r.state} />,
@@ -208,7 +211,7 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
             r.method ? CONSENT_METHOD_LABELS[r.method] : <Missing key="how" />,
             recorderText(r),
             r.wordingVersion ? (
-              <span key="wording" className="data">
+              <span key="wording" className="font-mono text-mono-m tabular-nums">
                 {r.wordingVersion}
               </span>
             ) : (
@@ -222,14 +225,16 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
             <li key={r.id} className="wl-card flex flex-col gap-1">
               <div className="wl-row">
                 <ConsentBadge state={r.state} />
-                <span className="data text-ink-muted">{formatDateTime(r.createdAt)}</span>
+                <span className="font-mono text-mono-m tabular-nums text-ink-muted">
+                  {formatDateTime(r.createdAt)}
+                </span>
               </div>
               {r.state !== "requested" && (
-                <p className="body">
+                <p>
                   Club stats: {yesNo(r.clubStats)} · Scouts: {yesNo(r.scoutVisible)}
                 </p>
               )}
-              <p className="caption text-ink-muted">
+              <p className="text-body-s text-ink-muted">
                 {r.state === "requested"
                   ? "Guardian link created"
                   : [
@@ -239,7 +244,7 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
                       .filter(Boolean)
                       .join(", ")}
               </p>
-              <p className="caption text-ink-muted">
+              <p className="text-body-s text-ink-muted">
                 {metaText([
                   `Recorded by ${recorderText(r)}`,
                   r.wordingVersion && `Wording ${r.wordingVersion}`,
@@ -253,7 +258,7 @@ export function ConsentHistory({ rows, name }: { rows: ConsentRecord[]; name: st
         <div className="mt-4 flex flex-col gap-2">
           {[...versions].map(([version, audiences]) => (
             <details key={version}>
-              <summary className="body cursor-pointer text-pitch underline">
+              <summary className="cursor-pointer text-brand-text underline">
                 Wording {version}
               </summary>
               <div className="mt-2 flex flex-col gap-4">

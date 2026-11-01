@@ -48,7 +48,12 @@ export function TermsSection({
 
   return (
     <section id="terms" aria-labelledby="scout-terms-heading" className="mt-8">
-      <h2 id="scout-terms-heading" ref={headingRef} tabIndex={-1} className="heading-2">
+      <h2
+        id="scout-terms-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="m-0 font-display text-heading-section uppercase stretch-wide"
+      >
         Confidentiality terms
       </h2>
       <div aria-live="polite" className="mt-4 empty:mt-0">
@@ -57,7 +62,7 @@ export function TermsSection({
       </div>
       {current ? (
         <>
-          <p className="body mt-4">
+          <p className="mt-4">
             You accepted version {acceptedVersion} on {acceptedOn}.
           </p>
           <details className="mt-3">
@@ -69,11 +74,9 @@ export function TermsSection({
         <>
           <div className="wl-banner mt-4" role="status">
             <TriangleAlert {...iconProps} />
-            <p className="body">
-              The terms have changed. Accept the new version to review matches again.
-            </p>
+            <p>The terms have changed. Accept the new version to review matches again.</p>
           </div>
-          <p className="caption mt-3 text-ink-muted">
+          <p className="text-body-s mt-3 text-ink-muted">
             You accepted version {acceptedVersion} on {acceptedOn}.
           </p>
           {termsOpen}
@@ -81,7 +84,7 @@ export function TermsSection({
             <FormBusy formRef={formRef} />
             <input type="hidden" name="termsVersion" value={currentVersion} />
             <div className="wl-field">
-              <label className="wl-choice wl-choice--top body">
+              <label className="wl-choice wl-choice--top">
                 <input
                   type="checkbox"
                   name="acceptTerms"

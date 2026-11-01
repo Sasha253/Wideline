@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Missing } from "@/components/templates/DataTable";
 import { cx } from "@/components/ui/cx";
 import { FootageTimeLeft, InlineStatus } from "@/components/ui/ExpiryBanner";
+import { ExpiryChip } from "@/components/ui/ExpiryChip";
 import { iconProps } from "@/components/ui/icons";
 import type { FootageState } from "@/components/ui/StatusChip";
 import { TeamMarker } from "@/components/ui/TeamMarker";
@@ -11,7 +12,7 @@ import { formatReadyBy } from "@/lib/labels";
 import { estimatedReadyAt } from "@/server/matches/estimate";
 import type { MatchSummary, VideoSummary } from "@/server/matches/matches";
 
-// Pieces shared by the C06 match pages (docs/build/design/C06.md).
+// Pieces shared by the match pages (docs/build/design/C06.md; Floodlight Screens A).
 
 /** The chip state of a video: accepted with warnings is its own state. */
 export function footageState(video: VideoSummary): FootageState {
@@ -32,11 +33,63 @@ export function doneMessage(map: Record<string, string>, done: string | undefine
   return done && Object.hasOwn(map, done) ? map[done]! : null;
 }
 
+type Fixture = {
+  homeTeam: { name: string; isOpposition?: boolean };
+  awayTeam: { name: string; isOpposition?: boolean };
+};
+
+/** The club's side of a match: home unless only the away team is the club's. */
+export function ownSide(match: Fixture): "home" | "away" {
+  return match.homeTeam.isOpposition && !match.awayTeam.isOpposition ? "away" : "home";
+}
+
+/** "v Soweto Stars U17" at home, "at Soweto Stars U17" away (Screens A, match rows). */
+export function opponentText(match: Fixture): string {
+  const side = ownSide(match);
+  const opp = side === "home" ? match.awayTeam : match.homeTeam;
+  return `${side === "home" ? "v" : "at"} ${opp.name}`;
+}
+
 /**
- * The fixture as home and away TeamMarkers, "v" between (Surface 1). Takes
- * any row with team names (C10 queue rows too). `wrap` lets long names wrap
- * in stacked cards instead of truncating: the review queue needs the full
- * names, so a scout can recognise a conflict (docs/build/design/C10.md).
+ * The fixture from the club's side (Screens A, match rows): the H or A marker of the
+ * club's team, then "v" or "at" and the opponent. With `link`, the text opens the match.
+ */
+export function OwnSideFixture({
+  match,
+  link = false,
+  className,
+}: {
+  match: Fixture & { id?: string };
+  link?: boolean;
+  className?: string;
+}) {
+  const side = ownSide(match);
+  const own = side === "home" ? match.homeTeam : match.awayTeam;
+  const inner = (
+    <>
+      <TeamMarker side={side} size={20} />
+      <span className="min-w-0 truncate">
+        <span className="sr-only">{own.name} </span>
+        {opponentText(match)}
+      </span>
+    </>
+  );
+  const cls = cx("flex min-w-0 items-center gap-2.5 font-medium", className);
+  if (link && match.id) {
+    return (
+      <Link href={`/matches/${match.id}`} className={cx(cls, "underline-offset-3 hover:underline")}>
+        {inner}
+      </Link>
+    );
+  }
+  return <span className={cls}>{inner}</span>;
+}
+
+/**
+ * The fixture as home and away TeamMarkers, "v" between. Takes any row with team names
+ * (C10 queue rows too). `wrap` lets long names wrap in stacked cards instead of
+ * truncating: the review queue needs the full names, so a scout can recognise a conflict
+ * (docs/build/design/C10.md).
  */
 export function FixtureMarkers({
   match,
@@ -66,6 +119,20 @@ export function FixtureMarkers({
 }
 
 const HOUR = 60 * 60 * 1000;
+
+/**
+ * The footage column of the matches list (Screens A): the expiry countdown chip, so clubs
+ * see the same deadline scouts work to; a lock once the footage is deleted; an en dash
+ * when there is no stored recording.
+ */
+export function FootageCell({ match, now }: { match: MatchSummary; now: Date }) {
+  const video = match.video;
+  if (!video || video.status === "cancelled" || !video.rawExpiresAt) return <Missing />;
+  if (video.deletedAt || video.rawExpiresAt.getTime() <= now.getTime()) {
+    return <ExpiryChip deletesAt={video.rawExpiresAt} now={now} deleted />;
+  }
+  return <ExpiryChip deletesAt={video.rawExpiresAt} now={now} />;
+}
 
 /** The footage line of a match row (Surface 1, "Footage line"). */
 export function FootageLine({ match, now }: { match: MatchSummary; now: Date }) {
@@ -133,18 +200,24 @@ export function expiresSoon(video: VideoSummary | null, now: Date): Date | null 
 /** Footage issues: icon, message and re-film guidance (Surface 6). */
 export function IssueList({ issues }: { issues: FootageIssue[] }) {
   return (
-    <ul className="wl-issues mt-4" role="list">
+    <ul className="mt-4 flex flex-col border-t border-line" role="list">
       {issues.map((issue) => {
         const reject = issue.severity === "reject";
         const Icon = reject ? CircleAlert : TriangleAlert;
         return (
-          <li key={issue.code} className={reject ? "wl-issues__reject" : "wl-issues__warn"}>
-            <Icon {...iconProps} />
-            <p className="body-strong">
+          <li
+            key={issue.code}
+            className="grid grid-cols-[20px_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-line py-3"
+          >
+            <Icon
+              {...iconProps}
+              className={cx("row-span-2 mt-px", reject ? "text-rejected" : "text-pending")}
+            />
+            <p className="font-semibold">
               <span className="sr-only">{reject ? "Problem: " : "Warning: "}</span>
               {issue.message}
             </p>
-            <p className="body text-ink-muted">{issue.guidance}</p>
+            <p className="text-ink-muted">{issue.guidance}</p>
           </li>
         );
       })}
@@ -157,7 +230,10 @@ export function MatchLink({ match, className }: { match: MatchSummary; className
   return (
     <Link
       href={`/matches/${match.id}`}
-      className={cx("body-strong text-pitch underline break-words", className)}
+      className={cx(
+        "font-semibold break-words text-brand-text underline underline-offset-3",
+        className,
+      )}
     >
       <FixtureMarkers match={match} />
     </Link>

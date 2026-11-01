@@ -589,3 +589,51 @@ These questions do not block the build. Each one has a default that the build is
 - **Recommended:** Owners and admins, consistent with the other organisation settings.
 - **Impact:** A role list in the settings action and page.
 - **Answer:**
+
+## Q-071 · C11 · How coaches reach the review thresholds
+
+- **Question:** Coaches may see the auto-accept thresholds (Q-070), but the Settings nav item is for owners and admins only (D02). How should a coach find the page?
+- **Default taken:** No nav change. `/settings/review` admits every club role, and a coach sees only the **Review** tab there. Coaches reach it by its URL or by a link someone shares.
+- **Recommended:** Show the Settings nav item to coaches as well, opening on `/settings/review` for them, with the other tabs hidden.
+- **Impact:** One role list and one role-dependent `href` in `src/lib/nav.ts`, plus a nav test. No schema change.
+- **Answer:**
+
+## Q-072 · C11 · Thresholds entered as scores or percentages
+
+- **Question:** The plan entered the auto-accept thresholds as percentages (75%), but scouts see confidence as a score (0.75) in every meter. Which form should the settings screen use?
+- **Default taken:** Scores from 0.00 to 1.00, as in the design system's confidence rule ("0.81 confidence"). `thresholdsInputSchema` validates the decimal directly, and no conversion is done.
+- **Recommended:** Keep scores, so the settings and the review meter read the same.
+- **Impact:** Percentages would need a conversion in `thresholdsInputSchema` and new hint copy. The stored value is a fraction either way.
+- **Answer:**
+
+## Q-073 · Floodlight · The full consent notice "one tap away" on the guardian about step
+
+- **Question:** The Floodlight guardian about step shows a short summary (what scouts can see, what they never see) and puts the full consent wording behind a "Read the full privacy notice" disclosure. The form records `CONSENT_WORDING_VERSION` as the wording the guardian was shown (NFR09, NFR12), and the summary leaves out parts of that wording (independent registered scouts watch the video even after a no, offshore storage, 7 and 14 day retention, the child may still be seen in the video). Is a collapsed notice enough for the recorded version to count as shown?
+- **Default taken:** The full wording is rendered open under the summary, with the heading "The full privacy notice", so the recorded version really was shown. The summary line reads "Scouts from other clubs can only see this if you say yes", so it does not contradict the independent review part. The staff path still asks staff to tick "The person deciding saw this wording".
+- **Recommended:** Legal review before collapsing it. If a collapsed notice is accepted, move the summary into `server/consent/wording.ts` as part of a new wording version, so every guardian-facing sentence is versioned.
+- **Impact:** Presentation only in `app/consent/[token]/page.tsx`; a new wording version if the summary becomes recorded wording.
+- **Answer:**
+
+## Q-074 · Floodlight · Squad table fields the list query does not load
+
+- **Question:** The Floodlight "Squad · desktop" screen shows per-team counts on every team tab, Matches and Min columns, a per-row actions menu, dated guardian strings ("Sent 28 Oct", "No email on file") and tells "never asked" apart from "the guardian said no". `PlayerRow` (`server/squad/players.ts`) has none of these. Should the list query load them?
+- **Default taken:** The query is unchanged. Tabs count only the current tab and Departed; the guardian column uses state-only copy ("Request sent", "Answer recorded", "No consent"), and "No consent" offers no Ask or Chase action, because it may be a guardian's no.
+- **Recommended:** A data-layer follow-up: per-team current counts, matches and minutes played, the guardian email presence and last request date, and whether the latest decision was a no.
+- **Impact:** `listPlayers` / `countPlayers` and `squad/page.tsx`; a `declined` ConsentBadge variant (core) once the state is known.
+- **Answer:**
+
+## Q-075 · C11 · Cutting clips for missed events a reviewer adds
+
+- **Question:** PROF04 says each event plays its clip. Should a missed event that a reviewer adds get its own clip cut from the raw footage?
+- **Default taken:** No clip for manual events in v0. They store a clip window (t-5 s to t+5 s) so a clip can be cut later.
+- **Recommended:** Cut clips for manual events at submit: extend the clips worker to also pick the match's manual events while the raw footage exists.
+- **Impact:** One new clips job path (manual events, keyed per event) in `src/worker/clips.ts` and a send at submit. No schema change.
+- **Answer:**
+
+## Q-076 · C11 · Reassigning an event to a player with no linked track
+
+- **Question:** When a reviewer reassigns an event to a player who has no linked track in the match, should the event be detached from its track (new `Event.playerSource`, relaxed CHECK), or must the reviewer link a track first?
+- **Default taken:** Detach, with `playerSource` 'reviewer'. When the player already has a linked track, the event moves onto that track instead.
+- **Recommended:** Keep the default, so REVIEW04 is a single action.
+- **Impact:** Requiring a track link first would drop the column and the CHECK change and add a refusal with copy.
+- **Answer:**

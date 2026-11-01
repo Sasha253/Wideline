@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { iconProps } from "@/components/ui/icons";
 
 /**
- * One decision per screen, for guardians on a phone (docs/build/design/D02.md, Surface 5;
- * C05 consent). A plain form, so it works without JavaScript. Choices are DecisionChoice
- * radio cards inside one fieldset.
+ * One decision per screen, for guardians on a phone (Floodlight, "Guardian consent"). A
+ * plain form, so it works without JavaScript. The title is title-guardian (sentence case,
+ * 112.5% wide), the explainer body-guardian. Choices are DecisionChoice radio cards, 64px,
+ * inside one fieldset; the chosen one is ink (selection is never lime).
  */
 export function DecisionFlow({
   step,
@@ -37,15 +38,15 @@ export function DecisionFlow({
   return (
     <div className="wl-decision">
       <form action={action}>
-        {step && <p className="caption text-ink-muted">{step}</p>}
-        <h1 className="heading-1 break-words">{question}</h1>
-        {explainer && <p className="body-lg mt-3 text-ink-muted">{explainer}</p>}
+        {step && <p className="wl-decision__step m-0">{step}</p>}
+        <h1 className="wl-decision__title">{question}</h1>
+        {explainer && <p className="wl-decision__explainer">{explainer}</p>}
         <fieldset className="mt-6 flex flex-col gap-3">
           <legend className="sr-only">{question}</legend>
           {children}
         </fieldset>
         {error && <div className="mt-6">{error}</div>}
-        <div className="mt-6 flex flex-col md:flex-row md:items-center md:gap-2">
+        <div className="mt-6 flex flex-col tablet:flex-row tablet:items-center tablet:gap-2">
           {pendingLabel ? (
             <SubmitButton
               variant="primary"
@@ -63,7 +64,7 @@ export function DecisionFlow({
           {secondary && (
             <Link
               href={secondary.href}
-              className="wl-btn wl-btn--ghost mt-2 justify-center md:mt-0"
+              className="wl-btn wl-btn--ghost mt-2 justify-center tablet:mt-0"
             >
               {secondary.label}
             </Link>
@@ -74,7 +75,7 @@ export function DecisionFlow({
   );
 }
 
-/** One choice: a radio card with a 2px pitch edge, a fill and a Check icon when chosen. */
+/** One choice: a 64px radio card; chosen, it has an ink edge, the selected fill and a Check. */
 export function DecisionChoice({
   name,
   value,
@@ -89,11 +90,11 @@ export function DecisionChoice({
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="wl-decision__choice body-lg">
+    <label className="wl-decision__choice">
       <input type="radio" name={name} value={value} required defaultChecked={defaultChecked} />
       <span className="min-w-0">
         <span className="block break-words">{label}</span>
-        {hint && <span className="caption block text-ink-muted">{hint}</span>}
+        {hint && <span className="wl-decision__hint">{hint}</span>}
       </span>
       <Check {...iconProps} />
     </label>

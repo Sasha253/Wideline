@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/generated/prisma/enums";
 import type { OrganisationSummary, UserContext } from "@/server/auth/session";
 
-// D02 app shell: nav by role, skip link, no-organisation state, org switcher and the
-// tab bar's More. Client components render to static markup; popovers are opened by
+// App shell (D02, restyled for Floodlight): nav by role and grouped per role, counts only where
+// action is waiting, skip link, no-organisation state, org switcher, account menu with the theme
+// radio, the logo, and the tab bar's More. Client components render to static markup; popovers are opened by
 // mocking usePopover.
 
 const state = vi.hoisted(() => ({ pathname: "/dashboard", popoverOpen: false }));
@@ -28,6 +29,8 @@ vi.mock("@/components/shell/usePopover", () => ({
 
 const { AppShell } = await import("@/components/shell/AppShell");
 const { OrgSwitcher, orgInitials } = await import("@/components/shell/OrgSwitcher");
+const { personInitials } = await import("@/components/shell/AccountMenu");
+const { Logo, LogoMark } = await import("@/components/ui/Logo");
 
 const DEMO: OrganisationSummary = {
   id: "org-demo",
@@ -91,7 +94,9 @@ const sidebarNav = (html: string) =>
   section(html, '<nav aria-label="Main" class="wl-sidebar__nav"', "nav");
 const tabBar = (html: string) => section(html, '<nav aria-label="Main" class="wl-tabbar"', "nav");
 const navLabels = (nav: string) =>
-  [...nav.matchAll(/<span class="body wl-only-sidebar">([^<]+)<\/span>/g)].map((m) => m[1]);
+  [...nav.matchAll(/<span class="wl-nav__label">([^<]+)<\/span>/g)].map((m) => m[1]);
+const navHeadings = (nav: string) =>
+  [...nav.matchAll(/<p id="[^"]+" class="wl-nav__heading">([^<]+)<\/p>/g)].map((m) => m[1]);
 
 beforeEach(() => {
   state.pathname = "/dashboard";
@@ -209,7 +214,7 @@ describe("OrgSwitcher", () => {
     expect(hidden.map((m) => m[1])).toEqual(["org-lab", "org-hel"]);
     expect(html).toContain('<span class="sr-only">Switch to </span>');
     expect(html).toContain("Academy · Scout");
-    expect(html).toMatch(/href="\/organisations"[^>]*>Your organisations</);
+    expect(html).toContain("You join organisations by invitation from their admin.");
   });
 
   it("makes initials from the first two words, or the first two letters", () => {
@@ -227,5 +232,98 @@ describe("shell with two organisations", () => {
     expect(html.split(`aria-label="${label}"`)).toHaveLength(3);
     expect(html).toContain(`<span class="sr-only">${label}</span>`);
     expect(html.match(/data-testid="active-organisation"/g)).toHaveLength(1);
+  });
+});
+
+describe("Floodlight shell", () => {
+  it("shows one group per role, headed, only when there is more than one", () => {
+    const single = sidebarNav(shell(context(["owner"])));
+    expect(navHeadings(single)).toEqual([]);
+
+    const both = sidebarNav(shell(context(["owner", "scout"])));
+    expect(navHeadings(both)).toEqual(["Wideline Demo FC", "Scouting"]);
+    expect(navLabels(both)).toEqual([
+      "Dashboard",
+      "Squad",
+      "Matches",
+      "Settings",
+      "Review queue",
+      "Shortlists",
+      "Scout profile",
+    ]);
+  });
+
+  it("puts Wideline staff below any other role", () => {
+    const nav = sidebarNav(shell(context(["platform_admin", "scout"])));
+    expect(navHeadings(nav)).toEqual(["Scouting", "Wideline staff"]);
+    expect(navLabels(nav).slice(-2)).toEqual(["Admin", "Lab"]);
+  });
+
+  it("shows a count only where action is waiting, with its words for screen readers", () => {
+    const html = renderToStaticMarkup(
+      <AppShell
+        ctx={context(["owner"])}
+        counts={{
+          matches: { count: 2, hint: "2 need a lineup" },
+          squad: { count: 0, hint: "nothing" },
+        }}
+      >
+        <p>Page</p>
+      </AppShell>,
+    );
+    const nav = sidebarNav(html);
+    expect(nav.match(/class="wl-nav__count"/g)).toHaveLength(1);
+    expect(nav).toContain('<span class="wl-nav__count" aria-hidden="true">2</span>');
+    expect(nav).toContain('<span class="sr-only">, 2 need a lineup</span>');
+    expect(nav).not.toContain("nothing");
+    expect(tabBar(html).match(/class="wl-tabbar__count"/g)).toHaveLength(1);
+  });
+
+  it("shows no count without counts", () => {
+    const html = shell(context(["owner", "scout"]));
+    expect(html).not.toContain("wl-nav__count");
+    expect(html).not.toContain("wl-tabbar__count");
+  });
+
+  it("gives every rail item a tooltip hidden from screen readers", () => {
+    const nav = sidebarNav(shell(context(["coach"])));
+    expect(nav.match(/<span class="wl-tooltip" aria-hidden="true">/g)).toHaveLength(3);
+  });
+
+  it("shortens Review queue to Queue in the tab bar only", () => {
+    const html = shell(context(["scout"]));
+    expect(tabBar(html)).toContain('<span class="wl-tabbar__label">Queue</span>');
+    expect(navLabels(sidebarNav(html))).toContain("Review queue");
+  });
+
+  it("names the account trigger and offers the theme radio and Sign out", () => {
+    const html = shell(context(["owner"]));
+    expect(html).toContain("Account and theme");
+    expect(html.match(/role="radiogroup"/g)?.length).toBeGreaterThan(0);
+    const radio = section(html, '<div role="radiogroup"', "div");
+    for (const label of ["Dark", "Light", "Match system"]) expect(html).toContain(label);
+    expect(radio).toMatch(/checked="" value="dark"/);
+    expect(html).toContain(
+      "Dark is the default. The review workspace stays dark unless you choose Light here.",
+    );
+    expect(html).toContain("Sign out");
+    // No page registered a shortcut list, so the item is not offered.
+    expect(html).not.toContain("Keyboard shortcuts");
+  });
+
+  it("makes account initials from the first and last name", () => {
+    expect(personInitials("Nomvula Mthembu")).toBe("NM");
+    expect(personInitials("Thandi Lerato Mokoena")).toBe("TM");
+    expect(personInitials("cher")).toBe("C");
+  });
+
+  it("draws the wide-channel logo with the lime touchline and the wordmark", () => {
+    const html = renderToStaticMarkup(<Logo />);
+    expect(html).toContain('width="46" height="22" viewBox="0 0 46 22"');
+    expect(html).toContain(
+      '<rect x="0" y="18" width="46" height="4" stroke="none" class="wl-logo__bar">',
+    );
+    expect(html).toContain('<span class="wl-logo__word">Wideline</span>');
+    expect(renderToStaticMarkup(<LogoMark size="s" />)).toContain('width="30" height="14"');
   });
 });

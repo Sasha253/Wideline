@@ -1,7 +1,8 @@
 import { PageHeader } from "@/components/templates/PageHeader";
 import { countryOptions, SA_PROVINCES } from "@/lib/labels";
 import { ORG_ADMIN_ROLES, requirePageRole } from "@/server/auth/session";
-import { SettingsNav } from "../SettingsNav";
+import { isSquadOrg } from "@/server/squad/access";
+import { adminSettingsTabs, SettingsNav } from "../SettingsNav";
 import { SettingsForm } from "./SettingsForm";
 
 export const metadata = { title: "Organisation settings" };
@@ -17,10 +18,17 @@ export default async function OrganisationSettingsPage() {
     <>
       <PageHeader
         title="Organisation settings"
+        eyebrow={`${org.name} / Settings`}
         intro={`How ${org.name} appears to scouts and on player profiles.`}
       />
-      <SettingsNav current="organisation" />
-      <section aria-label="Organisation details" className="wl-card mt-8 max-w-xl">
+      <SettingsNav
+        current="organisation"
+        tabs={adminSettingsTabs(isSquadOrg(ctx.organisationType))}
+      />
+      <section
+        aria-label="Organisation details"
+        className="mt-6 max-w-xl border border-line bg-panel p-4 tablet:p-5"
+      >
         <SettingsForm initial={org} countries={countryOptions()} provinces={SA_PROVINCES} />
       </section>
     </>

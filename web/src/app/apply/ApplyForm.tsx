@@ -1,5 +1,6 @@
 "use client";
 
+import { Clock } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/forms";
 import type { ActionResult } from "@/lib/action-result";
 import { ButtonLink } from "@/components/ui/Button";
+import { StatusChip } from "@/components/ui/StatusChip";
 import { ORG_TYPE_LABELS, SELECTABLE_ORG_TYPES } from "@/lib/labels";
 import { applyForOrganisation } from "./actions";
 
@@ -35,13 +37,16 @@ export function ApplyForm({
   if (state?.ok) {
     return (
       <>
-        <h1 ref={sentRef} tabIndex={-1} className="heading-2 mt-6">
+        <span className="mt-12 self-start">
+          <StatusChip tone="warn" icon={Clock} label="Waiting for review" />
+        </span>
+        <h1 ref={sentRef} tabIndex={-1} className="m-0 mt-4.5 text-title-guardian stretch-semi">
           Application sent
         </h1>
-        <p className="body-lg mt-2 text-ink-muted">
+        <p className="m-0 mt-4.5 text-body-guardian text-pretty">
           Thanks. We will email you when your organisation is approved.
         </p>
-        <div className="mt-6">
+        <div className="mt-8">
           <ButtonLink href="/login" variant="secondary">
             Back to sign in
           </ButtonLink>
@@ -54,15 +59,17 @@ export function ApplyForm({
 
   return (
     <>
-      <h1 className="heading-2 mt-6">Join the pilot</h1>
-      <p className="body mt-1 text-ink-muted">
+      <h1 className="m-0 mt-10 text-title-guardian stretch-semi">Join the pilot</h1>
+      <p className="m-0 mt-3 text-body-guardian text-pretty text-ink-muted">
         Wideline is free for invited academies and clubs during the pilot. Tell us about your
         organisation and we will email you when it is approved.
       </p>
-      <form ref={formRef} {...formProps} noValidate className="mt-6 flex flex-col gap-6">
+      <form ref={formRef} {...formProps} noValidate className="mt-8 flex flex-col gap-8">
         <FormBusy formRef={formRef} />
-        <fieldset className="flex flex-col gap-4">
-          <legend className="body-strong mb-4">Your organisation</legend>
+        <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
+          <legend className="mb-4 font-display text-heading-section uppercase stretch-wide">
+            Your organisation
+          </legend>
           <Field label="Organisation name" error={fieldError(state, "name")}>
             {(p) => (
               <input
@@ -71,18 +78,18 @@ export function ApplyForm({
                 required
                 maxLength={120}
                 autoComplete="organization"
-                className="wl-input"
+                className="wl-input h-12 tablet:h-10"
               />
             )}
           </Field>
           <fieldset
-            className="wl-field"
+            className="wl-field m-0 border-0 p-0"
             aria-describedby={typeError ? "apply-type-error" : undefined}
             data-invalid={typeError ? "true" : undefined}
           >
-            <legend className="label">Type</legend>
+            <legend className="wl-field__label mb-1.5">Type</legend>
             {SELECTABLE_ORG_TYPES.map((t) => (
-              <label key={t} className="wl-choice body">
+              <label key={t} className="wl-choice min-h-control-l tablet:min-h-control-m">
                 <input type="radio" name="type" value={t} required />
                 {ORG_TYPE_LABELS[t]}
               </label>
@@ -91,7 +98,7 @@ export function ApplyForm({
           </fieldset>
           <Field label="Country" error={fieldError(state, "country")}>
             {(p) => (
-              <select {...p} name="country" defaultValue="ZA" className="wl-input">
+              <select {...p} name="country" defaultValue="ZA" className="wl-input h-12 tablet:h-10">
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name}
@@ -106,7 +113,13 @@ export function ApplyForm({
             error={fieldError(state, "region")}
           >
             {(p) => (
-              <input {...p} name="region" list="sa-provinces" maxLength={80} className="wl-input" />
+              <input
+                {...p}
+                name="region"
+                list="sa-provinces"
+                maxLength={80}
+                className="wl-input h-12 tablet:h-10"
+              />
             )}
           </Field>
           <datalist id="sa-provinces">
@@ -116,8 +129,10 @@ export function ApplyForm({
           </datalist>
         </fieldset>
 
-        <fieldset className="flex flex-col gap-4">
-          <legend className="body-strong mb-4">About you</legend>
+        <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
+          <legend className="mb-4 font-display text-heading-section uppercase stretch-wide">
+            About you
+          </legend>
           <Field label="Your name" error={fieldError(state, "applicantName")}>
             {(p) => (
               <input
@@ -126,7 +141,7 @@ export function ApplyForm({
                 required
                 maxLength={120}
                 autoComplete="name"
-                className="wl-input"
+                className="wl-input h-12 tablet:h-10"
               />
             )}
           </Field>
@@ -142,7 +157,7 @@ export function ApplyForm({
                 name="applicantEmail"
                 required
                 autoComplete="email"
-                className="wl-input"
+                className="wl-input h-12 tablet:h-10"
               />
             )}
           </Field>
@@ -155,13 +170,13 @@ export function ApplyForm({
         </div>
 
         <FormErrorBanner result={state} />
-        <SubmitButton block pendingLabel="Sending…" className="justify-center">
+        <SubmitButton size="xl" block pendingLabel="Sending" className="justify-center">
           Send application
         </SubmitButton>
       </form>
-      <p className="caption mt-6">
+      <p className="m-0 mt-8 text-body-s text-ink-muted">
         Already have an account?{" "}
-        <Link href="/login" className="text-pitch underline">
+        <Link href="/login" className="text-brand-text">
           Sign in
         </Link>
       </p>

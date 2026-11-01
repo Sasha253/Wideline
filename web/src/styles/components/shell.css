@@ -1,0 +1,220 @@
+/* Wideline component styles · shell: AppShell, sidebar and rail, top bar, tab bar, popovers, org switcher, account menu, logo, skip link, impersonation banner.
+   Owner: the shell agent (docs/design-handoff/IMPLEMENTATION.md).
+   Floodlight, from design/Wideline Patterns.dc.html (07 App shell) and the design file headers.
+   Tokens only (var(--wl-*)); the sizes in px are the design's own type and box sizes.
+   Breakpoints are plain media queries: 992px and up sidebar (232px), 768 to 991px rail (64px),
+   under 768px top bar and tab bar (56px each). A hidden variant is display: none, which takes
+   it out of the tab order and the accessibility tree. */
+
+/* ---------- Logo: "The wide channel" ---------- */
+.wl-logo { display: inline-flex; align-items: center; gap: 12px; color: var(--wl-color-ink); line-height: 1; }
+.wl-logo__mark { flex: none; display: block; }
+.wl-logo__bar { fill: var(--wl-color-brand); }
+.wl-logo__word { font-family: var(--wl-font-display); font-weight: 800; font-size: 17px; font-stretch: var(--wl-stretch-wide); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.wl-logo--m { gap: 10px; }
+.wl-logo--m .wl-logo__word { font-size: 14px; }
+.wl-logo--s { gap: 8px; }
+.wl-logo--s .wl-logo__word { font-size: 12px; }
+
+/* ---------- Layout ---------- */
+/* align-content: start keeps the phone rows (top bar, main) at their own height. */
+.wl-shell { display: grid; min-height: 100vh; grid-template-columns: minmax(0, 1fr); align-items: start; align-content: start; background: var(--wl-color-bg-canvas); color: var(--wl-color-ink); }
+/* The sidebar does not scroll itself: that would clip the popovers that open beside it.
+   Its nav scrolls instead, with a 4px inset so the focus ring is not clipped. */
+.wl-sidebar { position: sticky; top: 0; z-index: 15; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--wl-space-5); padding: 18px var(--wl-space-3) var(--wl-space-3); background: var(--wl-color-bg-panel); border-right: var(--wl-border-hairline) solid var(--wl-color-line); }
+.wl-sidebar__nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--wl-space-1); margin: calc(var(--wl-space-1) * -1); }
+.wl-sidebar__account { margin-top: auto; }
+.wl-brand { display: inline-flex; align-items: center; color: var(--wl-color-ink); text-decoration: none; white-space: nowrap; border-radius: var(--wl-radius-1); }
+.wl-brand:hover { color: var(--wl-color-ink); }
+.wl-sidebar .wl-brand { align-self: flex-start; padding: var(--wl-space-0-5) 10px; }
+.wl-rail-rule { width: 32px; height: 1px; flex: none; background: var(--wl-color-line); }
+.wl-topbar { position: relative; z-index: 15; display: flex; align-items: center; gap: var(--wl-space-2); height: var(--wl-shell-topbar); box-sizing: border-box; padding: 0 var(--wl-space-2) 0 var(--wl-space-3); background: var(--wl-color-bg-panel); border-bottom: var(--wl-border-hairline) solid var(--wl-color-line); }
+.wl-topbar__brand { flex: 1 1 auto; min-height: var(--wl-control-l); padding: 0 6px; }
+.wl-main { min-width: 0; padding: var(--wl-space-5) var(--wl-space-5) var(--wl-space-6); outline: none; }
+.wl-main__inner { max-width: 1280px; margin: 0 auto; }
+/* A text link on its own line, with the 44px target. Kept for pages that still use it. */
+.wl-link-row { display: inline-flex; align-items: center; min-height: var(--wl-control-l); }
+
+/* ---------- Main nav: sidebar ---------- */
+.wl-nav { display: flex; flex-direction: column; gap: 14px; }
+.wl-nav__group { display: flex; flex-direction: column; }
+.wl-nav__heading { margin: 0; padding: 0 10px var(--wl-space-2); font: var(--wl-weight-overline) var(--wl-text-overline)/1 var(--wl-font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--wl-color-ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-nav__list { display: flex; flex-direction: column; gap: var(--wl-space-0-5); margin: 0; padding: 0; list-style: none; }
+.wl-nav__li { position: relative; }
+.wl-nav__item { display: flex; align-items: center; gap: var(--wl-space-3); height: var(--wl-row-dense); padding: 0 10px; border-radius: var(--wl-radius-1); color: var(--wl-color-ink-muted); text-decoration: none; font: 500 14px/1 var(--wl-font-ui); transition: background-color var(--wl-duration-fast) var(--wl-ease-enter), color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-nav__item svg { flex: none; }
+.wl-nav__item:hover { color: var(--wl-color-ink); background: var(--wl-color-bg-raised); }
+.wl-nav__item:focus-visible { color: var(--wl-color-ink); }
+.wl-nav__item[aria-current="page"] { color: var(--wl-color-ink); background: var(--wl-color-bg-selected); box-shadow: inset var(--wl-border-selected) 0 0 var(--wl-color-ink); font-weight: 600; }
+.wl-nav__label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Count badge: only where action is waiting. Ink on panel, square-ish, mono figures. */
+.wl-nav__count { min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; display: grid; place-items: center; flex: none; border-radius: var(--wl-radius-1); background: var(--wl-color-ink); color: var(--wl-color-bg-panel); font: 700 11px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+/* Rail tooltip: hidden until the rail range turns it on (below). */
+.wl-tooltip { display: none; }
+
+/* ---------- Org switcher ---------- */
+.wl-switcher--topbar { display: flex; flex: 1 1 auto; min-width: 0; }
+.wl-org-tile { width: 30px; height: 30px; flex: none; box-sizing: border-box; display: grid; place-items: center; border-radius: var(--wl-radius-1); background: var(--wl-color-ink); color: var(--wl-color-bg-panel); font: 800 11px/1 var(--wl-font-display); font-stretch: var(--wl-stretch-wide); }
+.wl-org-tile--s { width: 28px; height: 28px; font-size: 10px; }
+.wl-org-tile--other { background: var(--wl-color-bg-panel); color: var(--wl-color-ink); border: var(--wl-border-hairline) solid var(--wl-color-line-strong); }
+.wl-org-chevron { flex: none; color: var(--wl-color-ink-muted); }
+/* Sidebar trigger: a control, so its border is the 3:1 control border. */
+.wl-org-side { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; padding: var(--wl-space-2) 10px; border: var(--wl-border-hairline) solid var(--wl-color-border-control); border-radius: var(--wl-radius-1); background: var(--wl-color-bg-raised); color: var(--wl-color-ink); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-org-side:hover { background: var(--wl-color-bg-selected); }
+.wl-org-side--static { border-color: var(--wl-color-line); cursor: default; }
+.wl-org-side__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wl-org-side__name { font: 600 13px/1.15 var(--wl-font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-org-side__meta { font: 400 11.5px/1 var(--wl-font-ui); color: var(--wl-color-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Rail trigger: a 40px tile button. */
+.wl-org-rail { width: 40px; height: 40px; box-sizing: border-box; display: grid; place-items: center; padding: 0; border: var(--wl-border-hairline) solid var(--wl-color-border-control); border-radius: var(--wl-radius-1); background: var(--wl-color-bg-raised); cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-org-rail:hover { background: var(--wl-color-bg-selected); }
+.wl-org-rail--static { margin: 0 auto; border-color: var(--wl-color-line); cursor: default; }
+/* Phone top bar trigger. */
+.wl-org-top { flex: 1 1 auto; min-width: 0; height: var(--wl-control-l); display: flex; align-items: center; gap: 10px; padding: 0 6px; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+button.wl-org-top:hover { background: var(--wl-color-bg-raised); }
+.wl-org-top--static { cursor: default; }
+.wl-org-top__name { min-width: 0; margin: 0; font: 600 15px/1 var(--wl-font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Options in the open switcher. The current one: selected fill, ink tile and a check. */
+.wl-org-option { display: grid; grid-template-columns: 30px minmax(0, 1fr) 18px; gap: 10px; align-items: center; width: 100%; min-height: var(--wl-row-comfortable); box-sizing: border-box; padding: 6px 10px; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+button.wl-org-option:hover { background: var(--wl-color-bg-selected); }
+button.wl-org-option:focus-visible { outline-offset: calc(var(--wl-focus-width) * -1); }
+button.wl-org-option[disabled] { color: var(--wl-color-ink-disabled); cursor: not-allowed; }
+.wl-org-option--current { background: var(--wl-color-bg-selected); cursor: default; }
+.wl-org-option__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wl-org-option__name { font: 600 13.5px/1.15 var(--wl-font-ui); overflow-wrap: anywhere; }
+.wl-org-option__meta { font: 400 12px/1.2 var(--wl-font-ui); color: var(--wl-color-ink-muted); }
+.wl-org-option__check { display: grid; place-items: center; color: var(--wl-color-ink); }
+
+/* ---------- Account ---------- */
+/* Initials in a circle. Never a photo. */
+.wl-person { width: 30px; height: 30px; flex: none; box-sizing: border-box; display: grid; place-items: center; border-radius: var(--wl-radius-full); border: var(--wl-border-hairline) solid var(--wl-color-border-control); color: var(--wl-color-ink); font: 600 11px/1 var(--wl-font-ui); }
+.wl-person--l { width: 34px; height: 34px; font-size: 12px; }
+.wl-account-row { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; padding: var(--wl-space-3) 10px var(--wl-space-1); border: 0; border-top: var(--wl-border-hairline) solid var(--wl-color-line); background: none; color: var(--wl-color-ink); text-align: left; font: inherit; cursor: pointer; }
+.wl-account-row:hover .wl-account-row__name { text-decoration: underline; text-underline-offset: 3px; }
+.wl-account-row__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wl-account-row__name { font: 600 13px/1.1 var(--wl-font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-account-row__meta { font: 400 11.5px/1 var(--wl-font-ui); color: var(--wl-color-ink-muted); }
+.wl-account-row__more { flex: none; color: var(--wl-color-ink-muted); }
+.wl-account-avatar { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--wl-radius-full); background: transparent; cursor: pointer; }
+.wl-account-avatar .wl-person { width: 36px; height: 36px; }
+.wl-account-avatar:hover .wl-person { background: var(--wl-color-bg-raised); }
+.wl-account-avatar--topbar { width: var(--wl-control-l); height: var(--wl-control-l); }
+.wl-account-avatar--topbar .wl-person { width: 32px; height: 32px; }
+.wl-account-menu__who { display: flex; align-items: center; gap: 10px; padding: 10px; }
+.wl-account-menu__name { display: block; font: 600 14px/1.1 var(--wl-font-ui); overflow-wrap: anywhere; }
+.wl-account-menu__email { display: block; margin-top: 4px; font: 400 12px/1.2 var(--wl-font-mono); color: var(--wl-color-ink-muted); overflow-wrap: anywhere; }
+/* Theme radio: three equal segments. Selected = selected fill plus a 1px ink inset. */
+.wl-theme { display: flex; flex-direction: column; gap: var(--wl-space-2); padding: var(--wl-space-2) 10px 10px; border-top: var(--wl-border-hairline) solid var(--wl-color-line); }
+.wl-theme__label { margin: 0; font: 600 12.5px/1 var(--wl-font-ui); }
+.wl-theme__options { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--wl-space-0-5); padding: var(--wl-space-0-5); border: var(--wl-border-hairline) solid var(--wl-color-line); border-radius: var(--wl-radius-1); }
+.wl-theme__option { height: var(--wl-control-m); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border-radius: var(--wl-radius-1); color: var(--wl-color-ink-muted); font: 600 11.5px/1 var(--wl-font-ui); white-space: nowrap; cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter), color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-theme__option:hover { color: var(--wl-color-ink); background: var(--wl-color-bg-selected); }
+.wl-theme__option:has(:checked) { color: var(--wl-color-ink); background: var(--wl-color-bg-selected); box-shadow: inset 0 0 0 var(--wl-border-hairline) var(--wl-color-ink); }
+.wl-theme__option:has(:focus-visible) { outline: var(--wl-focus-width) solid var(--wl-color-focus); outline-offset: var(--wl-focus-offset); }
+.wl-theme__note { margin: 0; font: 400 11.5px/1.35 var(--wl-font-ui); color: var(--wl-color-ink-muted); }
+.wl-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; height: var(--wl-row-dense); box-sizing: border-box; padding: 0 10px; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink); text-align: left; text-decoration: none; font: 500 13.5px/1 var(--wl-font-ui); cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-menu-item svg { flex: none; color: var(--wl-color-ink-muted); }
+.wl-menu-item:hover { color: var(--wl-color-ink); background: var(--wl-color-bg-selected); }
+.wl-menu-item:focus-visible { outline-offset: calc(var(--wl-focus-width) * -1); }
+.wl-menu-item--separated { border-top: var(--wl-border-hairline) solid var(--wl-color-line); border-radius: 0; }
+.wl-menu-item__kbd { padding: 3px 5px; border-radius: var(--wl-radius-1); background: var(--wl-color-bg-sunken); color: var(--wl-color-ink); font: 600 10.5px/1 var(--wl-font-mono); }
+
+/* ---------- Popovers: org switcher, account menu, the tab bar's More. Disclosure pattern. ---------- */
+.wl-popover { position: absolute; z-index: 20; min-width: 288px; max-width: calc(100vw - var(--wl-space-8)); max-height: 70vh; overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; padding: 6px; background: var(--wl-color-bg-raised); color: var(--wl-color-ink); border: var(--wl-border-hairline) solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-2); }
+.wl-popover[hidden] { display: none; }
+/* The shell's own menus are exactly 288px (design). Other popovers keep their content width. */
+.wl-popover--menu { width: 288px; }
+.wl-popover > ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.wl-popover--below { top: calc(100% + var(--wl-space-1)); left: 0; }
+.wl-popover--below-end { top: calc(100% + var(--wl-space-1)); right: 0; }
+.wl-popover--beside { left: calc(100% + var(--wl-space-2)); top: 0; }
+.wl-popover--beside-end { left: calc(100% + var(--wl-space-2)); top: auto; bottom: 0; }
+.wl-popover--above-end { bottom: calc(100% + var(--wl-space-1)); right: var(--wl-space-2); }
+.wl-popover--sheet { top: 100%; left: var(--wl-space-3); right: var(--wl-space-3); width: auto; min-width: 0; max-width: none; }
+.wl-popover__heading { margin: 0; padding: 10px 10px var(--wl-space-2); font: var(--wl-weight-overline) var(--wl-text-overline)/1 var(--wl-font-mono); letter-spacing: var(--wl-tracking-overline); text-transform: uppercase; color: var(--wl-color-ink-muted); }
+.wl-popover__note { margin: 6px 0 0; padding: 10px 10px var(--wl-space-2); border-top: var(--wl-border-hairline) solid var(--wl-color-line); font: 400 12px/1.4 var(--wl-font-ui); color: var(--wl-color-ink-muted); }
+/* Plain links and buttons in a popover (the More list). */
+.wl-popover__item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--wl-control-l); box-sizing: border-box; padding: var(--wl-space-2) 10px; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink); text-decoration: none; text-align: left; font: 500 14px/1 var(--wl-font-ui); cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-popover__item svg { flex: none; }
+.wl-popover__item:hover { color: var(--wl-color-ink); background: var(--wl-color-bg-selected); }
+.wl-popover__item:focus-visible { outline-offset: calc(var(--wl-focus-width) * -1); }
+.wl-popover__item[aria-current="page"] { color: var(--wl-color-ink); font-weight: 600; background: var(--wl-color-bg-selected); box-shadow: inset var(--wl-border-selected) 0 0 var(--wl-color-ink); }
+.wl-popover__alert-wrap { margin: 0 0 var(--wl-space-1); outline: none; }
+/* A refused switch: square, rejected hairline on the rejected-subtle fill, icon and words. */
+.wl-shell-alert { display: flex; gap: var(--wl-space-2); align-items: flex-start; padding: 10px; background: var(--wl-color-rejected-subtle); border: var(--wl-border-hairline) solid var(--wl-color-rejected); color: var(--wl-color-ink); font: 400 13px/1.4 var(--wl-font-ui); }
+.wl-shell-alert svg { flex: none; margin-top: 1px; color: var(--wl-color-rejected); }
+.wl-shell-alert p { margin: 0; }
+
+/* ---------- Tab bar (phones) ---------- */
+.wl-tabbar { position: fixed; inset: auto 0 0 0; z-index: 10; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--wl-color-bg-panel); border-top: var(--wl-border-hairline) solid var(--wl-color-line); padding-bottom: env(safe-area-inset-bottom); }
+.wl-tabbar__more { position: relative; min-width: 0; display: flex; }
+.wl-tabbar__item { position: relative; flex: 1 1 0; min-width: 0; height: var(--wl-shell-tabbar); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 0 var(--wl-space-1); border: 0; background: transparent; color: var(--wl-color-ink-muted); text-decoration: none; text-align: center; font: 500 11.5px/1 var(--wl-font-ui); cursor: pointer; }
+.wl-tabbar__item:hover { color: var(--wl-color-ink); }
+.wl-tabbar__item:focus-visible { outline-offset: calc(var(--wl-focus-width) * -1); }
+.wl-tabbar__item[aria-current="page"], .wl-tabbar__item[aria-current="true"] { color: var(--wl-color-ink); font-weight: 700; box-shadow: inset 0 var(--wl-border-selected) 0 var(--wl-color-ink); }
+.wl-tabbar__icon { position: relative; display: block; line-height: 0; }
+.wl-tabbar__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-tabbar__count { position: absolute; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; display: grid; place-items: center; border-radius: var(--wl-radius-1); background: var(--wl-color-ink); color: var(--wl-color-bg-panel); font: 700 9.5px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+.wl-tabbar__count { top: -5px; right: -10px; }
+
+/* ---------- Skip link: hidden until focused ---------- */
+.wl-skip { position: absolute; left: var(--wl-space-2); top: var(--wl-space-2); z-index: 30; display: inline-flex; align-items: center; height: var(--wl-control-l); padding: 0 var(--wl-space-4); border: var(--wl-border-hairline) solid var(--wl-color-border-control); border-radius: var(--wl-radius-1); background: var(--wl-color-bg-raised); color: var(--wl-color-ink); font: var(--wl-weight-label) var(--wl-text-label)/1 var(--wl-font-ui); text-decoration: none; box-shadow: var(--wl-shadow-2); }
+.wl-skip:not(:focus) { width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* ---------- Impersonation banner ---------- */
+.wl-impersonation { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wl-space-3); margin-bottom: var(--wl-space-6); padding: var(--wl-space-3) var(--wl-space-4); background: var(--wl-color-pending-subtle); border: var(--wl-border-hairline) solid var(--wl-color-pending); border-radius: var(--wl-radius-0); color: var(--wl-color-ink); }
+.wl-impersonation__icon { flex: none; color: var(--wl-color-pending); }
+.wl-impersonation__text { flex: 1 1 280px; min-width: 0; margin: 0; }
+.wl-impersonation__text b { font-weight: 600; }
+.wl-impersonation__action { flex: none; }
+
+/* ---------- Width ranges ---------- */
+@media (min-width: 992px) {
+  .wl-shell { grid-template-columns: var(--wl-shell-sidebar) minmax(0, 1fr); }
+  .wl-main { padding: var(--wl-space-6) 28px var(--wl-space-8); }
+  .wl-only-rail, .wl-only-phone { display: none; }
+}
+@media (min-width: 768px) and (max-width: 991px) {
+  .wl-shell { grid-template-columns: var(--wl-shell-rail) minmax(0, 1fr); }
+  .wl-main { padding: var(--wl-space-6) var(--wl-space-6) var(--wl-space-8); }
+  .wl-sidebar { align-items: center; gap: 14px; padding: var(--wl-space-4) 0 var(--wl-space-3); }
+  .wl-sidebar .wl-brand { align-self: center; padding: var(--wl-space-0-5); }
+  .wl-sidebar__org { display: flex; justify-content: center; width: 100%; }
+  /* Overflow stays visible so the tooltips can sit beside the rail. */
+  .wl-sidebar__nav { flex: 0 0 auto; overflow: visible; padding: 0; margin: 0; }
+  .wl-sidebar__account { display: flex; justify-content: center; width: 100%; }
+  /* Full rail width, so popovers open 8px clear of the rail's edge. */
+  .wl-sidebar__org > div, .wl-sidebar__account > div { width: 100%; }
+  .wl-nav, .wl-nav__list { align-items: center; gap: 14px; }
+  .wl-nav__group + .wl-nav__group { margin-top: 0; }
+  .wl-nav__heading { display: none; }
+  .wl-nav__item { position: relative; width: var(--wl-control-l); height: var(--wl-control-l); padding: 0; justify-content: center; }
+  .wl-nav__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .wl-nav__count { position: absolute; top: 4px; right: 3px; min-width: 16px; height: 16px; padding: 0 3px; font-size: 9.5px; }
+  /* Tooltip on hover and on focus; it stays while the pointer is over it, Escape hides it. */
+  .wl-tooltip { position: absolute; z-index: 25; left: calc(100% + 18px); top: 50%; transform: translateY(-50%); flex-direction: column; gap: 3px; padding: var(--wl-space-2) 10px; background: var(--wl-color-bg-raised); color: var(--wl-color-ink); border: var(--wl-border-hairline) solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-2); white-space: nowrap; }
+  .wl-tooltip::before { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: 20px; }
+  .wl-nav__li:hover > .wl-tooltip, .wl-nav__item:focus-visible + .wl-tooltip { display: flex; }
+  .wl-nav[data-tips="off"] .wl-tooltip { display: none; }
+  .wl-tooltip__title { font: 600 13px/1 var(--wl-font-ui); }
+  .wl-tooltip__meta { font: 400 11.5px/1 var(--wl-font-ui); color: var(--wl-color-ink-muted); }
+  .wl-only-sidebar, .wl-only-phone { display: none; }
+}
+@media (min-width: 768px) {
+  .wl-topbar, .wl-tabbar { display: none; }
+}
+@media (max-width: 767px) {
+  .wl-sidebar { display: none; }
+  .wl-main--tabbar { padding-bottom: calc(var(--wl-shell-tabbar) + var(--wl-space-6) + env(safe-area-inset-bottom)); }
+  /* The fixed tab bar covers the bottom of the viewport, so keyboard focus must scroll clear of it
+     (WCAG 2.2 SC 2.4.11, NFR23). Bar height plus a gap that clears its 1px border and the 4px focus ring. */
+  html:has(.wl-tabbar) { scroll-padding-bottom: calc(var(--wl-shell-tabbar) + var(--wl-space-2) + env(safe-area-inset-bottom)); }
+  .wl-only-sidebar, .wl-only-rail { display: none; }
+}
+
+/* ---------- Print: no shell ---------- */
+@media print {
+  .wl-sidebar, .wl-topbar, .wl-tabbar, .wl-skip, .wl-print-hide, .wl-impersonation__action { display: none !important; }
+  .wl-shell { display: block; }
+  .wl-main { padding: 0 !important; }
+}

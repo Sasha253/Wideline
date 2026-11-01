@@ -40,13 +40,13 @@ function TeamTable({
             <span key="team">
               <Link
                 href={`/squad/teams/${t.id}`}
-                className="body-strong text-pitch underline break-words"
+                className="font-semibold text-brand-text underline break-words"
               >
                 {t.name}
               </Link>
-              {labels && <span className="caption block text-ink-muted">{labels}</span>}
+              {labels && <span className="text-body-s block text-ink-muted">{labels}</span>}
             </span>,
-            <span key="season" className="data">
+            <span key="season" className="font-mono text-mono-m tabular-nums">
               {t.season}
             </span>,
             t.activeCount,
@@ -57,11 +57,11 @@ function TeamTable({
         <li key={t.id} className="wl-card flex flex-col gap-1">
           <Link
             href={`/squad/teams/${t.id}`}
-            className="wl-link-row body-strong text-pitch underline break-words"
+            className="wl-link-row font-semibold text-brand-text underline break-words"
           >
             {t.name}
           </Link>
-          <p className="caption text-ink-muted">
+          <p className="text-body-s text-ink-muted">
             {metaText([
               t.ageGroup,
               t.gender,
@@ -110,18 +110,22 @@ export default async function TeamsPage({
       </div>
 
       <section aria-labelledby="own-teams" className="mt-8">
-        <h2 id="own-teams" tabIndex={-1} className="heading-2">
+        <h2
+          id="own-teams"
+          tabIndex={-1}
+          className="font-display text-heading-section uppercase stretch-wide"
+        >
           Your teams
         </h2>
         {own.length === 0 ? (
-          <p className="body-lg mt-4 text-ink-muted">
+          <p className="text-body mt-4 text-ink-muted">
             {admin
               ? "No teams yet. Add a team for each squad and season, such as U15 Boys (2026)."
               : "No teams yet."}
           </p>
         ) : (
           <>
-            <p className="caption mt-2 text-ink-muted">{plural(own.length, "team", "teams")}</p>
+            <p className="text-body-s mt-2 text-ink-muted">{plural(own.length, "team", "teams")}</p>
             <div className="mt-4">
               <TeamTable
                 teams={own}
@@ -135,21 +139,25 @@ export default async function TeamsPage({
       </section>
 
       <section aria-labelledby="opposition-teams" className="mt-8">
-        <h2 id="opposition-teams" tabIndex={-1} className="heading-2">
+        <h2
+          id="opposition-teams"
+          tabIndex={-1}
+          className="font-display text-heading-section uppercase stretch-wide"
+        >
           Opposition teams
         </h2>
-        <p className="body mt-2 max-w-prose text-ink-muted">
+        <p className="mt-2 max-w-prose text-ink-muted">
           Teams you play against. Their players are shirt numbers only, never names.
         </p>
         {admin && (
           <div className="mt-4">
-            <ButtonLink variant="secondary" size="sm" href="/squad/teams/new?kind=opposition">
+            <ButtonLink variant="secondary" size="s" href="/squad/teams/new?kind=opposition">
               Add opposition team
             </ButtonLink>
           </div>
         )}
         {opposition.length === 0 ? (
-          <p className="body mt-4 text-ink-muted">
+          <p className="mt-4 text-ink-muted">
             {admin
               ? "No opposition teams yet. Add one when you set up a match against them."
               : "No opposition teams yet."}

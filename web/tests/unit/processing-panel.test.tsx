@@ -160,10 +160,17 @@ describe("ProcessingPanel", () => {
         }}
       />,
     );
-    expect(html).toContain('Preparing playback · <span class="body-strong">Ready</span>');
-    expect(html).toContain('Finding events · <span class="body-strong">In progress</span>');
-    expect(html).toContain('Cutting clips · <span class="body-strong">Waiting to start</span>');
-    expect(html.match(/<svg/g)).toHaveLength(3);
+    // Floodlight pipeline rows: the step name, then its state in words beside the disc.
+    expect(html).toMatch(/Preparing playback<\/span>.*?>Ready<\/span>/);
+    expect(html).toMatch(/Finding events<\/span>.*?>In progress<\/span>/);
+    expect(html).toMatch(/Cutting clips<\/span>.*?>Waiting to start<\/span>/);
+    expect(html).toContain('data-state="done"');
+    expect(html).toContain('data-state="current"');
+    expect(html).toContain('data-state="waiting"');
+    // Done and running show an icon; the waiting step shows its number.
+    expect(html.match(/<svg/g)).toHaveLength(2);
+    // Only the running step gets the lime bar.
+    expect(html.match(/bg-brand/g)).toHaveLength(1);
   });
 
   it("says so when the status cannot be read", () => {

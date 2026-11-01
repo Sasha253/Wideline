@@ -54,7 +54,7 @@ export function PlaceholderForm({ teamId }: { teamId: string }) {
             />
           )}
         </Field>
-        <SubmitButton block pendingLabel="Adding…" className="justify-center">
+        <SubmitButton block pendingLabel="Adding" className="justify-center">
           Add players
         </SubmitButton>
       </div>

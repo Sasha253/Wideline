@@ -37,16 +37,16 @@ export function RadioGroup({
       aria-describedby={describedBy || undefined}
       data-invalid={error ? "true" : undefined}
     >
-      <legend className="label">{legend}</legend>
+      <legend className="wl-field__label mb-1.5">{legend}</legend>
       {hint && (
-        <p id={hintId} className="caption text-ink-muted">
+        <p id={hintId} className="wl-field__hint">
           {hint}
         </p>
       )}
       {error && <FieldErrorText id={errorId} message={error} />}
       <div className="wl-choice-row">
         {options.map((o) => (
-          <label key={o.value} className="wl-choice body">
+          <label key={o.value} className="wl-choice min-h-control-l tablet:min-h-control-m">
             <input
               type="radio"
               name={name}

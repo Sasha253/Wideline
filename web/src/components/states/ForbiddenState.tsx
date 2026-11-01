@@ -1,34 +1,63 @@
+import { ChevronsUpDown } from "lucide-react";
+import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/ui/Button";
+import { StateMessage } from "@/components/ui/StateMessage";
 
 /**
- * No access to this page (docs/build/design/D02.md, Surface 6). The copy is C01's,
- * verbatim. `homeHref` adds "Go to your home page" for a user with an organisation.
+ * No access to this page (Floodlight, "State · forbidden"). Says who can grant access.
+ *
+ * - `reason` leads the sentence: "Shortlists are only for scouts."
+ * - `switchHref`: the primary "Switch organisation" (for people in more than one).
+ * - `homeHref`: "Go to your home page" (`homeLabel` overrides it, "Go to dashboard").
+ * - With neither, "Sign in as someone else".
+ * - `signedInAs` adds the code line, "403 · signed in as club admin".
  */
 export function ForbiddenState({
   homeHref,
+  homeLabel = "Go to your home page",
+  switchHref,
+  reason,
+  signedInAs,
   headingLevel = 1,
 }: {
   homeHref?: string;
+  homeLabel?: string;
+  switchHref?: string;
+  reason?: ReactNode;
+  /** The role the user is signed in as, in words ("club admin"). */
+  signedInAs?: string;
   headingLevel?: 1 | 2;
 }) {
-  const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
-    <div className="max-w-prose py-12">
-      <Heading className={headingLevel === 1 ? "heading-1" : "heading-2"}>No access</Heading>
-      <p className="body-lg mt-4 text-ink-muted">
-        Your account does not have access to this page. Ask a Wideline admin if you think you need
-        it.
-      </p>
-      <div className="wl-row mt-6">
-        {homeHref && (
-          <ButtonLink variant="primary" href={homeHref}>
-            Go to your home page
+    <StateMessage
+      kind="forbidden"
+      headingLevel={headingLevel}
+      title="You don't have access to this page"
+      body={
+        <>
+          {reason && <>{reason} </>}
+          If you think you should have access, ask your organisation&apos;s admin.
+        </>
+      }
+      action={
+        switchHref ? (
+          <ButtonLink variant="primary" href={switchHref} icon={ChevronsUpDown}>
+            Switch organisation
           </ButtonLink>
-        )}
-        <ButtonLink variant="secondary" href="/login">
-          Sign in as someone else
-        </ButtonLink>
-      </div>
-    </div>
+        ) : undefined
+      }
+      secondary={
+        homeHref ? (
+          <ButtonLink variant="secondary" href={homeHref}>
+            {homeLabel}
+          </ButtonLink>
+        ) : !switchHref ? (
+          <ButtonLink variant="secondary" href="/login">
+            Sign in as someone else
+          </ButtonLink>
+        ) : undefined
+      }
+      code={signedInAs ? `403 · signed in as ${signedInAs}` : undefined}
+    />
   );
 }

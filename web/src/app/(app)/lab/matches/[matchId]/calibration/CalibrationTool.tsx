@@ -345,7 +345,7 @@ export function CalibrationTool({
         {imgFailed && (
           <div className="wl-calib__message">
             <CircleAlert {...iconProps} />
-            <p className="body-strong">The still did not load.</p>
+            <p className="font-semibold">The still did not load.</p>
             <Button variant="secondary" icon={RotateCw} onClick={() => window.location.reload()}>
               Reload
             </Button>
@@ -375,7 +375,7 @@ export function CalibrationTool({
         <Button
           ref={addRef}
           variant="secondary"
-          size="sm"
+          size="s"
           icon={Plus}
           disabled={points.length >= MAX_POINTS}
           onClick={() => addPoint(imageWidth / 2, imageHeight / 2)}
@@ -385,7 +385,7 @@ export function CalibrationTool({
         {points.length > 0 && (
           <Button
             variant="ghost"
-            size="sm"
+            size="s"
             icon={Trash2}
             onClick={() => {
               setPoints([]);
@@ -399,11 +399,11 @@ export function CalibrationTool({
         )}
       </div>
       {points.length >= MAX_POINTS ? (
-        <p className="caption mt-2 text-ink-muted">
+        <p className="text-body-s mt-2 text-ink-muted">
           12 points is the most. Remove one to add another.
         </p>
       ) : (
-        <p className="caption mt-2 text-ink-muted">
+        <p className="text-body-s mt-2 text-ink-muted">
           Click the still to add a point. Drag a point to move it.
         </p>
       )}
@@ -413,11 +413,11 @@ export function CalibrationTool({
   const status = (() => {
     switch (shownFit.kind) {
       case "few":
-        return <p className="body">Place at least 4 points. {shownFit.n} placed.</p>;
+        return <p>Place at least 4 points. {shownFit.n} placed.</p>;
       case "landmarks":
-        return <p className="body">Choose a landmark for every point to see the fit.</p>;
+        return <p>Choose a landmark for every point to see the fit.</p>;
       case "coords":
-        return <p className="body">Enter X and Y for every point to see the fit.</p>;
+        return <p>Enter X and Y for every point to see the fit.</p>;
       case "bad":
         return (
           <span className="wl-inline-status wl-inline-status--warn">
@@ -428,7 +428,7 @@ export function CalibrationTool({
       case "ok":
         return (
           <>
-            <p className="data">
+            <p className="font-mono text-mono-m tabular-nums">
               {shownFit.errorM.toFixed(1)} m error · {points.length} points
             </p>
             {shownFit.errorM <= LIMIT_M ? (
@@ -455,7 +455,7 @@ export function CalibrationTool({
       <span className="sr-only" aria-live="polite">
         {announce}
       </span>
-      <p className="caption mt-4 text-ink-muted">
+      <p className="text-body-s mt-4 text-ink-muted">
         Left and right as the camera sees the pitch. Near is the touchline closest to the camera.
       </p>
       <svg
@@ -500,15 +500,15 @@ export function CalibrationTool({
             residual === undefined ? undefined : residual > LIMIT_M ? (
               <span className="wl-inline-status wl-inline-status--warn">
                 <TriangleAlert {...iconProps} />
-                <span className="data">{residual.toFixed(1)} m</span>
+                <span className="font-mono text-mono-m tabular-nums">{residual.toFixed(1)} m</span>
               </span>
             ) : (
-              <span className="data">{residual.toFixed(1)} m</span>
+              <span className="font-mono text-mono-m tabular-nums">{residual.toFixed(1)} m</span>
             );
           return (
             <li key={p.key} data-selected={selected === p.key ? "true" : undefined}>
               <fieldset onFocus={() => setSelected(p.key)}>
-                <legend className="body-strong">
+                <legend className="font-semibold">
                   Point {i + 1}
                   {selected === p.key && <span className="sr-only">, selected</span>}
                 </legend>
@@ -550,7 +550,7 @@ export function CalibrationTool({
                   {(fp) => (
                     <input
                       {...fp}
-                      className="wl-input data"
+                      className="wl-input font-mono text-mono-m tabular-nums"
                       type="number"
                       inputMode="numeric"
                       step={1}
@@ -566,7 +566,7 @@ export function CalibrationTool({
                   {(fp) => (
                     <input
                       {...fp}
-                      className="wl-input data"
+                      className="wl-input font-mono text-mono-m tabular-nums"
                       type="number"
                       inputMode="numeric"
                       step={1}
@@ -603,13 +603,13 @@ export function CalibrationTool({
             title="Save this calibration?"
             body={
               <>
-                <p className="body">
+                <p>
                   This re-projects {formatCount(storedPoints)} position points and{" "}
                   {formatCount(storedEvents)} events for this match. Points that land off the pitch
                   are removed, and distance covered is worked out again.
                 </p>
                 {venue && (
-                  <p className="body mt-2">
+                  <p className="mt-2">
                     Later matches at {venue} filmed at {imageWidth} × {imageHeight} use it from now
                     on. The current calibration is replaced.
                   </p>

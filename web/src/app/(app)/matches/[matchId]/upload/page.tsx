@@ -8,15 +8,16 @@ import { limitFor } from "@/server/entitlements";
 import { requireSquadOrgPage } from "@/server/matches/access";
 import { uploadStatus, type UploadInfo } from "@/server/matches/upload";
 import { loadMatch } from "../load";
+import { UploadSteps } from "../UploadSteps";
 import { UploadPanel } from "./UploadPanel";
 
 export const metadata = { title: "Upload footage" };
 
 /**
- * The upload screen (MATCH02, NFR26; docs/build/design/C06.md, Surface 3). The
- * server says whether an upload is open (ListParts), so another device or a
- * reload resumes it. The cap is read from entitlements for the copy only; the
- * server enforces it with hasCapacity().
+ * The upload screen (MATCH02, NFR26; docs/build/design/C06.md, Surface 3; Floodlight
+ * Screens A, "Upload" step 1). The server says whether an upload is open (ListParts), so
+ * another device or a reload resumes it. The cap is read from entitlements for the copy
+ * only; the server enforces it with hasCapacity().
  */
 export default async function UploadPage({ params }: { params: Promise<{ matchId: string }> }) {
   const ctx = requireSquadOrgPage(await requirePageRole(CLUB_ROLES));
@@ -26,9 +27,16 @@ export default async function UploadPage({ params }: { params: Promise<{ matchId
   const header = (
     <PageHeader
       back={{ href: `/matches/${match.id}`, label: "Match" }}
+      eyebrow="Step 1 of 3 · Recording"
       title="Upload footage"
-      intro={`${fixtureText(match)} · ${formatDate(match.playedAt)}`}
-    />
+      intro={
+        <span className="font-mono text-body-s tabular-nums">
+          {fixtureText(match)} · {formatDate(match.playedAt)}
+        </span>
+      }
+    >
+      <UploadSteps match={match} current={1} />
+    </PageHeader>
   );
   const back = (
     <ButtonLink variant="primary" href={`/matches/${match.id}`}>
@@ -56,12 +64,12 @@ export default async function UploadPage({ params }: { params: Promise<{ matchId
     return (
       <>
         {header}
-        <section aria-labelledby="upload-done" className="mt-8 max-w-2xl">
-          <h2 id="upload-done" className="heading-2">
+        <section aria-labelledby="upload-done" className="mt-6 max-w-2xl">
+          <h2 id="upload-done" className="font-display text-heading-section stretch-wide uppercase">
             Upload complete
           </h2>
-          <div className="wl-card mt-4">
-            <p className="body">We are checking the footage. This usually takes a minute or two.</p>
+          <div className="mt-3 border border-line bg-panel p-4">
+            <p>We are checking the footage. This usually takes a minute or two.</p>
             <div className="mt-4">{back}</div>
           </div>
         </section>

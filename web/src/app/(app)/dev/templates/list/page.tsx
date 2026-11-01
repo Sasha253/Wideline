@@ -13,7 +13,7 @@ function GoalsPer90({ row }: { row: SquadRow }) {
     <>
       {row.goalsPer90}
       {row.matches < SMALL_SAMPLE && (
-        <span className="caption block text-warning">Small sample · {row.matches} matches</span>
+        <span className="text-body-s block text-warning">Small sample · {row.matches} matches</span>
       )}
     </>
   );
@@ -32,7 +32,7 @@ export default async function ListTemplatePage() {
       toolbar={
         <form method="get" className="flex flex-wrap items-end gap-2">
           <div className="wl-field">
-            <label htmlFor="squad-search" className="label">
+            <label htmlFor="squad-search" className="text-label">
               Search players
             </label>
             <input id="squad-search" name="q" type="search" className="wl-input" />
@@ -55,7 +55,7 @@ export default async function ListTemplatePage() {
         rows={SQUAD.map((r) => ({
           id: r.id,
           cells: [
-            <span key="name" className="body-strong break-words">
+            <span key="name" className="font-semibold break-words">
               {r.name}
             </span>,
             r.position,
@@ -66,13 +66,14 @@ export default async function ListTemplatePage() {
         }))}
         cards={SQUAD.map((r) => (
           <li key={r.id} className="wl-card flex flex-col gap-1">
-            <span className="body-strong break-words">{r.name}</span>
-            <span className="caption text-ink-muted">
+            <span className="font-semibold break-words">{r.name}</span>
+            <span className="text-body-s text-ink-muted">
               {r.position} · {r.ageGroup}
             </span>
-            <span className="body">
-              <span className="data">{r.matches}</span> matches · Goals per 90:{" "}
-              <span className="data">
+            <span>
+              <span className="font-mono text-mono-m tabular-nums">{r.matches}</span> matches ·
+              Goals per 90:{" "}
+              <span className="font-mono text-mono-m tabular-nums">
                 <GoalsPer90 row={r} />
               </span>
             </span>

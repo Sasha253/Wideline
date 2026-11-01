@@ -27,7 +27,7 @@ export function DepartPlayer({
       body={`${firstName} leaves the squad list, lineup pickers and club dashboards. No data is deleted: their matches, stats and consent records stay. After this, the club cannot edit ${firstName}'s details. You can undo the departure for ${DEPARTURE_UNDO_DAYS} days.`}
       form={form}
       hidden={{ playerId }}
-      submit={{ label: "Mark as departed", pendingLabel: "Saving…", variant: "danger" }}
+      submit={{ label: "Mark as departed", pendingLabel: "Saving", variant: "danger" }}
     />
   );
 }

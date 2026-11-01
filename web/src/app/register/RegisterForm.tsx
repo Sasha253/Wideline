@@ -1,6 +1,15 @@
 "use client";
 
-import { ArrowLeft, Check, LockKeyhole, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Clock,
+  Info,
+  LockKeyhole,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import {
   useEffect,
@@ -20,8 +29,12 @@ import {
   SubmitButton,
   useFormAction,
 } from "@/components/forms";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { cx } from "@/components/ui/cx";
 import { iconProps } from "@/components/ui/icons";
+import { Logo, LogoMark } from "@/components/ui/Logo";
+import { StatusChip } from "@/components/ui/StatusChip";
+import { StepHeader } from "@/components/ui/StepHeader";
 import type { ActionResult } from "@/lib/action-result";
 import { EMAIL_ERROR, NAME_TOO_LONG } from "@/lib/form-copy";
 import {
@@ -44,27 +57,46 @@ import {
 } from "@/lib/scout-fields";
 import { registerScoutAction } from "./actions";
 
-// Scout registration (docs/build/design/C02.md, Surface 1): one form, one
-// fieldset per step, posted once. With JavaScript one step shows at a time;
-// without it every step shows stacked and the server checks everything. There
-// is no password step: signed out, the account opens through the emailed
-// confirmation link, and the scout sets a password on /scout after that.
+// Scout registration (Floodlight, "Scout registration"): one form, one fieldset per step,
+// one topic each, posted once. With JavaScript one step shows at a time, with the steps in
+// a sidebar on desktop and "1 of 4" plus bars on phones; without it every step shows
+// stacked and the server checks everything. There is no password step: signed out, the
+// account opens through the emailed confirmation link, and the scout sets a password on
+// /scout after that.
 
-const STEP_TITLES = [
-  "About you",
-  "Your identity",
-  "Clubs and players you are linked to",
-  "Confidentiality terms",
-];
+const STEPS = [
+  {
+    label: "Identity",
+    sub: "Name and ID number",
+    title: "Who are you?",
+  },
+  {
+    label: "Contact",
+    sub: "Email and mobile",
+    title: "How can we reach you?",
+  },
+  {
+    label: "Clubs",
+    sub: "Clubs you are connected to",
+    title: "Are you connected to any clubs?",
+  },
+  {
+    label: "Terms",
+    sub: "How scouts use Wideline",
+    title: "How scouts use Wideline",
+  },
+] as const;
 
 const FIX_FIELDS = "Some details need fixing. Check the highlighted fields.";
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** 48px fields on phones, 40px from 768px (Floodlight registration). */
+const INPUT = "wl-input h-12 tablet:h-10";
 
 /** The step (0-based) that holds a field error key such as "playerName.2". */
 function stepOfKey(key: string): number {
   const head = key.split(".")[0]!;
-  if (["name", "email", "phone"].includes(head)) return 0;
-  if (["idDocumentType", "idNumber", "idCountry"].includes(head)) return 1;
+  if (["name", "idDocumentType", "idNumber", "idCountry"].includes(head)) return 0;
+  if (["email", "phone"].includes(head)) return 1;
   if (["clubName", "playerName", "playerClub", "noAffiliations", "affiliations"].includes(head)) {
     return 2;
   }
@@ -102,7 +134,7 @@ export function RegisterForm({
 }) {
   const { state, formProps } = useFormAction(registerScoutAction, null as ActionResult);
   const enhanced = useEnhanced();
-  const total = STEP_TITLES.length;
+  const total = STEPS.length;
   const last = total - 1;
 
   const [step, setStep] = useState(0);
@@ -166,25 +198,112 @@ export function RegisterForm({
     pendingFocus.current = { step: first, invalid: true };
   }, [state]);
 
+  // The sidebar title is the page heading, except on the result screen, which has its own.
+  // Below 992px the mark, the title and "1 of 4 · Identity" share one row, bars under it;
+  // only one of the two titles is ever displayed.
+  const header = (current: number | null, heading = true) => {
+    const Title = heading ? "h1" : "p";
+    const home = (children: ReactNode, className?: string) => (
+      <Link
+        href="/"
+        aria-label="Wideline home"
+        className={cx("flex items-center self-start text-ink no-underline", className)}
+      >
+        {children}
+      </Link>
+    );
+    return (
+      <aside className="border-b border-line bg-panel px-5 py-4 desktop:flex desktop:w-90 desktop:flex-none desktop:flex-col desktop:border-r desktop:border-b-0 desktop:px-8 desktop:py-10">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 desktop:hidden [&_.wl-stepbar]:contents [&_.wl-stepbar>:last-child]:col-span-2">
+          {heading ? (
+            <span className="flex min-w-0 items-center gap-2.5">
+              {home(<LogoMark size="s" />, "flex-none")}
+              <Title className="m-0 min-w-0 truncate text-body font-semibold">Apply to scout</Title>
+            </span>
+          ) : (
+            home(<Logo size="m" />)
+          )}
+          {current !== null && (
+            <StepHeader
+              steps={STEPS.map((s) => s.label)}
+              current={current + 1}
+              compact="always"
+              className="contents"
+            />
+          )}
+        </div>
+        <div className="hidden desktop:flex desktop:flex-1 desktop:flex-col desktop:gap-9">
+          {home(<Logo size="m" />)}
+          <div className="flex flex-col gap-2.5">
+            <Title className="m-0 font-display text-title-m font-extrabold uppercase stretch-wide">
+              Apply to scout
+            </Title>
+            <p className="m-0 text-ink-muted">About 6 minutes.</p>
+          </div>
+          {current !== null && (
+            <StepHeader
+              steps={STEPS.map((s) => ({ label: s.label, sub: s.sub }))}
+              current={current + 1}
+              layout="column"
+              compact="never"
+              label="Registration steps"
+            />
+          )}
+          <p className="m-0 mt-auto text-body-s text-ink-muted">
+            Questions?{" "}
+            <a href="mailto:scouts@wideline.co.za" className="text-brand-text">
+              scouts@wideline.co.za
+            </a>
+          </p>
+        </div>
+      </aside>
+    );
+  };
+
   if (state?.ok) {
     return (
-      <>
-        <h1 ref={receivedRef} tabIndex={-1} className="heading-1 mt-6">
-          {signedIn ? "Registration received" : "Check your email"}
-        </h1>
-        <p className="body-lg mt-2 text-ink-muted">
-          {signedIn ? "We will email you about your registration." : state.message}
-        </p>
-        {!signedIn && (
-          <p className="body mt-4 text-ink-muted">
-            No email after a few minutes? Check your spam folder, or{" "}
-            <Link href="/login?next=/scout" className="text-pitch underline">
-              sign in
-            </Link>{" "}
-            with Email me a sign-in link.
-          </p>
-        )}
-      </>
+      <div className="min-h-dvh desktop:flex">
+        {header(null, false)}
+        <div className="flex flex-1 flex-col px-5 pt-12 pb-10 tablet:px-10 desktop:px-20 desktop:pt-14">
+          <div className="flex max-w-150 flex-col gap-4.5">
+            {signedIn && (
+              <span className="self-start">
+                <StatusChip tone="warn" icon={Clock} label="Waiting for review" />
+              </span>
+            )}
+            <h1 ref={receivedRef} tabIndex={-1} className="m-0 text-title-guardian stretch-semi">
+              {signedIn ? "Application sent" : "Check your email"}
+            </h1>
+            <p className="m-0 text-body-guardian text-pretty">
+              {signedIn
+                ? `We check your ID and the clubs you told us about, then email ${signedIn.email} with the answer.`
+                : state.message}
+            </p>
+            <div className="flex gap-3 border-y border-line py-3.5 text-ink-muted">
+              <Info {...iconProps} className="mt-0.5 flex-none text-ink" />
+              {signedIn ? (
+                <span>Until then you can sign in, but you can&apos;t see players or matches.</span>
+              ) : (
+                <span>
+                  No email after a few minutes? Check your spam folder, or{" "}
+                  <Link href="/login?next=/scout" className="text-brand-text">
+                    sign in
+                  </Link>{" "}
+                  with Email me a sign-in link.
+                </span>
+              )}
+            </div>
+            <ButtonLink
+              variant="secondary"
+              size="xl"
+              href="/"
+              className="justify-center tablet:h-control-l tablet:self-start"
+            >
+              Close
+            </ButtonLink>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -196,7 +315,7 @@ export function RegisterForm({
     : null;
   const summaryAt = enhanced ? summaryStep : serverFirst;
 
-  /** The client checks of one step (docs/build/design/C02.md, "Step change"). */
+  /** The client checks of one step. */
   function check(index: number): Record<string, string> {
     const fd = new FormData(formRef.current!);
     const v = (n: string) => String(fd.get(n) ?? "").trim();
@@ -206,11 +325,7 @@ export function RegisterForm({
         const name = v("name");
         if (!name) e.name = SCOUT_NAME_REQUIRED;
         else if (name.length > 120) e.name = NAME_TOO_LONG;
-        if (!EMAIL_SHAPE.test(v("email"))) e.email = EMAIL_ERROR;
       }
-      if (!v("phone")) e.phone = PHONE_REQUIRED;
-      else if (!normalisePhone(v("phone"))) e.phone = PHONE_INVALID;
-    } else if (index === 1) {
       const doc = v("idDocumentType");
       const number = normaliseIdNumber(v("idNumber"));
       if (!doc) {
@@ -224,6 +339,10 @@ export function RegisterForm({
         else if (!/^[A-Z0-9]{6,20}$/.test(number)) e.idNumber = PASSPORT_INVALID;
         if (!v("idCountry")) e.idCountry = PASSPORT_COUNTRY_REQUIRED;
       }
+    } else if (index === 1) {
+      if (!signedIn && !EMAIL_SHAPE.test(v("email"))) e.email = EMAIL_ERROR;
+      if (!v("phone")) e.phone = PHONE_REQUIRED;
+      else if (!normalisePhone(v("phone"))) e.phone = PHONE_INVALID;
     } else if (index === 2) {
       if (!none) {
         const clubNames = fd.getAll("clubName").map((x) => String(x).trim());
@@ -264,7 +383,7 @@ export function RegisterForm({
   function goTo(index: number) {
     setStep(index);
     pendingFocus.current = { step: index, invalid: false };
-    document.title = `${STEP_TITLES[index]} · Register as a scout · Wideline`;
+    document.title = `${STEPS[index]!.label} · Apply to scout · Wideline`;
   }
 
   function onContinue() {
@@ -332,13 +451,18 @@ export function RegisterForm({
     pendingFocus.current = { selector: `[data-row="${kind}-${focusKey}"] input` };
   }
 
-  const stepHeading = (index: number) => (
-    <h2 id={`step-${index + 1}-title`} tabIndex={-1}>
-      <span className="caption block text-ink-muted">
-        Step {index + 1} of {total}
-      </span>
-      <span className="heading-2 block">{STEP_TITLES[index]}</span>
-    </h2>
+  const stepHeading = (index: number, explainer?: ReactNode) => (
+    <div className="flex flex-col gap-3">
+      <h2 id={`step-${index + 1}-title`} tabIndex={-1} className="m-0 flex flex-col gap-3">
+        <span className="font-mono text-overline uppercase text-ink-muted">
+          {`Step ${index + 1} of ${total}`}
+        </span>
+        <span className="text-title-guardian stretch-semi">{STEPS[index]!.title}</span>
+      </h2>
+      {explainer && (
+        <p className="m-0 max-w-150 text-body-guardian text-pretty text-ink-muted">{explainer}</p>
+      )}
+    </div>
   );
 
   const summary = (index: number) =>
@@ -347,42 +471,47 @@ export function RegisterForm({
   const buttons = (index: number) => {
     const isLast = index === last;
     if (!enhanced && !isLast) return null;
+    const prev = index > 0 ? STEPS[index - 1]!.label : null;
+    const next = !isLast ? STEPS[index + 1]!.label : null;
     return (
       <>
         {isLast && <FormErrorBanner result={state} />}
-        <div className="mt-2 flex gap-2 md:justify-between">
-          {enhanced && index > 0 && (
+        <div className="mt-4 flex items-center gap-2 border-t border-line pt-5 tablet:gap-3">
+          {enhanced && prev && (
             <Button
               variant="secondary"
+              size="xl"
               icon={ArrowLeft}
-              block
-              className="flex-1 justify-center md:flex-none"
+              aria-label={`Back to ${prev.toLowerCase()}`}
+              className="w-14 flex-none justify-center px-0 tablet:h-control-l tablet:w-auto tablet:px-4"
               onClick={() => goTo(index - 1)}
             >
-              Back
+              <span className="hidden tablet:inline">{prev}</span>
             </Button>
           )}
           {isLast ? (
             <SubmitButton
-              block
-              pendingLabel="Registering…"
-              className="flex-1 justify-center md:ml-auto md:flex-none"
+              size="xl"
+              pendingLabel="Sending"
+              className="flex-1 justify-center tablet:ml-auto tablet:h-control-l tablet:flex-none"
             >
-              Register as a scout
+              Send application
             </SubmitButton>
           ) : (
             <Button
               variant="primary"
-              block
-              className="flex-1 justify-center md:ml-auto md:flex-none"
+              size="xl"
+              className="flex-1 justify-center tablet:ml-auto tablet:h-control-l tablet:flex-none"
               onClick={onContinue}
             >
               Continue
+              <span className="hidden tablet:inline">&nbsp;to {next!.toLowerCase()}</span>
+              <ChevronRight {...iconProps} />
             </Button>
           )}
         </div>
         {isLast && !signedIn && (
-          <p className="caption mt-2 text-ink-muted">
+          <p className="m-0 text-body-s text-ink-muted">
             We email you a link to confirm your address and sign in.
           </p>
         )}
@@ -393,7 +522,10 @@ export function RegisterForm({
   const stepProps = (index: number) => ({
     id: `step-${index + 1}`,
     "aria-labelledby": `step-${index + 1}-title`,
-    className: index > 0 && !enhanced ? "mt-8 flex flex-col gap-4" : "flex flex-col gap-4",
+    className: cx(
+      "m-0 flex min-w-0 flex-col gap-4.5 border-0 p-0",
+      index > 0 && !enhanced && "mt-12",
+    ),
     hidden: enhanced && index !== step,
   });
 
@@ -408,260 +540,257 @@ export function RegisterForm({
         : "ID or passport number";
 
   return (
-    <>
-      <p className="eyebrow mt-6 text-ink-muted">Scout registration</p>
-      <h1 className="heading-1 mt-1">Register as a scout</h1>
-      <p className="body mt-2 text-ink-muted">
-        Scouts review matches on Wideline: they check the events our software finds and add any it
-        missed. Wideline staff check every scout before they can review. It takes about 5 minutes.
-      </p>
-      {enhanced && (
-        <div className="wl-steps mt-6" aria-hidden="true">
-          {Array.from({ length: total }, (_, i) => (
-            <span
-              key={i}
-              className="wl-steps__seg"
-              data-done={i < step ? "true" : undefined}
-              data-current={i === step ? "true" : undefined}
-            />
-          ))}
-        </div>
-      )}
+    <div className="min-h-dvh desktop:flex">
+      {header(enhanced ? step : null)}
+      <div className="flex min-w-0 flex-1 flex-col px-5 pt-6 pb-10 tablet:px-10 desktop:px-20 desktop:pt-14">
+        <form
+          ref={formRef}
+          action={formProps.action}
+          onSubmit={onSubmit}
+          onKeyDown={onKeyDown}
+          noValidate
+          className="flex max-w-150 flex-col"
+        >
+          <FormBusy formRef={formRef} />
 
-      <form
-        ref={formRef}
-        action={formProps.action}
-        onSubmit={onSubmit}
-        onKeyDown={onKeyDown}
-        noValidate
-        className="mt-6"
-      >
-        <FormBusy formRef={formRef} />
-
-        <fieldset {...stepProps(0)}>
-          {stepHeading(0)}
-          {summary(0)}
-          <Field
-            label="Your name"
-            hint={
-              signedIn ? "From your Wideline account." : "As it appears on your ID or passport."
-            }
-            error={shown.name}
-          >
-            {(p) =>
-              signedIn ? (
-                <input {...p} readOnly value={signedIn.name} className="wl-input" />
-              ) : (
-                <input
-                  {...p}
-                  name="name"
-                  required
-                  maxLength={120}
-                  autoComplete="name"
-                  className="wl-input"
-                />
-              )
-            }
-          </Field>
-          <Field
-            label="Email"
-            hint={
-              signedIn
-                ? "Your scout profile is added to this account."
-                : "We send your confirmation link and our decision here."
-            }
-            error={shown.email}
-          >
-            {(p) =>
-              signedIn ? (
-                <input {...p} type="email" readOnly value={signedIn.email} className="wl-input" />
-              ) : (
-                <input
-                  {...p}
-                  type="email"
-                  name="email"
-                  required
-                  autoComplete="email"
-                  className="wl-input"
-                />
-              )
-            }
-          </Field>
-          <Field
-            label="Mobile number"
-            hint="South African numbers can start with 0, for example 082 123 4567. Other numbers start with + and the country code."
-            error={shown.phone}
-          >
-            {(p) => (
-              <input
-                {...p}
-                type="tel"
-                name="phone"
-                required
-                autoComplete="tel"
-                inputMode="tel"
-                className="wl-input"
-              />
+          <fieldset {...stepProps(0)}>
+            {stepHeading(
+              0,
+              "Use your name as it appears on your ID. We check it before you can review matches.",
             )}
-          </Field>
-          {buttons(0)}
-        </fieldset>
-
-        <fieldset {...stepProps(1)}>
-          {stepHeading(1)}
-          {summary(1)}
-          <p className="body text-ink-muted">
-            We use your ID or passport number once, to check that each person registers only once.
-            We keep only a check value made from it, never the number itself.
-          </p>
-          <fieldset
-            className="wl-field"
-            aria-describedby={docError ? "register-doc-error" : undefined}
-            data-invalid={docError ? "true" : undefined}
-          >
-            <legend className="label">Document</legend>
-            <div className="mt-1 flex flex-col gap-3">
-              {(
-                [
-                  ["sa_id", "South African ID", "13 digits"],
-                  ["passport", "Passport", "From any country"],
-                ] as const
-              ).map(([value, label, hint]) => (
-                <label key={value} className="wl-decision__choice body">
-                  <input
-                    type="radio"
-                    name="idDocumentType"
-                    value={value}
-                    required
-                    onChange={() => chooseDocType(value)}
-                  />
-                  <span className="min-w-0">
-                    <span className="block">{label}</span>
-                    <span className="caption block text-ink-muted">{hint}</span>
-                  </span>
-                  <Check {...iconProps} />
-                </label>
-              ))}
-            </div>
-            {docError && <FieldErrorText id="register-doc-error" message={docError} />}
-          </fieldset>
-          <Field
-            label={numberLabel}
-            hint={
-              <span className="wl-inline-status">
-                <LockKeyhole {...iconProps} />
-                We keep only a check value, never the number.
-              </span>
-            }
-            error={shown.idNumber}
-          >
-            {(p) => (
-              <input
-                {...p}
-                ref={numberRef}
-                name="idNumber"
-                required
-                autoComplete="off"
-                spellCheck={false}
-                {...(docType === "sa_id"
-                  ? { inputMode: "numeric" as const, maxLength: 13 }
-                  : docType === "passport"
-                    ? { autoCapitalize: "characters", maxLength: 24 }
-                    : { maxLength: 24 })}
-                className="wl-input"
-              />
-            )}
-          </Field>
-          {(!enhanced || docType === "passport") && (
+            {summary(0)}
             <Field
-              label={
-                enhanced
-                  ? "Country that issued your passport"
-                  : "Country that issued your passport (passports only)"
+              label="Your name"
+              hint={
+                signedIn ? "From your Wideline account." : "As it appears on your ID or passport."
               }
-              error={shown.idCountry}
+              error={shown.name}
+            >
+              {(p) =>
+                signedIn ? (
+                  <input {...p} readOnly value={signedIn.name} className={INPUT} />
+                ) : (
+                  <input
+                    {...p}
+                    name="name"
+                    required
+                    maxLength={120}
+                    autoComplete="name"
+                    className={INPUT}
+                  />
+                )
+              }
+            </Field>
+            <fieldset
+              className="wl-field m-0 border-0 p-0"
+              aria-describedby={docError ? "register-doc-error" : undefined}
+              data-invalid={docError ? "true" : undefined}
+            >
+              <legend className="wl-field__label mb-1.5">Document</legend>
+              <div className="flex flex-col gap-3">
+                {(
+                  [
+                    ["sa_id", "South African ID", "13 digits"],
+                    ["passport", "Passport", "From any country"],
+                  ] as const
+                ).map(([value, label, hint]) => (
+                  <label key={value} className="wl-decision__choice">
+                    <input
+                      type="radio"
+                      name="idDocumentType"
+                      value={value}
+                      required
+                      onChange={() => chooseDocType(value)}
+                    />
+                    <span className="min-w-0">
+                      <span className="block">{label}</span>
+                      <span className="wl-decision__hint">{hint}</span>
+                    </span>
+                    <Check {...iconProps} />
+                  </label>
+                ))}
+              </div>
+              {docError && <FieldErrorText id="register-doc-error" message={docError} />}
+            </fieldset>
+            <Field
+              label={numberLabel}
+              hint={
+                <span className="wl-inline-status">
+                  <LockKeyhole {...iconProps} />
+                  We keep only a check value, never the number.
+                </span>
+              }
+              error={shown.idNumber}
             >
               {(p) => (
-                <select {...p} name="idCountry" defaultValue="" className="wl-input">
-                  <option value="">Choose a country</option>
-                  {countries.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  {...p}
+                  ref={numberRef}
+                  name="idNumber"
+                  required
+                  autoComplete="off"
+                  spellCheck={false}
+                  {...(docType === "sa_id"
+                    ? { inputMode: "numeric" as const, maxLength: 13 }
+                    : docType === "passport"
+                      ? { autoCapitalize: "characters", maxLength: 24 }
+                      : { maxLength: 24 })}
+                  className={cx(INPUT, "wl-mono tracking-wide")}
+                />
               )}
             </Field>
-          )}
-          {buttons(1)}
-        </fieldset>
+            {(!enhanced || docType === "passport") && (
+              <Field
+                label={
+                  enhanced
+                    ? "Country that issued your passport"
+                    : "Country that issued your passport (passports only)"
+                }
+                error={shown.idCountry}
+              >
+                {(p) => (
+                  <select {...p} name="idCountry" defaultValue="" className={INPUT}>
+                    <option value="">Choose a country</option>
+                    {countries.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+            )}
+            {buttons(0)}
+          </fieldset>
 
-        <fieldset {...stepProps(2)}>
-          {stepHeading(2)}
-          {summary(2)}
-          <p className="body text-ink-muted">
-            You cannot review a match involving a club you work for, or a player you represent. Tell
-            us about them now. You can change this later on your scout profile.
-          </p>
-          <fieldset disabled={enhanced && none} hidden={enhanced && none}>
-            <legend className="body-strong mb-3">Clubs you work for or with</legend>
-            <div className="wl-repeat">
+          <fieldset {...stepProps(1)}>
+            {stepHeading(1)}
+            {summary(1)}
+            <Field
+              label="Email"
+              hint={
+                signedIn
+                  ? "Your scout profile is added to this account."
+                  : "We send your confirmation link and our decision here."
+              }
+              error={shown.email}
+            >
+              {(p) =>
+                signedIn ? (
+                  <input {...p} type="email" readOnly value={signedIn.email} className={INPUT} />
+                ) : (
+                  <input
+                    {...p}
+                    type="email"
+                    name="email"
+                    required
+                    autoComplete="email"
+                    className={INPUT}
+                  />
+                )
+              }
+            </Field>
+            <Field
+              label="Mobile number"
+              hint="South African numbers can start with 0, for example 082 123 4567. Other numbers start with + and the country code."
+              error={shown.phone}
+            >
+              {(p) => (
+                <input
+                  {...p}
+                  type="tel"
+                  name="phone"
+                  required
+                  autoComplete="tel"
+                  inputMode="tel"
+                  className={cx(INPUT, "wl-mono")}
+                />
+              )}
+            </Field>
+            {buttons(1)}
+          </fieldset>
+
+          <fieldset {...stepProps(2)}>
+            {stepHeading(
+              2,
+              "Tell us about any club you work for, coach at, or have family playing at, and any player you represent. You won't be asked to review their matches. This keeps every review fair.",
+            )}
+            {summary(2)}
+            <fieldset
+              disabled={enhanced && none}
+              hidden={enhanced && none}
+              className="m-0 border border-line bg-panel p-0"
+            >
+              <legend className="sr-only">Clubs you work for or with</legend>
+              <p
+                className="m-0 border-b border-line px-4 pt-3.5 pb-3 font-semibold"
+                aria-hidden="true"
+              >
+                Clubs you work for or with
+              </p>
               {clubs.map((key, i) => (
                 <div
                   key={key}
-                  className="wl-repeat__row"
+                  className="flex flex-col gap-2 border-b border-line bg-raised p-4 tablet:flex-row tablet:items-end tablet:gap-3"
                   role="group"
                   aria-label={`Club ${i + 1}`}
                   data-row={`club-${key}`}
                 >
-                  <Field label="Club name" error={shown[`clubName.${i}`]}>
+                  <Field label="Club name" error={shown[`clubName.${i}`]} className="flex-1">
                     {(p) => (
                       <input
                         {...p}
                         name="clubName"
                         maxLength={120}
                         autoComplete="off"
-                        className="wl-input"
+                        className={INPUT}
                       />
                     )}
                   </Field>
                   {enhanced && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={Trash2}
-                      aria-label={`Remove club ${i + 1}`}
+                    <RemoveRow
+                      label={`Remove club ${i + 1}`}
                       onClick={() => removeRow("club", i)}
-                    >
-                      Remove
-                    </Button>
+                    />
                   )}
                 </div>
               ))}
-            </div>
-            {enhanced && (
-              <AddRow count={clubs.length} label="Add a club" onAdd={() => addRow("club")} />
-            )}
-          </fieldset>
-          <fieldset disabled={enhanced && none} hidden={enhanced && none}>
-            <legend className="body-strong mb-3">Players you represent</legend>
-            <div className="wl-repeat">
+              {enhanced && (
+                <AddRow
+                  count={clubs.length}
+                  label="Add another club"
+                  onAdd={() => addRow("club")}
+                />
+              )}
+            </fieldset>
+            <fieldset
+              disabled={enhanced && none}
+              hidden={enhanced && none}
+              className="m-0 border border-line bg-panel p-0"
+            >
+              <legend className="sr-only">Players you represent</legend>
+              <p
+                className="m-0 border-b border-line px-4 pt-3.5 pb-3 font-semibold"
+                aria-hidden="true"
+              >
+                Players you represent
+              </p>
               {players.map((key, i) => (
                 <div
                   key={key}
-                  className="wl-repeat__row wl-repeat__row--pair"
+                  className="flex flex-col gap-2 border-b border-line bg-raised p-4 tablet:flex-row tablet:items-start tablet:gap-3"
                   role="group"
                   aria-label={`Player ${i + 1}`}
                   data-row={`player-${key}`}
                 >
-                  <Field label="Player name" error={shown[`playerName.${i}`]}>
+                  <Field label="Player name" error={shown[`playerName.${i}`]} className="flex-1">
                     {(p) => (
                       <input
                         {...p}
                         name="playerName"
                         maxLength={120}
                         autoComplete="off"
-                        className="wl-input"
+                        className={INPUT}
                       />
                     )}
                   </Field>
@@ -669,6 +798,7 @@ export function RegisterForm({
                     label="Their club (optional)"
                     hint="Helps us match the right player."
                     error={shown[`playerClub.${i}`]}
+                    className="flex-1"
                   >
                     {(p) => (
                       <input
@@ -676,101 +806,132 @@ export function RegisterForm({
                         name="playerClub"
                         maxLength={120}
                         autoComplete="off"
-                        className="wl-input"
+                        className={INPUT}
                       />
                     )}
                   </Field>
                   {enhanced && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={Trash2}
-                      aria-label={`Remove player ${i + 1}`}
+                    <RemoveRow
+                      label={`Remove player ${i + 1}`}
                       onClick={() => removeRow("player", i)}
-                    >
-                      Remove
-                    </Button>
+                      className="tablet:mt-5"
+                    />
                   )}
                 </div>
               ))}
+              {enhanced && (
+                <AddRow
+                  count={players.length}
+                  label="Add a player"
+                  onAdd={() => addRow("player")}
+                />
+              )}
+            </fieldset>
+            <div className="wl-field">
+              <label className="flex min-h-control-l cursor-pointer items-center gap-3 text-body">
+                <input
+                  type="checkbox"
+                  name="noAffiliations"
+                  value="yes"
+                  className="size-5 flex-none accent-ink"
+                  aria-invalid={noneError ? true : undefined}
+                  aria-describedby={noneError ? "register-none-error" : undefined}
+                  onChange={(e) => setNone(e.currentTarget.checked)}
+                />
+                I&apos;m not connected to any club or player.
+              </label>
+              {noneError && <FieldErrorText id="register-none-error" message={noneError} />}
             </div>
-            {enhanced && (
-              <AddRow count={players.length} label="Add a player" onAdd={() => addRow("player")} />
-            )}
+            {shown.affiliations && <Banner tone="danger">{shown.affiliations}</Banner>}
+            {buttons(2)}
           </fieldset>
-          <div className="wl-field">
-            <label className="wl-choice wl-choice--top body">
-              <input
-                type="checkbox"
-                name="noAffiliations"
-                value="yes"
-                aria-invalid={noneError ? true : undefined}
-                aria-describedby={noneError ? "register-none-error" : undefined}
-                onChange={(e) => setNone(e.currentTarget.checked)}
-              />
-              I have no clubs or players to declare.
-            </label>
-            {noneError && <FieldErrorText id="register-none-error" message={noneError} />}
-          </div>
-          {shown.affiliations && <Banner tone="danger">{shown.affiliations}</Banner>}
-          {buttons(2)}
-        </fieldset>
 
-        <fieldset {...stepProps(3)}>
-          {stepHeading(3)}
-          {summary(3)}
-          <p className="body text-ink-muted">
-            Match footage shows players, many of them children. These terms protect them. Read them
-            before you accept.
+          <fieldset {...stepProps(3)}>
+            {stepHeading(
+              3,
+              "Match footage shows players, many of them children. These terms protect them. Read them before you accept.",
+            )}
+            {summary(3)}
+            {terms}
+            <div className="wl-field">
+              <label
+                className={cx(
+                  "flex min-h-control-xl cursor-pointer items-center gap-3.5 rounded-control border px-3.5 py-2 font-semibold",
+                  termsError ? "border-rejected" : "border-ink",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  name="acceptTerms"
+                  value="yes"
+                  required
+                  className="size-6 flex-none accent-ink"
+                  aria-invalid={termsError ? true : undefined}
+                  aria-describedby={termsError ? "register-terms-error" : undefined}
+                />
+                I am 18 or older, and I accept the reviewer confidentiality terms.
+              </label>
+              {termsError && <FieldErrorText id="register-terms-error" message={termsError} />}
+            </div>
+            {buttons(3)}
+          </fieldset>
+
+          {/* Honeypot: hidden from people and screen readers; bots fill it in. */}
+          <div className="sr-only" aria-hidden="true">
+            <label htmlFor="register-website">Leave this empty</label>
+            <input id="register-website" name="website" tabIndex={-1} autoComplete="off" />
+          </div>
+        </form>
+
+        {!signedIn && (
+          <p className="m-0 mt-8 text-body-s text-ink-muted">
+            Already have an account?{" "}
+            <Link href="/login?next=/register" className="text-brand-text">
+              Sign in
+            </Link>
           </p>
-          {terms}
-          <div className="wl-field">
-            <label className="wl-choice wl-choice--top body">
-              <input
-                type="checkbox"
-                name="acceptTerms"
-                value="yes"
-                required
-                aria-invalid={termsError ? true : undefined}
-                aria-describedby={termsError ? "register-terms-error" : undefined}
-              />
-              I am 18 or older, and I accept the reviewer confidentiality terms.
-            </label>
-            {termsError && <FieldErrorText id="register-terms-error" message={termsError} />}
-          </div>
-          {buttons(3)}
-        </fieldset>
+        )}
+      </div>
+    </div>
+  );
+}
 
-        {/* Honeypot: hidden from people and screen readers; bots fill it in. */}
-        <div className="sr-only" aria-hidden="true">
-          <label htmlFor="register-website">Leave this empty</label>
-          <input id="register-website" name="website" tabIndex={-1} autoComplete="off" />
-        </div>
-      </form>
-
-      {!signedIn && (
-        <p className="caption mt-6">
-          Already have an account?{" "}
-          <Link href="/login?next=/register" className="text-pitch underline">
-            Sign in
-          </Link>
-        </p>
-      )}
-    </>
+function RemoveRow({
+  label,
+  onClick,
+  className,
+}: {
+  label: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="m"
+      icon={Trash2}
+      aria-label={label}
+      className={cx("self-end", className)}
+      onClick={onClick}
+    >
+      Remove
+    </Button>
   );
 }
 
 function AddRow({ count, label, onAdd }: { count: number; label: string; onAdd: () => void }) {
   if (count >= MAX_AFFILIATIONS_PER_TYPE) {
     return (
-      <p className="caption mt-3 text-ink-muted">
+      <p className="m-0 px-4 py-3 text-body-s text-ink-muted">
         You can add up to 30 here. Add more later on your scout profile.
       </p>
     );
   }
   return (
-    <Button variant="ghost" icon={Plus} className="mt-3" onClick={onAdd}>
-      {label}
-    </Button>
+    <div className="px-2 py-1.5">
+      <Button variant="ghost" icon={Plus} className="text-brand-text" onClick={onAdd}>
+        {label}
+      </Button>
+    </div>
   );
 }

@@ -23,7 +23,7 @@ export function SignOutButton({
   return (
     <Button
       variant={block ? "secondary" : "ghost"}
-      size={block ? "md" : "sm"}
+      size={block ? "m" : "s"}
       block={block}
       icon={LogOut}
       className={className}

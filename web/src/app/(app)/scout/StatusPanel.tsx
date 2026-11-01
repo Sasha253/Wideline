@@ -33,9 +33,7 @@ export function StatusPanel({
   suspensionReason: string | null;
 }) {
   const questions = (
-    <p className="body mt-2 text-ink-muted">
-      If you have questions, reply to the email we sent you.
-    </p>
+    <p className="mt-2 text-ink-muted">If you have questions, reply to the email we sent you.</p>
   );
 
   let title: string;
@@ -48,7 +46,7 @@ export function StatusPanel({
       body = `A Wideline admin checks every scout before they can review matches. We email ${email} when it is decided.`;
       content = (
         <>
-          <h3 className="label">What happens next</h3>
+          <h3 className="text-label">What happens next</h3>
           <ol className="wl-checklist mt-2">
             <ChecklistItem done={emailVerified}>Confirm your email</ChecklistItem>
             <ChecklistItem done={false}>A Wideline admin checks your details</ChecklistItem>
@@ -82,7 +80,7 @@ export function StatusPanel({
       body = reviewed ? `Decided on ${reviewed}.` : "";
       content = (
         <>
-          {rejectionReason && <p className="body">Reason: {rejectionReason}</p>}
+          {rejectionReason && <p>Reason: {rejectionReason}</p>}
           {questions}
         </>
       );
@@ -92,7 +90,7 @@ export function StatusPanel({
       body = `${suspended ? `Suspended on ${suspended}. ` : ""}You cannot claim or review matches. Your details and conflicts stay as they are.`;
       content = (
         <>
-          {suspensionReason && <p className="body">Reason: {suspensionReason}</p>}
+          {suspensionReason && <p>Reason: {suspensionReason}</p>}
           {questions}
         </>
       );
@@ -102,13 +100,17 @@ export function StatusPanel({
   return (
     <section aria-labelledby="scout-status-heading" className="wl-card mt-6">
       <ScoutStatusChip status={status} />
-      <div className="mt-2 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
-        <h2 id="scout-status-heading" tabIndex={-1} className="heading-2">
+      <div className="mt-2 flex flex-col gap-4 tablet:flex-row tablet:flex-wrap tablet:items-start tablet:justify-between">
+        <h2
+          id="scout-status-heading"
+          tabIndex={-1}
+          className="m-0 font-display text-heading-section uppercase stretch-wide"
+        >
           {title}
         </h2>
         {action}
       </div>
-      {body && <p className="body mt-2 text-ink-muted">{body}</p>}
+      {body && <p className="mt-2 text-ink-muted">{body}</p>}
       {content && <div className="mt-4">{content}</div>}
       {!emailVerified && status !== "rejected" && (
         <EmailConfirmation email={email} approved={status === "approved"} />
@@ -120,7 +122,7 @@ export function StatusPanel({
 function ChecklistItem({ done, children }: { done: boolean; children: React.ReactNode }) {
   const Icon = done ? CircleCheck : Circle;
   return (
-    <li className="body" data-done={done ? "true" : undefined}>
+    <li data-done={done ? "true" : undefined}>
       <Icon {...iconProps} />
       <span>
         <span className="sr-only">{done ? "Done: " : "To do: "}</span>
@@ -141,7 +143,7 @@ function EmailConfirmation({ email, approved }: { email: string; approved: boole
         <>
           <div className="wl-banner" role="status">
             <MailWarning {...iconProps} />
-            <p className="body">
+            <p>
               {approved
                 ? `Confirm your email. We sent a link to ${email}.`
                 : `Confirm your email. We sent a link to ${email}. We cannot approve your registration until you confirm it.`}

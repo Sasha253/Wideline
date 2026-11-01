@@ -6,8 +6,8 @@ import { requireAdminPassword, signInAsAdmin } from "./helpers/auth";
 // required widths (NFR24), with screenshot baselines and no axe violations
 // (NFR23, NFR27).
 
-// 13 since C06 added the Progress block.
-const COMPONENTS = 13;
+// 23 since the Floodlight gallery (core components, football components, App shell and Logo).
+const COMPONENTS = 23;
 // Hides the Next.js dev-tools badge, which only exists on the dev server.
 const SCREENSHOT_CSS = new URL("./helpers/screenshot.css", import.meta.url).pathname;
 const WIDTHS = [375, 768, 1280];
@@ -75,7 +75,7 @@ test.describe("signed in as a platform admin", () => {
     const surface = (theme: string) =>
       page
         .locator(`[data-gallery-theme="${theme}"]`)
-        .evaluate((el) => getComputedStyle(el).getPropertyValue("--surface").trim());
+        .evaluate((el) => getComputedStyle(el).getPropertyValue("--wl-color-bg-panel").trim());
     const [light, dark] = [await surface("light"), await surface("dark")];
     expect(light).not.toBe("");
     expect(light).not.toBe(dark);

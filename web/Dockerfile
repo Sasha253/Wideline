@@ -3,6 +3,7 @@
 #   dev     - local development; source is bind-mounted by docker compose
 #   web     - production Next.js server (standalone output)
 #   worker  - production transcode worker (needs ffmpeg)
+#   init    - production one-shot: migrations, bucket, seed (docker-compose.prod.yml)
 
 ARG NODE_VERSION=24
 
@@ -56,3 +57,17 @@ COPY --from=build /app/src ./src
 COPY package.json tsconfig.json ./
 USER app
 CMD ["node", "--import", "tsx", "src/worker/index.ts"]
+
+# The worker image plus the Prisma schema, migrations and scripts. On PATH so
+# the seed command in prisma.config.ts (tsx prisma/seed.ts) resolves.
+FROM worker AS init
+ENV PATH=/app/node_modules/.bin:$PATH
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+COPY scripts ./scripts
+# The schema engine installed in deps matches that stage's (absent) OpenSSL;
+# fetch the one for this image now, since node_modules is read-only at runtime.
+USER root
+RUN prisma version
+USER app
+CMD ["sh", "-c", "prisma migrate deploy && tsx scripts/init-storage.ts"]

@@ -24,10 +24,10 @@ export function UndoDeparture({ playerId, until }: { playerId: string; until: st
       <input type="hidden" name="playerId" value={playerId} />
       <FormErrorBanner result={state} />
       {numberError && <Banner tone="danger">{numberError}</Banner>}
-      <SubmitButton variant="secondary" size="sm" icon={Undo2} pendingLabel="Undoing…">
+      <SubmitButton variant="secondary" size="s" icon={Undo2} pendingLabel="Undoing">
         Undo departure
       </SubmitButton>
-      <p className="caption text-ink-muted">You can undo this until {until}.</p>
+      <p className="text-body-s text-ink-muted">You can undo this until {until}.</p>
     </form>
   );
 }

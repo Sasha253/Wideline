@@ -15,7 +15,7 @@ export function DeleteTeam({ teamId, label }: { teamId: string; label: string })
       body="This removes the team. It has no players, matches or lineups, so nothing else changes."
       form={form}
       hidden={{ teamId }}
-      submit={{ label: "Delete team", pendingLabel: "Deleting…", variant: "danger" }}
+      submit={{ label: "Delete team", pendingLabel: "Deleting", variant: "danger" }}
     />
   );
 }

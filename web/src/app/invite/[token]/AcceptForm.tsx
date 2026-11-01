@@ -3,13 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
-  Field,
   FormBusy,
   FormErrorBanner,
   SubmitButton,
   useFocusFirstInvalid,
   useFormAction,
 } from "@/components/forms";
+import { TextField } from "@/components/ui/TextField";
 import type { ActionResult } from "@/lib/action-result";
 import { acceptInvitationAction, type AcceptResult } from "./actions";
 
@@ -41,7 +41,7 @@ export function AcceptForm(
         <FormBusy formRef={formRef} />
         <input type="hidden" name="token" value={props.token} />
         <FormErrorBanner result={result} />
-        <SubmitButton block pendingLabel="Joining…" className="justify-center">
+        <SubmitButton size="l" block pendingLabel="Joining…">
           {props.joinLabel}
         </SubmitButton>
       </form>
@@ -49,49 +49,39 @@ export function AcceptForm(
   }
 
   return (
-    <form ref={formRef} {...formProps} className="mt-6 flex flex-col gap-4" noValidate>
+    <form ref={formRef} {...formProps} className="mt-6 flex flex-col gap-5" noValidate>
       <FormBusy formRef={formRef} />
       <input type="hidden" name="token" value={props.token} />
-      <Field label="Email" hint="The email this invitation was sent to.">
-        {(p) => (
-          <input
-            {...p}
-            type="email"
-            readOnly
-            autoComplete="username"
-            value={props.email}
-            className="wl-input"
-          />
-        )}
-      </Field>
-      <Field label="Your name" error={err("name")}>
-        {(p) => (
-          <input
-            {...p}
-            name="name"
-            autoComplete="name"
-            required
-            maxLength={120}
-            defaultValue={props.name}
-            className="wl-input"
-          />
-        )}
-      </Field>
-      <Field label="Password" hint="At least 12 characters." error={err("password")}>
-        {(p) => (
-          <input
-            {...p}
-            type="password"
-            name="password"
-            autoComplete="new-password"
-            required
-            minLength={12}
-            className="wl-input"
-          />
-        )}
-      </Field>
+      {/* Read-only, not disabled, so it can be copied (Floodlight input rule). */}
+      <TextField
+        label="Email"
+        type="email"
+        readOnly
+        autoComplete="username"
+        value={props.email}
+        help="The email this invitation was sent to."
+      />
+      <TextField
+        label="Your name"
+        name="name"
+        autoComplete="name"
+        required
+        maxLength={120}
+        defaultValue={props.name}
+        error={err("name")}
+      />
+      <TextField
+        label="Password"
+        type="password"
+        name="password"
+        autoComplete="new-password"
+        required
+        minLength={12}
+        help="At least 12 characters."
+        error={err("password")}
+      />
       <FormErrorBanner result={result} />
-      <SubmitButton block pendingLabel="Creating account…" className="justify-center">
+      <SubmitButton size="l" block pendingLabel="Creating account…">
         Create account and join
       </SubmitButton>
     </form>

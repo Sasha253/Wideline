@@ -1,20 +1,26 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { StateMessage } from "@/components/ui/StateMessage";
 
 /**
- * A page that failed to load (docs/build/design/D02.md, Surface 6). Focus moves to the
- * heading on mount, so screen readers hear it. `digest` is the Next.js error reference.
+ * A page that failed to load (Floodlight, "State · error"): what happened, that nothing was
+ * lost, "Try again", and a reference code for support. Focus moves to the heading on mount,
+ * so screen readers hear it. `digest` is the Next.js error reference.
  */
 export function ErrorState({
   reset,
   digest,
+  what = "this page",
   headingLevel = 1,
   focusOnMount = true,
 }: {
   reset: () => void;
   digest?: string;
+  /** What failed to load, for the title: "the squad" gives "We couldn't load the squad". */
+  what?: string;
   headingLevel?: 1 | 2;
   /** Off only where the state is one example among others (the template showcase). */
   focusOnMount?: boolean;
@@ -23,32 +29,19 @@ export function ErrorState({
   useEffect(() => {
     if (focusOnMount) heading.current?.focus();
   }, [focusOnMount]);
-  const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
-    <div className="max-w-prose py-12">
-      <Heading
-        ref={heading}
-        tabIndex={-1}
-        className={headingLevel === 1 ? "heading-1 outline-none" : "heading-2 outline-none"}
-      >
-        Something went wrong
-      </Heading>
-      <p className="body-lg mt-3 text-ink-muted">
-        We could not load this page. Try again, or come back in a few minutes.
-      </p>
-      {digest && (
-        <p className="caption mt-3 text-ink-muted">
-          Reference: <span className="data">{digest}</span>
-        </p>
-      )}
-      <div className="wl-row mt-6">
-        <Button variant="primary" onClick={() => reset()}>
+    <StateMessage
+      kind="error"
+      headingLevel={headingLevel}
+      headingRef={heading}
+      title={`We couldn't load ${what}`}
+      body="Something went wrong on our side. Nothing you entered has been lost."
+      action={
+        <Button variant="secondary" icon={RefreshCw} onClick={() => reset()}>
           Try again
         </Button>
-        <ButtonLink variant="secondary" href="/">
-          Go to your home page
-        </ButtonLink>
-      </div>
-    </div>
+      }
+      code={digest ? `Reference ${digest}` : undefined}
+    />
   );
 }

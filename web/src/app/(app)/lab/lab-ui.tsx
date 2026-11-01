@@ -29,7 +29,9 @@ export function DetectorVersion({ modelVersion }: { modelVersion: string | null 
   if (!parts) return <Missing />;
   return (
     <span className="wl-row">
-      <span className="data break-all text-ink-muted">{parts.detector}</span>
+      <span className="font-mono text-mono-m tabular-nums break-all text-ink-muted">
+        {parts.detector}
+      </span>
       {isSynthetic(modelVersion) && <SyntheticChip />}
     </span>
   );
@@ -38,7 +40,9 @@ export function DetectorVersion({ modelVersion }: { modelVersion: string | null 
 /** "Small sample · 4 tagged" (or "· 2 matches"), in warning, under a rate (Q-048). */
 export function SmallSample({ text }: { text: string }) {
   return (
-    <span className="wl-stat__sample wl-stat__sample--small caption">Small sample · {text}</span>
+    <span className="wl-stat__sample wl-stat__sample--small text-body-s">
+      Small sample · {text}
+    </span>
   );
 }
 
@@ -65,8 +69,8 @@ export function RateCell({
   if (rate === null) return <Missing />;
   return (
     <span className="inline-flex flex-col items-end">
-      <span className="data">{rate}</span>
-      <span className="caption text-ink-muted">
+      <span className="font-mono text-mono-m tabular-nums">{rate}</span>
+      <span className="text-body-s text-ink-muted">
         {matched} of {total}
       </span>
       {small && <SmallSample text={small} />}
@@ -114,7 +118,7 @@ export function JobAttempt({
         : null;
   if (n === null) return null;
   return (
-    <span className="caption text-ink-muted">
+    <span className="text-body-s text-ink-muted">
       attempt {n} of {job.maxAttempts}
     </span>
   );
@@ -127,12 +131,12 @@ export function ReadyIn({ seconds }: { seconds: number | null }) {
     return (
       <span className="wl-inline-status wl-inline-status--warn">
         <Clock {...iconProps} />
-        <span className="data">{formatEta(seconds)}</span>
+        <span className="font-mono text-mono-m tabular-nums">{formatEta(seconds)}</span>
         <span className="sr-only">, over the 4 h target</span>
       </span>
     );
   }
-  return <span className="data">{formatEta(seconds)}</span>;
+  return <span className="font-mono text-mono-m tabular-nums">{formatEta(seconds)}</span>;
 }
 
 /** The recall table of one match or one model version, with phone cards. */
@@ -176,7 +180,7 @@ export function RecallTable({
       rows={rows.map((r) => ({
         id: r.type,
         cells: [
-          <span key="type" className="body-strong">
+          <span key="type" className="font-semibold">
             {ROW_LABELS[r.type]}
           </span>,
           ...(withMatches ? [<span key="m">{matchesPerRow![r.type]}</span>] : []),
@@ -195,26 +199,34 @@ export function RecallTable({
         return (
           <li key={r.type} className="wl-card flex flex-col gap-2">
             <div className="flex items-start justify-between gap-3">
-              <span className="body-strong">{ROW_LABELS[r.type]}</span>
+              <span className="font-semibold">{ROW_LABELS[r.type]}</span>
               {target(r)}
             </div>
             <dl className="wl-facts">
               {withMatches && (
                 <>
-                  <dt className="label">Matches</dt>
-                  <dd className="data">{matchesPerRow![r.type]}</dd>
+                  <dt className="text-label">Matches</dt>
+                  <dd className="font-mono text-mono-m tabular-nums">{matchesPerRow![r.type]}</dd>
                 </>
               )}
-              <dt className="label">Tagged</dt>
-              <dd className="data">{r.tagged}</dd>
-              <dt className="label">Detected</dt>
-              <dd className="data">{notYet ? <Missing /> : r.detected}</dd>
-              <dt className="label">Recall</dt>
-              <dd className="data">{rateCard(r.matched, r.tagged)}</dd>
-              <dt className="label">Precision</dt>
-              <dd className="data">{rateCard(r.matched, r.detected)}</dd>
-              <dt className="label">Auto-accepted recall</dt>
-              <dd className="data">{rateCard(r.autoMatched, r.tagged)}</dd>
+              <dt className="text-label">Tagged</dt>
+              <dd className="font-mono text-mono-m tabular-nums">{r.tagged}</dd>
+              <dt className="text-label">Detected</dt>
+              <dd className="font-mono text-mono-m tabular-nums">
+                {notYet ? <Missing /> : r.detected}
+              </dd>
+              <dt className="text-label">Recall</dt>
+              <dd className="font-mono text-mono-m tabular-nums">
+                {rateCard(r.matched, r.tagged)}
+              </dd>
+              <dt className="text-label">Precision</dt>
+              <dd className="font-mono text-mono-m tabular-nums">
+                {rateCard(r.matched, r.detected)}
+              </dd>
+              <dt className="text-label">Auto-accepted recall</dt>
+              <dd className="font-mono text-mono-m tabular-nums">
+                {rateCard(r.autoMatched, r.tagged)}
+              </dd>
             </dl>
             {flag && <SmallSample text={flag} />}
           </li>
@@ -226,9 +238,11 @@ export function RecallTable({
 
 /** The tolerance and population note under a recall table. */
 export function ToleranceNote({ thresholds }: { thresholds: AutoAcceptThresholds }) {
-  const t = (n: number) => <span className="data">{n.toFixed(2)}</span>;
+  const t = (n: number) => (
+    <span className="font-mono text-mono-m tabular-nums">{n.toFixed(2)}</span>
+  );
   return (
-    <p className="caption mt-3 text-ink-muted">
+    <p className="text-body-s mt-3 text-ink-muted">
       A detection counts when it is the same type and within 2 s of a tag (goals and shots) or 1 s
       (touches), each tag matched once. Recall counts every detection of the latest CV run, whatever
       its review status. Auto-accepted recall counts only detections at or above the auto-accept

@@ -8,6 +8,13 @@ vi.mock("@/server/auth/session", () => ({
   DEV_ROLES: ["platform_admin"],
   requirePageRole,
 }));
+// The App shell block renders the real shell parts, which read the router.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/dev/components",
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
+vi.mock("@/app/(app)/organisations/actions", () => ({ switchOrganisation: vi.fn() }));
+vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 
 const { default: ComponentsPage } = await import("@/app/dev/components/page");
 
@@ -31,8 +38,9 @@ describe("/dev/components access", () => {
     expect(out).toContain("<h1");
     expect(out).toContain('data-gallery-theme="light"');
     expect(out).toContain('data-gallery-theme="dark"');
-    // 13 blocks per theme, with C06's Progress.
-    expect(out.match(/data-component="/g)).toHaveLength(26);
+    // 23 blocks per theme since the Floodlight gallery (core, football components, App shell
+    // and Logo).
+    expect(out.match(/data-component="/g)).toHaveLength(46);
   });
 });
 

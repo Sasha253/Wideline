@@ -12,7 +12,7 @@ export const metadata = { title: "States" };
 function Example({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="mt-8">
-      <h2 id={id} className="heading-2">
+      <h2 id={id} className="font-display text-heading-section stretch-wide uppercase">
         {title}
       </h2>
       <div className="wl-card mt-4">{children}</div>

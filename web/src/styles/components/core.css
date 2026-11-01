@@ -1,0 +1,336 @@
+/* Wideline component styles · core (Floodlight): Button, IconButton, Kbd, the spinner, StatusChip, ConsentBadge, TeamMarker,
+   ConfidenceMeter, fields (TextField, Select, SearchSelect and the raw .wl-input), choices, Tabs, SegmentedFilter, Toast, Modal / Sheet /
+   ConfirmDialog and the raw .wl-dialog.
+   Owner: the core agent (docs/design-handoff/IMPLEMENTATION.md). Source: design/Wideline Components.dc.html.
+   --wl-* tokens only (no hex, no rgb). Sizes the design draws in px that have no token (icon sizes, chip heights, paddings) are written in px.
+   The focus ring is the global :focus-visible rule in wideline-tokens.css; fields draw their own (focus border plus a 1px ring). */
+.wl-row { display: flex; flex-wrap: wrap; gap: var(--wl-space-2); align-items: center; }
+.wl-stack { display: flex; flex-direction: column; gap: var(--wl-space-3); }
+.wl-num, .wl-mono { font-variant-numeric: tabular-nums; }
+.wl-mono { font-family: var(--wl-font-mono); }
+
+/* Spinner: the loader icon turns; reduced motion zeroes the duration, so it stops. */
+.wl-spin { animation: wl-spin 900ms linear infinite; }
+@keyframes wl-spin { to { transform: rotate(360deg); } }
+
+/* ---------- Button ---------- */
+.wl-btn { --wl-btn-icon: 16px; display: inline-flex; align-items: center; justify-content: center; gap: var(--wl-space-2); box-sizing: border-box; height: var(--wl-control-m); padding: 0 14px; border-radius: var(--wl-radius-1); border: 1px solid transparent; background: transparent; color: var(--wl-color-ink); font: 600 13.5px/1 var(--wl-font-ui); white-space: nowrap; text-decoration: none; cursor: pointer; user-select: none; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter), border-color var(--wl-duration-fast) var(--wl-ease-enter), color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-btn svg { width: var(--wl-btn-icon); height: var(--wl-btn-icon); flex: none; }
+.wl-btn--s, .wl-btn--sm { --wl-btn-icon: 15px; height: var(--wl-control-s); padding: 0 10px; font-size: 13px; }
+.wl-btn--m { --wl-btn-icon: 16px; height: var(--wl-control-m); padding: 0 14px; font-size: 13.5px; }
+.wl-btn--l { --wl-btn-icon: 18px; height: var(--wl-control-l); padding: 0 16px; font-size: 14.5px; }
+.wl-btn--xl { --wl-btn-icon: 20px; height: var(--wl-control-xl); padding: 0 20px; font-size: 16px; }
+.wl-btn--primary { background: var(--wl-color-brand); color: var(--wl-color-on-brand); border-color: var(--wl-color-brand-edge); }
+.wl-btn--primary:hover { background: var(--wl-color-brand-hover); }
+.wl-btn--primary:active { background: var(--wl-color-brand-press); }
+.wl-btn--secondary { border-color: var(--wl-color-border-control); }
+.wl-btn--secondary:hover, .wl-btn--ghost:hover { background: var(--wl-color-bg-raised); }
+.wl-btn--secondary:active, .wl-btn--ghost:active { background: var(--wl-color-bg-selected); }
+.wl-btn--danger { background: var(--wl-color-rejected); color: var(--wl-color-on-status); border-color: var(--wl-color-rejected); }
+.wl-btn--danger:hover { background: color-mix(in srgb, var(--wl-color-rejected) 86%, var(--wl-color-ink)); }
+.wl-btn--danger:active { background: color-mix(in srgb, var(--wl-color-rejected) 74%, var(--wl-color-ink)); }
+/* Disabled: raised fill, ink-disabled, line border (ghost keeps no fill and no border). aria-disabled keeps it focusable. */
+.wl-btn[aria-disabled="true"], .wl-btn:disabled, .wl-btn[aria-disabled="true"]:hover, .wl-btn:disabled:hover { background: var(--wl-color-bg-raised); color: var(--wl-color-ink-disabled); border-color: var(--wl-color-line); cursor: not-allowed; }
+.wl-btn--ghost[aria-disabled="true"], .wl-btn--ghost:disabled, .wl-btn--ghost[aria-disabled="true"]:hover, .wl-btn--ghost:disabled:hover { background: transparent; border-color: transparent; }
+/* Loading: the spinner replaces the icon and the label becomes "Saving"; colours stay. */
+.wl-btn[aria-busy="true"] { cursor: progress; }
+.wl-btn--primary[aria-busy="true"]:hover { background: var(--wl-color-brand); }
+.wl-btn--danger[aria-busy="true"]:hover { background: var(--wl-color-rejected); }
+.wl-btn--secondary[aria-busy="true"]:hover, .wl-btn--ghost[aria-busy="true"]:hover { background: transparent; }
+
+/* A keyboard key. Plain inside a button, on a sunken chip elsewhere (dialog footers, menus). */
+.wl-kbd { display: inline-block; padding: 3px 5px; border-radius: var(--wl-radius-1); background: var(--wl-color-bg-sunken); color: var(--wl-color-ink); font: 600 10.5px/1 var(--wl-font-mono); }
+.wl-btn .wl-kbd { padding: 0; background: none; color: inherit; font-weight: 700; }
+.wl-btn--secondary .wl-kbd, .wl-btn--ghost .wl-kbd { color: var(--wl-color-ink-muted); }
+.wl-btn[aria-disabled="true"] .wl-kbd, .wl-btn:disabled .wl-kbd { color: inherit; }
+
+/* IconButton: icon-only secondary (control border) or ghost; same heights as Button. */
+.wl-iconbtn { --wl-btn-icon: 16px; display: inline-grid; place-items: center; flex: none; box-sizing: border-box; width: var(--wl-control-m); height: var(--wl-control-m); padding: 0; border-radius: var(--wl-radius-1); border: 1px solid var(--wl-color-border-control); background: transparent; color: var(--wl-color-ink); cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-iconbtn svg { width: var(--wl-btn-icon); height: var(--wl-btn-icon); }
+.wl-iconbtn:hover { background: var(--wl-color-bg-raised); }
+.wl-iconbtn:active { background: var(--wl-color-bg-selected); }
+.wl-iconbtn--ghost { border-color: transparent; }
+.wl-iconbtn--s { --wl-btn-icon: 15px; width: var(--wl-control-s); height: var(--wl-control-s); }
+.wl-iconbtn--l { --wl-btn-icon: 18px; width: var(--wl-control-l); height: var(--wl-control-l); }
+.wl-iconbtn--xl { --wl-btn-icon: 20px; width: var(--wl-control-xl); height: var(--wl-control-xl); }
+.wl-iconbtn--ok { color: var(--wl-color-confirmed); }
+.wl-iconbtn--no { color: var(--wl-color-rejected); }
+.wl-iconbtn--muted { color: var(--wl-color-ink-muted); }
+.wl-iconbtn[aria-disabled="true"], .wl-iconbtn:disabled, .wl-iconbtn[aria-disabled="true"]:hover, .wl-iconbtn:disabled:hover { background: transparent; color: var(--wl-color-ink-disabled); border-color: var(--wl-color-line); cursor: not-allowed; }
+.wl-iconbtn--ghost[aria-disabled="true"], .wl-iconbtn--ghost:disabled { border-color: transparent; }
+.wl-iconbtn[aria-busy="true"] { cursor: progress; }
+
+/* Below 768px every control is at least 44px: s and m grow to l; block buttons go full width and a block primary to xl. */
+@media (max-width: 767px) {
+  .wl-btn { min-height: var(--wl-control-l); }
+  .wl-btn:not(.wl-btn--xl) { --wl-btn-icon: 18px; padding: 0 16px; font-size: 14.5px; }
+  .wl-btn--block { width: 100%; }
+  .wl-btn--block.wl-btn--primary { --wl-btn-icon: 20px; min-height: var(--wl-control-xl); padding: 0 20px; font-size: 16px; }
+  .wl-iconbtn:not(.wl-iconbtn--xl) { --wl-btn-icon: 18px; width: var(--wl-control-l); height: var(--wl-control-l); }
+}
+
+/* ---------- StatusChip and ConsentBadge chips ---------- */
+/* Not interactive: no hover, no focus. Shape carries meaning: solid settled, dashed waiting on a person, thin outline waiting on the
+   system, struck through a rejected event. */
+.wl-chip { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; height: 26px; padding: 0 10px 0 8px; border-radius: var(--wl-radius-1); border: 1px solid transparent; font: 600 12.5px/1 var(--wl-font-ui); white-space: nowrap; vertical-align: middle; }
+.wl-chip svg { width: 15px; height: 15px; flex: none; }
+.wl-chip--s { gap: 4px; height: 20px; padding: 0 7px 0 5px; font-size: 11.5px; }
+.wl-chip--s svg { width: 12px; height: 12px; }
+.wl-chip--ok { background: var(--wl-color-confirmed); color: var(--wl-color-on-status); border-color: var(--wl-color-confirmed); }
+.wl-chip--ok-subtle { background: var(--wl-color-confirmed-subtle); color: var(--wl-color-confirmed); border-color: var(--wl-color-confirmed-subtle); }
+.wl-chip--warn { background: transparent; color: var(--wl-color-pending); border: var(--wl-border-pending) dashed var(--wl-color-pending); }
+.wl-chip--system { background: transparent; color: var(--wl-color-ink); border-color: var(--wl-color-border-control); }
+.wl-chip--danger { background: var(--wl-color-rejected-subtle); color: var(--wl-color-rejected); border-color: var(--wl-color-rejected-subtle); }
+.wl-chip--neutral { background: transparent; color: var(--wl-color-ink-muted); border-color: var(--wl-color-line-strong); }
+.wl-chip--new { background: var(--wl-color-brand-subtle); color: var(--wl-color-ink); border-color: var(--wl-color-brand-text); }
+.wl-chip__num { font: 600 12px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+.wl-chip--s .wl-chip__num { font-size: 11px; }
+.wl-chip__struck { text-decoration: line-through; }
+/* The 20px status disc of review event rows: icon only, the word is its accessible name and tooltip. */
+.wl-chip--disc { justify-content: center; width: 20px; height: 20px; padding: 0; gap: 0; border-radius: var(--wl-radius-full); border-width: var(--wl-border-pending); }
+.wl-chip--disc svg { width: 12px; height: 12px; }
+.wl-chip--disc.wl-chip--ok { color: var(--wl-color-bg-panel); }
+
+/* ConsentBadge: the icon-only table form and the dated hero form. */
+.wl-consent-icon--ok, .wl-consent-icon--ok-subtle { --wl-consent: var(--wl-color-confirmed); }
+.wl-consent-icon--warn { --wl-consent: var(--wl-color-pending); }
+.wl-consent-icon--danger { --wl-consent: var(--wl-color-rejected); }
+.wl-consent-icon--neutral { --wl-consent: var(--wl-color-ink-muted); }
+.wl-consent-icon { display: inline-flex; flex: none; color: var(--wl-consent); vertical-align: middle; }
+.wl-consent-icon svg { width: 20px; height: 20px; }
+.wl-consent-dated { display: inline-flex; align-items: center; gap: var(--wl-space-2); color: var(--wl-color-ink-muted); font: 400 12.5px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wl-consent-dated svg { width: 15px; height: 15px; flex: none; color: var(--wl-consent); }
+.wl-consent-dated__state { color: var(--wl-consent); font: 600 12.5px/1 var(--wl-font-ui); }
+
+/* ---------- TeamMarker ---------- */
+.wl-team { display: inline-flex; align-items: center; gap: var(--wl-space-2); font-weight: 500; }
+.wl-team__mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: var(--wl-radius-1); font: 800 10.5px/1 var(--wl-font-display); font-stretch: var(--wl-stretch-wide); }
+.wl-team__mark--16 { width: 16px; height: 16px; font-size: 9px; }
+.wl-team__mark--24 { width: 24px; height: 24px; font-size: 12px; }
+.wl-team__mark--32 { width: 32px; height: 32px; font-size: 15px; }
+.wl-team--home .wl-team__mark { background: var(--wl-color-home); color: var(--wl-color-on-home); }
+.wl-team--away .wl-team__mark { background: var(--wl-color-away); color: var(--wl-color-on-away); }
+
+/* ---------- ConfidenceMeter ---------- */
+.wl-conf { display: inline-flex; align-items: center; gap: var(--wl-space-2); white-space: nowrap; }
+.wl-conf__track { display: inline-flex; gap: 1px; }
+.wl-conf__seg { width: 3px; height: 10px; background: var(--wl-color-line-strong); }
+.wl-conf__seg--on { background: var(--wl-color-ink); }
+.wl-conf__value { color: var(--wl-color-ink); font: 600 12.5px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+.wl-conf--low .wl-conf__seg--on { background: var(--wl-color-pending); }
+.wl-conf--low .wl-conf__value { color: var(--wl-color-pending); }
+.wl-conf__low { display: inline-flex; align-items: center; gap: 3px; color: var(--wl-color-pending); font: 600 11.5px/1 var(--wl-font-ui); }
+.wl-conf__low svg { width: 12px; height: 12px; flex: none; }
+.wl-conf__manual { display: inline-flex; align-items: center; gap: 5px; color: var(--wl-color-ink-muted); font: 500 12px/1 var(--wl-font-ui); }
+.wl-conf__manual svg { width: 13px; height: 13px; flex: none; }
+.wl-conf--large { display: flex; gap: var(--wl-space-3); max-width: 440px; }
+.wl-conf__label { color: var(--wl-color-ink-muted); font: 400 13px/1 var(--wl-font-ui); }
+.wl-conf--large .wl-conf__track { flex: 1; gap: 2px; }
+.wl-conf--large .wl-conf__seg { flex: 1; width: auto; height: 8px; }
+.wl-conf--large .wl-conf__value { font-size: 15px; }
+.wl-conf__low--chip { gap: 5px; box-sizing: border-box; height: 22px; padding: 0 8px 0 6px; border: var(--wl-border-pending) dashed var(--wl-color-pending); border-radius: var(--wl-radius-1); font-size: 12px; }
+.wl-conf__low--chip svg { width: 13px; height: 13px; }
+.wl-conf--large .wl-conf__manual { color: var(--wl-color-ink); font-size: 13px; }
+
+/* ---------- Fields: TextField, TextArea, Select, SearchSelect, and the raw .wl-input of the Field render prop ---------- */
+.wl-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wl-field__label { color: var(--wl-color-ink); font: 600 12.5px/1.2 var(--wl-font-ui); }
+.wl-field--disabled .wl-field__label { color: var(--wl-color-ink-disabled); }
+.wl-field__hint, .wl-field__error { display: flex; align-items: flex-start; gap: 5px; margin: 0; font: 400 12px/1.3 var(--wl-font-ui); }
+.wl-field__hint { color: var(--wl-color-ink-muted); }
+.wl-field__error { color: var(--wl-color-rejected); }
+.wl-field__error svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+
+.wl-input, .wl-control { box-sizing: border-box; width: 100%; height: var(--wl-control-m); border-radius: var(--wl-radius-1); border: 1px solid var(--wl-color-border-control); background: var(--wl-color-bg-raised); color: var(--wl-color-ink); transition: border-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-input { padding: 0 10px; font: 400 14px/1 var(--wl-font-ui); }
+.wl-input::placeholder, .wl-control__input::placeholder { color: var(--wl-color-ink-muted); opacity: 1; }
+.wl-input:hover, .wl-control:hover { border-color: var(--wl-color-ink); }
+.wl-input:focus, .wl-input:focus-visible { outline: none; border-color: var(--wl-color-focus); box-shadow: 0 0 0 1px var(--wl-color-focus); }
+.wl-control:focus-within { border-color: var(--wl-color-focus); box-shadow: 0 0 0 1px var(--wl-color-focus); }
+.wl-input[aria-invalid="true"]:not(:focus), .wl-control[data-invalid]:not(:focus-within) { border-color: var(--wl-color-rejected); box-shadow: 0 0 0 1px var(--wl-color-rejected); }
+.wl-input:disabled, .wl-field--disabled .wl-control { border-color: var(--wl-color-line); background: var(--wl-color-bg-panel); color: var(--wl-color-ink-disabled); box-shadow: none; cursor: not-allowed; }
+.wl-input[readonly] { color: var(--wl-color-ink-muted); }
+textarea.wl-input { height: auto; min-height: 96px; padding: var(--wl-space-2) 10px; line-height: 1.45; resize: vertical; }
+.wl-input.wl-mono, .wl-control__input.wl-mono { font-family: var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+
+/* The wrapper of the components' fields: draws the box, so the trailing icon and the shirt-number prefix sit inside it. */
+.wl-control { position: relative; display: flex; align-items: center; gap: var(--wl-space-2); padding: 0 10px; }
+.wl-control__input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: 400 14px/1 var(--wl-font-ui); }
+.wl-control__input:focus, .wl-control__input:focus-visible { outline: none; }
+.wl-control__input:disabled { color: var(--wl-color-ink-disabled); cursor: not-allowed; }
+.wl-control__icon { display: inline-flex; flex: none; margin-left: auto; color: var(--wl-color-ink-muted); pointer-events: none; }
+.wl-control__icon svg { width: 16px; height: 16px; }
+.wl-field--disabled .wl-control__icon, .wl-field--disabled .wl-control__prefix { color: var(--wl-color-ink-disabled); }
+.wl-control__prefix { flex: none; color: var(--wl-color-ink-muted); font: 500 13px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+/* Select: the native select fills the box (so a click anywhere opens it); the chevron is drawn on top and lets clicks through. */
+.wl-control--select .wl-control__input { position: absolute; inset: 0; width: 100%; padding: 0 34px 0 10px; appearance: none; cursor: pointer; }
+.wl-control--select .wl-control__icon { position: relative; }
+select.wl-input option, .wl-control--select option { background: var(--wl-color-bg-raised); color: var(--wl-color-ink); }
+/* The macOS native menu is translucent, so page text blurs through behind the options.
+   Where the browser supports a customizable select, draw an opaque picker instead. */
+@supports (appearance: base-select) {
+  select.wl-input, select.wl-input::picker(select), .wl-control--select .wl-control__input, .wl-control--select .wl-control__input::picker(select) { appearance: base-select; }
+  select.wl-input { display: flex; align-items: center; }
+  .wl-control--select .wl-control__input { display: flex; align-items: center; }
+  .wl-control--select .wl-control__input::picker-icon { display: none; }
+  select.wl-input::picker-icon { color: var(--wl-color-ink-muted); }
+  select.wl-input::picker(select), .wl-control--select .wl-control__input::picker(select) { margin-top: var(--wl-space-1); padding: var(--wl-space-1); background: var(--wl-color-bg-raised); color: var(--wl-color-ink); border: 1px solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-2); }
+  select.wl-input option, .wl-control--select option { min-height: var(--wl-control-m); padding: 0 10px; border-radius: var(--wl-radius-1); }
+  select.wl-input option:hover, select.wl-input option:focus-visible, .wl-control--select option:hover, .wl-control--select option:focus-visible { background: var(--wl-color-bg-selected); outline: none; }
+  select.wl-input option::checkmark, .wl-control--select option::checkmark { color: var(--wl-color-ink); }
+  select.wl-input optgroup, .wl-control--select optgroup { color: var(--wl-color-ink-muted); font-weight: 600; }
+  select.wl-input optgroup option, .wl-control--select optgroup option { color: var(--wl-color-ink); font-weight: 400; }
+}
+
+/* SearchSelect's listbox popup. Selection is ink (a 2px inset), the active option the selected fill. */
+.wl-search-select { position: relative; }
+.wl-listbox { position: absolute; z-index: 40; top: calc(100% + var(--wl-space-1)); left: 0; right: 0; box-sizing: border-box; max-height: 280px; margin: 0; padding: var(--wl-space-1); overflow-y: auto; list-style: none; background: var(--wl-color-bg-raised); border: 1px solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-2); }
+.wl-listbox[hidden] { display: none; }
+.wl-listbox__option { display: flex; align-items: center; gap: var(--wl-space-2); min-height: var(--wl-control-m); padding: 0 10px; border-radius: var(--wl-radius-1); color: var(--wl-color-ink); font: 400 14px/1.2 var(--wl-font-ui); cursor: pointer; }
+.wl-listbox__option[data-active] { background: var(--wl-color-bg-selected); }
+.wl-listbox__option[aria-selected="true"] { font-weight: 600; box-shadow: inset 2px 0 0 var(--wl-color-ink); }
+.wl-listbox__option[aria-disabled="true"] { color: var(--wl-color-ink-disabled); cursor: not-allowed; }
+.wl-listbox__prefix { min-width: 2ch; color: var(--wl-color-ink-muted); font: 500 13px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.wl-listbox__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-listbox__hint { color: var(--wl-color-ink-muted); font-size: 12.5px; }
+.wl-listbox__empty { padding: var(--wl-space-2) 10px; color: var(--wl-color-ink-muted); font-size: 13px; }
+
+/* Radios and checkboxes: selection is ink, never lime. */
+.wl-choice { display: flex; align-items: center; gap: var(--wl-space-2); min-height: var(--wl-control-m); }
+.wl-choice input[type="radio"], .wl-choice input[type="checkbox"] { accent-color: var(--wl-color-ink); width: 20px; height: 20px; margin: 0; flex: none; }
+.wl-choice--top { align-items: flex-start; }
+/* 1px, so the box lines up with the first line of body text. */
+.wl-choice--top input { margin-top: 1px; }
+/* The three flag radios (C03), each a .wl-choice row. */
+.wl-choice-row { display: flex; flex-direction: column; gap: var(--wl-space-1); }
+
+/* A field and its button on one row from 768px (C02). The row aligns at the top, so the 36px button lines up with the 36px
+   control under the label (12.5px at 1.2) and the 6px gap. */
+.wl-inline-form { display: flex; flex-direction: column; gap: var(--wl-space-3); }
+
+/* The file input (C04), added to .wl-input. The selector button takes the secondary button look. */
+.wl-file { height: auto; min-height: var(--wl-control-l); padding: var(--wl-space-1); color: var(--wl-color-ink-muted); }
+.wl-file::file-selector-button { height: var(--wl-control-s); margin-right: var(--wl-space-3); padding: 0 10px; border: 1px solid var(--wl-color-border-control); border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink); font: 600 13px/1 var(--wl-font-ui); cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-file::file-selector-button:hover { background: var(--wl-color-bg-selected); }
+
+@media (min-width: 768px) {
+  .wl-choice-row { flex-direction: row; flex-wrap: wrap; column-gap: var(--wl-space-6); row-gap: var(--wl-space-1); }
+  .wl-inline-form { flex-direction: row; align-items: flex-start; }
+  .wl-inline-form > .wl-field { flex: 1 1 0; min-width: 0; }
+  .wl-inline-form > .wl-btn { margin-top: calc(12.5px * 1.2 + 6px); }
+}
+@media (max-width: 767px) {
+  .wl-input:not(textarea), .wl-control { height: var(--wl-control-l); }
+  .wl-choice { min-height: var(--wl-control-l); }
+  .wl-listbox__option { min-height: var(--wl-control-l); }
+}
+
+/* ---------- Tabs (the Tabs component, .wl-tabset) and the raw link tabs (.wl-tabs, nav of <a aria-current>) ---------- */
+/* The selected tab has a 2px ink underline; hover a 2px line underline. The base line is an inset shadow, so the tab's own inset covers it. */
+.wl-tabset, .wl-tabs { display: flex; align-items: stretch; gap: 20px; box-shadow: inset 0 -1px 0 var(--wl-color-line); overflow-x: auto; scrollbar-width: none; }
+.wl-tabset__tab, .wl-tabs a { display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; height: 48px; padding: 0 4px; border: 0; background: none; color: var(--wl-color-ink-muted); font: 500 14px/1 var(--wl-font-ui); white-space: nowrap; text-decoration: none; cursor: pointer; transition: color var(--wl-duration-base) var(--wl-ease-enter), box-shadow var(--wl-duration-base) var(--wl-ease-enter); }
+.wl-tabset__tab:focus-visible, .wl-tabs a:focus-visible { outline-offset: -2px; }
+.wl-tabset__tab:hover, .wl-tabs a:hover { color: var(--wl-color-ink); box-shadow: inset 0 -2px 0 var(--wl-color-line); }
+.wl-tabset__tab[aria-selected="true"], .wl-tabset__tab[aria-current="page"], .wl-tabset__tab[aria-current="true"], .wl-tabs a[aria-current="page"], .wl-tabs a[aria-current="true"] { color: var(--wl-color-ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--wl-color-ink); }
+.wl-tabset__tab[aria-disabled="true"] { color: var(--wl-color-ink-disabled); box-shadow: none; cursor: not-allowed; }
+.wl-tabset__count { color: var(--wl-color-ink-muted); font: 500 12px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+.wl-tabset__tab[aria-disabled="true"] .wl-tabset__count { color: var(--wl-color-ink-disabled); }
+
+/* ---------- SegmentedFilter ---------- */
+/* Selected: the selected fill plus a line-strong inset. Not lime. */
+.wl-segmented { display: inline-flex; align-items: center; align-self: flex-start; gap: 2px; padding: 2px; border: 1px solid var(--wl-color-line); border-radius: var(--wl-radius-1); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.wl-segmented--fill { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-self: stretch; }
+.wl-segmented__option { display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; height: var(--wl-control-s); padding: 0 10px; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink-muted); font: 600 12.5px/1 var(--wl-font-ui); white-space: nowrap; text-decoration: none; cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter), color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-segmented__option svg { width: 15px; height: 15px; flex: none; }
+.wl-segmented__option:focus-visible { outline-offset: -2px; }
+.wl-segmented__option:hover { background: var(--wl-color-bg-raised); color: var(--wl-color-ink); }
+.wl-segmented__option[aria-checked="true"], .wl-segmented__option[aria-current="true"] { background: var(--wl-color-bg-selected); color: var(--wl-color-ink); box-shadow: inset 0 0 0 1px var(--wl-color-line-strong); }
+.wl-segmented__option[aria-disabled="true"] { background: transparent; color: var(--wl-color-ink-disabled); cursor: not-allowed; }
+.wl-segmented__count { color: var(--wl-color-ink-muted); font: 500 12px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+.wl-segmented__option[aria-disabled="true"] .wl-segmented__count { color: var(--wl-color-ink-disabled); }
+@media (max-width: 767px) {
+  .wl-segmented__option { height: var(--wl-control-l); padding: 0 12px; }
+}
+
+/* ---------- Toast ---------- */
+/* Bottom left on desktop (the shell can move it with --wl-toast-left), above the 56px tab bar on phones. */
+.wl-toasts { position: fixed; z-index: 70; left: var(--wl-space-4); right: var(--wl-space-4); bottom: calc(var(--wl-shell-tabbar) + var(--wl-space-2) + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: var(--wl-space-2); pointer-events: none; }
+.wl-toasts:empty { display: none; }
+.wl-toasts__item { pointer-events: auto; }
+.wl-toast { display: flex; align-items: center; gap: var(--wl-space-3); box-sizing: border-box; min-height: 52px; padding: var(--wl-space-2) var(--wl-space-2) var(--wl-space-2) 14px; background: var(--wl-color-bg-raised); color: var(--wl-color-ink); border: 1px solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-2); animation: wl-toast-in var(--wl-duration-base) var(--wl-ease-enter); }
+.wl-toast__icon { width: 18px; height: 18px; flex: none; }
+.wl-toast--success .wl-toast__icon { color: var(--wl-color-confirmed); }
+.wl-toast--info .wl-toast__icon { color: var(--wl-color-ink); }
+.wl-toast--warning .wl-toast__icon { color: var(--wl-color-pending); }
+.wl-toast--error .wl-toast__icon { color: var(--wl-color-rejected); }
+.wl-toast__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wl-toast__title { margin: 0; font: 600 13.5px/1.25 var(--wl-font-ui); }
+.wl-toast__sub { margin: 0; color: var(--wl-color-ink-muted); font: 400 12.5px/1.3 var(--wl-font-ui); }
+.wl-toast__action { display: inline-flex; align-items: center; gap: 6px; flex: none; box-sizing: border-box; height: var(--wl-control-m); padding: 0 10px; border-radius: var(--wl-radius-1); border: 1px solid var(--wl-color-border-control); background: transparent; color: var(--wl-color-ink); font: 600 13px/1 var(--wl-font-ui); white-space: nowrap; cursor: pointer; transition: background-color var(--wl-duration-fast) var(--wl-ease-enter); }
+.wl-toast__action svg { width: 15px; height: 15px; flex: none; }
+.wl-toast__action:hover, .wl-toast__dismiss:hover { background: var(--wl-color-bg-selected); }
+.wl-toast__dismiss { display: grid; place-items: center; flex: none; width: var(--wl-control-m); height: var(--wl-control-m); padding: 0; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink-muted); cursor: pointer; }
+.wl-toast__dismiss svg { width: 16px; height: 16px; }
+@keyframes wl-toast-in { from { opacity: 0; transform: translateY(8px); } }
+@media (min-width: 768px) {
+  .wl-toasts { left: var(--wl-toast-left, var(--wl-space-6)); right: auto; bottom: var(--wl-space-6); width: min(420px, calc(100vw - 2 * var(--wl-space-6))); }
+}
+@media (max-width: 767px) {
+  .wl-toast__action, .wl-toast__dismiss { height: var(--wl-control-l); }
+  .wl-toast__dismiss { width: var(--wl-control-l); }
+}
+
+/* ---------- Modal, Sheet, ConfirmModal and ConfirmDialog (.wl-modal on a native <dialog>) ---------- */
+/* A closed <dialog> is display: none (UA style); only an open one becomes a flex column. */
+.wl-modal { box-sizing: border-box; width: min(calc(100% - 2 * var(--wl-space-4)), 480px); max-width: none; max-height: calc(100dvh - 2 * var(--wl-space-6)); margin: auto; padding: 0; overflow: hidden; background: var(--wl-color-bg-panel); color: var(--wl-color-ink); border: 1px solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-3); }
+.wl-modal[open] { display: flex; flex-direction: column; animation: wl-modal-in var(--wl-duration-slow) var(--wl-ease-enter); }
+.wl-modal::backdrop { background: var(--wl-color-scrim); }
+.wl-modal--confirm { width: min(calc(100% - 2 * var(--wl-space-4)), 400px); }
+.wl-modal--confirm > form { display: flex; flex-direction: column; min-height: 0; }
+.wl-modal__grab { display: none; flex: none; width: 36px; height: 4px; margin: var(--wl-space-2) auto var(--wl-space-1); border-radius: var(--wl-radius-1); background: var(--wl-color-line-strong); }
+.wl-modal__head { display: flex; align-items: center; gap: var(--wl-space-3); flex: none; padding: var(--wl-space-4) var(--wl-space-3) var(--wl-space-4) var(--wl-space-5); border-bottom: 1px solid var(--wl-color-line); }
+.wl-modal__heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--wl-space-1); }
+.wl-modal__title { margin: 0; font-family: var(--wl-font-ui); font-size: var(--wl-text-title-m); line-height: var(--wl-leading-title-m); font-weight: var(--wl-weight-title-m); text-wrap: balance; }
+.wl-modal__sub { margin: 0; color: var(--wl-color-ink-muted); font: 400 12.5px/1 var(--wl-font-mono); font-variant-numeric: tabular-nums; }
+.wl-modal__close { display: grid; place-items: center; flex: none; width: var(--wl-control-m); height: var(--wl-control-m); padding: 0; border: 0; border-radius: var(--wl-radius-1); background: transparent; color: var(--wl-color-ink); cursor: pointer; }
+.wl-modal__close svg { width: 18px; height: 18px; }
+.wl-modal__close:hover { background: var(--wl-color-bg-raised); }
+.wl-modal__body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--wl-space-4); padding: var(--wl-space-5); overflow-y: auto; }
+.wl-modal__foot { display: flex; align-items: center; gap: var(--wl-space-2); flex: none; padding: 14px var(--wl-space-5); border-top: 1px solid var(--wl-color-line); }
+.wl-modal__hint { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--wl-color-ink-muted); font: 400 12px/1 var(--wl-font-ui); }
+.wl-modal__hint .wl-kbd:not(:first-child) { margin-left: 6px; }
+.wl-modal__confirm { display: flex; flex-direction: column; gap: 10px; padding: var(--wl-space-5) var(--wl-space-5) 0; overflow-y: auto; min-height: 0; }
+.wl-modal__icon { width: 22px; height: 22px; flex: none; }
+.wl-modal__text { color: var(--wl-color-ink); font: 400 14px/1.5 var(--wl-font-ui); text-wrap: pretty; }
+.wl-modal__text > p { margin: 0; }
+.wl-modal__text > p + p { margin-top: var(--wl-space-2); }
+.wl-modal__fields { display: flex; flex-direction: column; gap: var(--wl-space-4); margin-top: 6px; }
+.wl-modal__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--wl-space-2); flex: none; padding: var(--wl-space-5); }
+/* Sheet: a bottom sheet at every width. */
+.wl-modal--sheet { width: min(100%, 480px); max-height: 90dvh; margin: auto auto 0; border-width: 1px 1px 0; border-radius: var(--wl-radius-2) var(--wl-radius-2) 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.wl-modal--sheet[open] { animation-name: wl-sheet-in; }
+.wl-modal--sheet .wl-modal__grab { display: block; }
+@keyframes wl-modal-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes wl-sheet-in { from { transform: translateY(100%); } }
+
+/* The raw .wl-dialog (upload and review dialogs not yet on Modal): the same panel. */
+.wl-dialog { box-sizing: border-box; width: min(calc(100% - 2 * var(--wl-space-4)), 480px); margin: auto; padding: var(--wl-space-5); background: var(--wl-color-bg-panel); color: var(--wl-color-ink); border: 1px solid var(--wl-color-line-strong); border-radius: var(--wl-radius-2); box-shadow: var(--wl-shadow-3); }
+.wl-dialog[open] { animation: wl-modal-in var(--wl-duration-slow) var(--wl-ease-enter); }
+.wl-dialog::backdrop { background: var(--wl-color-scrim); }
+.wl-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--wl-space-2); margin-top: var(--wl-space-5); }
+
+/* Below 768px every dialog is a bottom sheet: full width, grab handle, 44px close, stacked full-width buttons (the action on top). */
+@media (max-width: 767px) {
+  .wl-modal, .wl-modal--confirm, .wl-dialog { width: 100%; max-width: 100%; max-height: 90dvh; margin: auto 0 0; border-width: 1px 0 0; border-radius: var(--wl-radius-2) var(--wl-radius-2) 0 0; }
+  .wl-modal { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .wl-modal[open], .wl-dialog[open] { animation-name: wl-sheet-in; }
+  .wl-modal__grab { display: block; }
+  .wl-modal__head { padding: var(--wl-space-2) var(--wl-space-2) var(--wl-space-3) var(--wl-space-5); }
+  .wl-modal__close { width: var(--wl-control-l); height: var(--wl-control-l); }
+  .wl-modal__close svg { width: 20px; height: 20px; }
+  .wl-modal__body { padding: var(--wl-space-4) var(--wl-space-5); }
+  .wl-modal__hint { display: none; }
+  .wl-modal__foot, .wl-modal__actions, .wl-dialog__actions { flex-direction: column-reverse; align-items: stretch; padding: var(--wl-space-3) var(--wl-space-5) var(--wl-space-2); }
+  .wl-dialog__actions { padding: 0; }
+  .wl-modal__foot .wl-btn, .wl-modal__actions .wl-btn, .wl-dialog__actions .wl-btn { width: 100%; }
+}

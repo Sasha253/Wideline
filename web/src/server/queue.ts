@@ -31,6 +31,10 @@ export const QUEUES = {
   // adds its daily raw-footage and clip sweep to the same queue, so one
   // process deletes footage (NFR32).
   retention: "retention",
+  // C11 (REVIEW08): a scout marked a match as reviewed and it is published.
+  // Payload MatchPublishedJob. C12 adds the consumer (stats); until then jobs
+  // wait in the queue.
+  matchPublished: "match-published",
 } as const;
 
 /**
@@ -114,6 +118,13 @@ export type ClipsJob = {
 
 /** Send options for clips jobs: hundreds of short ffmpeg runs stay well inside 3 h. */
 export const CLIPS_JOB_OPTIONS = { expireInSeconds: 3 * 3600 } as const;
+
+/** The match-published payload (C11): ids only. Sent after the submit commits. */
+export type MatchPublishedJob = {
+  organisationId: string;
+  matchId: string;
+  claimId: string;
+};
 
 /** The consent-withdrawn payload: ids only, never names (children's data). */
 export type ConsentWithdrawnJob = {

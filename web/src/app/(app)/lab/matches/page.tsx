@@ -59,7 +59,7 @@ function JobLine({
 }) {
   return (
     <span className="wl-row">
-      <span className="label text-ink-muted">{label}</span>
+      <span className="text-label text-ink-muted">{label}</span>
       {job ? (
         <>
           <JobStatusChip status={job.status} attempts={job.attempts} />
@@ -88,8 +88,8 @@ function RecallLine({ row }: { row: RecallRow }) {
   if (row.tagged === 0) {
     return (
       <span className="wl-row">
-        <span className="label">{label}</span>
-        <span className="caption text-ink-muted">no tags</span>
+        <span className="text-label">{label}</span>
+        <span className="text-body-s text-ink-muted">no tags</span>
       </span>
     );
   }
@@ -98,15 +98,17 @@ function RecallLine({ row }: { row: RecallRow }) {
     <span className="flex flex-col items-end">
       <span className={`wl-inline-status wl-inline-status--${ok ? "ok" : "warn"}`}>
         {ok ? <Check {...iconProps} /> : <TriangleAlert {...iconProps} />}
-        <span className="label">{label}</span>
-        <span className="data">{formatRate(row.matched, row.tagged)}</span>
-        <span className="caption text-ink-muted">
+        <span className="text-label">{label}</span>
+        <span className="font-mono text-mono-m tabular-nums">
+          {formatRate(row.matched, row.tagged)}
+        </span>
+        <span className="text-body-s text-ink-muted">
           {row.matched} of {row.tagged}
         </span>
         <span className="sr-only">{ok ? ", meets 95% target" : ", below 95% target"}</span>
       </span>
       {row.tagged < SMALL_SAMPLE_TAGS && (
-        <span className="wl-stat__sample wl-stat__sample--small caption">Small sample</span>
+        <span className="wl-stat__sample wl-stat__sample--small text-body-s">Small sample</span>
       )}
     </span>
   );
@@ -154,14 +156,17 @@ export default async function MatchesPage() {
           id: m.id,
           cells: [
             <Fragment key="match">
-              <Link href={`/lab/matches/${m.id}`} className="body-strong text-pitch underline">
+              <Link
+                href={`/lab/matches/${m.id}`}
+                className="font-semibold text-brand-text underline"
+              >
                 {fixture(m)}
               </Link>
               {m.competition && (
-                <span className="caption block text-ink-muted">{m.competition}</span>
+                <span className="text-body-s block text-ink-muted">{m.competition}</span>
               )}
             </Fragment>,
-            <span key="date" className="data whitespace-nowrap">
+            <span key="date" className="font-mono text-mono-m tabular-nums whitespace-nowrap">
               {formatDate(m.playedAt)}
             </span>,
             <MatchStatusChip key="status" status={m.status} />,
@@ -174,21 +179,21 @@ export default async function MatchesPage() {
         cards={matches.map((m) => (
           <li key={m.id} className="wl-card flex flex-col gap-2">
             <div className="flex items-start justify-between gap-3">
-              <Link href={`/lab/matches/${m.id}`} className="wl-link-row body-strong min-w-0">
+              <Link href={`/lab/matches/${m.id}`} className="wl-link-row font-semibold min-w-0">
                 {fixture(m)}
               </Link>
               <MatchStatusChip status={m.status} />
             </div>
-            <p className="caption text-ink-muted">
-              <span className="data">{formatDate(m.playedAt)}</span>
+            <p className="text-body-s text-ink-muted">
+              <span className="font-mono text-mono-m tabular-nums">{formatDate(m.playedAt)}</span>
               {m.competition && <> · {m.competition}</>}
             </p>
             <dl className="wl-facts">
-              <dt className="label">Footage</dt>
+              <dt className="text-label">Footage</dt>
               <dd>
                 <Footage video={m.video} />
               </dd>
-              <dt className="label">CV job</dt>
+              <dt className="text-label">CV job</dt>
               <dd>
                 {m.cv ? (
                   <span className="wl-row">
@@ -200,7 +205,7 @@ export default async function MatchesPage() {
                   <Missing />
                 )}
               </dd>
-              <dt className="label">Clips job</dt>
+              <dt className="text-label">Clips job</dt>
               <dd>
                 {m.clips ? (
                   <span className="wl-row">
@@ -211,11 +216,11 @@ export default async function MatchesPage() {
                   <Missing />
                 )}
               </dd>
-              <dt className="label">Recall</dt>
+              <dt className="text-label">Recall</dt>
               <dd>
                 <Recall m={m} />
               </dd>
-              <dt className="label">Ready in</dt>
+              <dt className="text-label">Ready in</dt>
               <dd>
                 <ReadyIn seconds={m.readySec} />
               </dd>

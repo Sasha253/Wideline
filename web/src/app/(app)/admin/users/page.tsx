@@ -30,6 +30,7 @@ export default async function UsersPage() {
     <>
       <PageHeader
         title="Users"
+        eyebrow="Admin / Users"
         intro="Everyone with a Wideline account. Log in as someone to see the app with their roles; the session lasts an hour and every start and stop is in the audit log. Platform admins cannot be logged in as."
       />
       <AdminNav current="users" />

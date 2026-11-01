@@ -5,6 +5,8 @@ import { SubmitButton } from "@/components/forms";
 /**
  * Shown on every page of a "Log in as" session (src/server/auth/impersonation.ts),
  * so the platform admin always knows whose account they are in and how to leave.
+ * Floodlight banner: square, a hairline in the pending colour on the pending-subtle fill,
+ * with an icon and the words (never colour alone).
  */
 export function ImpersonationBanner({
   user,
@@ -14,13 +16,18 @@ export function ImpersonationBanner({
   impersonator: { name: string };
 }) {
   return (
-    <div role="status" className="wl-banner mb-6 flex-wrap items-center">
-      <UserRoundCog aria-hidden="true" />
-      <p className="body min-w-0 flex-1">
+    <div role="status" className="wl-impersonation">
+      <UserRoundCog
+        size={20}
+        strokeWidth={1.8}
+        aria-hidden="true"
+        className="wl-impersonation__icon"
+      />
+      <p className="wl-impersonation__text">
         <b>Logged in as {user.name}</b> ({user.email}). You see what they see, and what you do is
         done as them. {impersonator.name}, return to your own account when you are done.
       </p>
-      <form action={stopImpersonatingAction}>
+      <form action={stopImpersonatingAction} className="wl-impersonation__action">
         <SubmitButton variant="secondary" size="sm" pendingLabel="Returning…">
           Return to my account
         </SubmitButton>

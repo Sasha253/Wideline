@@ -1,8 +1,17 @@
 import "server-only";
 import { z } from "zod";
+import {
+  AUTO_ACCEPT_TYPES,
+  autoAcceptThresholds,
+  mergeAutoAccept,
+  thresholdsInputSchema,
+  type AutoAcceptThresholds,
+  type ThresholdsInput,
+} from "@/lib/auto-accept";
 import { SELECTABLE_ORG_TYPES } from "@/lib/labels";
 import type { AuthContext } from "../auth/session";
 import { audit } from "../audit";
+import { requireSquadOrg } from "../squad/access";
 import { countryField, orgNameField, regionField } from "./fields";
 
 /** Organisation settings (AUTH-02): name, type, country and region. */
@@ -68,4 +77,52 @@ export async function updateOrganisationSettings(
     },
   });
   return { changed };
+}
+
+/** The active organisation's auto-accept thresholds (REVIEW10), defaults filled in. */
+export async function readAutoAcceptThresholds(ctx: AuthContext): Promise<AutoAcceptThresholds> {
+  requireSquadOrg(ctx);
+  const org = await ctx.db.organisation.findUniqueOrThrow({
+    where: { id: ctx.organisationId },
+    select: { settings: true },
+  });
+  return autoAcceptThresholds(org.settings);
+}
+
+/**
+ * C11 (REVIEW10, Q-069, Q-070): saves the auto-accept thresholds of the
+ * active academy or club in Organisation.settings.autoAccept, keeping every
+ * other settings key, through the scoped client. The caller checks the role
+ * (owners and admins). New thresholds apply to the next CV ingest only; events
+ * already stored keep their status (Q-069). Audits
+ * organisation.thresholds_changed with the old and new values; a save with no
+ * change writes nothing. Throws ZodError for a value that is not a score.
+ */
+export async function updateAutoAcceptThresholds(
+  ctx: AuthContext,
+  input: ThresholdsInput,
+): Promise<{ changed: boolean }> {
+  requireSquadOrg(ctx);
+  const next = thresholdsInputSchema.parse(input);
+  const org = await ctx.db.organisation.findUniqueOrThrow({
+    where: { id: ctx.organisationId },
+    select: { settings: true },
+  });
+  const before = autoAcceptThresholds(org.settings);
+  const stored = (org.settings as { autoAccept?: unknown } | null)?.autoAccept;
+  const changed = AUTO_ACCEPT_TYPES.some((t) => before[t] !== next[t]) || stored === undefined;
+  if (!changed) return { changed: false };
+  await ctx.db.organisation.update({
+    where: { id: ctx.organisationId },
+    data: { settings: mergeAutoAccept(org.settings, next) },
+  });
+  await audit({
+    organisationId: ctx.organisationId,
+    actorUserId: ctx.user.id,
+    action: "organisation.thresholds_changed",
+    targetType: "Organisation",
+    targetId: ctx.organisationId,
+    metadata: { from: before, to: next },
+  });
+  return { changed: true };
 }

@@ -1,0 +1,201 @@
+/* Wideline · Floodlight design tokens · v0.1 · 31 Oct 2026
+   Source of truth for every value in the design. Named by role, not hue.
+   Dark is the default theme app-wide. Light is opt-in via the account menu.
+   Usage:
+     <html data-theme="dark">    default (also used when no attribute is set)
+     <html data-theme="light">   light
+     <html data-theme="system">  follows prefers-color-scheme
+   The review workspace always renders dark unless the user picked Light explicitly:
+     <main data-theme="dark" class="review-workspace">                          */
+
+/* Wideline repo note: copied verbatim from the handoff (docs/design-handoff/), except the three
+   font-family stacks, which put the self-hosted next/font families (app/layout.tsx sets
+   --font-archivo and --font-jetbrains on <html>) in front of the Google Fonts names. */
+
+/* ---------- Theme-independent ---------- */
+:root {
+  /* Type families (Google Fonts: Archivo wdth 62..125 wght 300..900, JetBrains Mono 400..700) */
+  --wl-font-display: var(--font-archivo, "Archivo"), system-ui, sans-serif;   /* use with --wl-stretch-wide */
+  --wl-font-ui: var(--font-archivo, "Archivo"), system-ui, sans-serif;
+  --wl-font-mono: var(--font-jetbrains, "JetBrains Mono"), ui-monospace, monospace;
+  --wl-stretch-wide: 125%;      /* names, figures, section heads */
+  --wl-stretch-semi: 112.5%;    /* guardian and auth titles */
+  --wl-stretch-normal: 100%;    /* everything else */
+
+  /* Type scale: size / line-height / weight / tracking. Caps = text-transform: uppercase */
+  --wl-text-display-xl: 56px;   --wl-leading-display-xl: 0.92; --wl-weight-display-xl: 800; --wl-tracking-display-xl: -0.015em; /* caps, wide */
+  --wl-text-display-l: 36px;    --wl-leading-display-l: 0.95;  --wl-weight-display-l: 800;  --wl-tracking-display-l: -0.01em;   /* caps, wide; 28-30px on phones */
+  --wl-text-stat-xl: 38px;      --wl-leading-stat-xl: 0.9;     --wl-weight-stat-xl: 700;    --wl-tracking-stat-xl: -0.02em;     /* wide, tabular */
+  --wl-text-stat-m: 22px;       --wl-leading-stat-m: 1;        --wl-weight-stat-m: 700;     --wl-tracking-stat-m: -0.01em;      /* wide, tabular */
+  --wl-text-heading-section: 15px; --wl-leading-heading-section: 1.1; --wl-weight-heading-section: 700; --wl-tracking-heading-section: 0.02em; /* caps, wide */
+  --wl-text-title-guardian: 30px;  --wl-leading-title-guardian: 1.12; --wl-weight-title-guardian: 700; --wl-tracking-title-guardian: -0.015em; /* semi, sentence case */
+  --wl-text-title-m: 20px;      --wl-leading-title-m: 1.25;    --wl-weight-title-m: 600;
+  --wl-text-body-guardian: 18px; --wl-leading-body-guardian: 1.5; --wl-weight-body-guardian: 400;
+  --wl-text-body: 14px;         --wl-leading-body: 1.45;       --wl-weight-body: 400;   /* 15px below 768px */
+  --wl-text-body-s: 12.5px;     --wl-leading-body-s: 1.4;      --wl-weight-body-s: 400;
+  --wl-text-label: 13.5px;      --wl-leading-label: 1;         --wl-weight-label: 600;
+  --wl-text-mono-l: 15px;       --wl-leading-mono-l: 1;        --wl-weight-mono-l: 600;
+  --wl-text-mono-m: 13px;       --wl-leading-mono-m: 1;        --wl-weight-mono-m: 500;
+  --wl-text-overline: 10.5px;   --wl-leading-overline: 1.2;    --wl-weight-overline: 500; --wl-tracking-overline: 0.08em; /* mono, caps */
+
+  /* Spacing: 4px grid, one 2px step */
+  --wl-space-0: 0; --wl-space-0-5: 2px; --wl-space-1: 4px; --wl-space-2: 8px; --wl-space-3: 12px; --wl-space-4: 16px;
+  --wl-space-5: 20px; --wl-space-6: 24px; --wl-space-8: 32px; --wl-space-10: 40px; --wl-space-12: 48px; --wl-space-16: 64px;
+
+  /* Sizing */
+  --wl-control-s: 32px;   /* desktop table row actions only, never touch */
+  --wl-control-m: 36px;   /* desktop default */
+  --wl-control-l: 44px;   /* touch minimum; every control below 768px */
+  --wl-control-xl: 56px;  /* phone primary actions, guardian answers */
+  --wl-row-dense: 40px; --wl-row-comfortable: 48px; --wl-row-touch: 56px; --wl-row-review: 42px;
+  --wl-shell-sidebar: 232px; --wl-shell-rail: 64px; --wl-shell-topbar: 56px; --wl-shell-tabbar: 56px;
+
+  /* Radii */
+  --wl-radius-0: 0;        /* panels, tables, banners, video */
+  --wl-radius-1: 2px;      /* default: controls, chips, tiles, markers */
+  --wl-radius-2: 4px;      /* overlays: menus, toasts, modals, sheets */
+  --wl-radius-full: 999px; /* avatars, status discs, radios */
+
+  /* Borders */
+  --wl-border-hairline: 1px;
+  --wl-border-selected: 2px;     /* active tab underline, current nav inset, tile top edge is 3px */
+  --wl-border-tile-top: 3px;
+  --wl-border-pending: 1.5px;    /* always dashed */
+  --wl-focus-width: 2px; --wl-focus-offset: 2px;
+
+  /* Motion */
+  --wl-duration-0: 0ms; --wl-duration-fast: 100ms; --wl-duration-base: 150ms; --wl-duration-slow: 240ms; --wl-duration-saved: 600ms;
+  --wl-ease-enter: cubic-bezier(.2, 0, 0, 1);
+  --wl-ease-exit: cubic-bezier(.4, 0, 1, 1);
+
+  /* Pitch and data: identical in both themes */
+  --wl-color-pitch: #161b21;
+  --wl-color-chalk: #4a525d;
+  --wl-color-heat-empty: rgba(255, 255, 255, .025);
+  --wl-color-heat-1: #323d24;  /* 16% lime · under 2% of minutes */
+  --wl-color-heat-2: #526428;  /* 34% · 2 to 4% */
+  --wl-color-heat-3: #77912c;  /* 55% · 4 to 6% */
+  --wl-color-heat-4: #9fc231;  /* 78% · 6 to 8% */
+  --wl-color-heat-5: #c6f135;  /* 100% · 8% and over */
+  --wl-color-marker-position: #c6f135;
+
+  /* Breakpoints (reference; media queries can't read custom properties) */
+  --wl-bp-tablet: 768px;   /* rail replaces bottom tab bar */
+  --wl-bp-desktop: 992px;  /* sidebar replaces rail */
+  --wl-bp-wide: 1280px;
+}
+
+/* ---------- Dark (default) ---------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --wl-color-bg-canvas: #0b0d10;
+  --wl-color-bg-panel: #12151a;
+  --wl-color-bg-raised: #181c22;
+  --wl-color-bg-selected: #1c2129;
+  --wl-color-bg-sunken: #07080a;
+  --wl-color-ink: #eceff3;
+  --wl-color-ink-muted: #98a1ae;
+  --wl-color-ink-disabled: #5b6370;
+  --wl-color-ink-inverse: #0b0d10;
+  --wl-color-line: #1f242c;
+  --wl-color-line-strong: #2b313b;
+  --wl-color-border-control: #636d7c;
+  --wl-color-focus: #c6f135;
+  --wl-color-brand: #c6f135;
+  --wl-color-brand-hover: #d4f75a;
+  --wl-color-brand-press: #afd61f;
+  --wl-color-on-brand: #0b0d10;
+  --wl-color-brand-edge: #c6f135;   /* border of lime fills */
+  --wl-color-brand-text: #c6f135;   /* links */
+  --wl-color-brand-subtle: #1e2610; /* save flash, In review chip */
+  --wl-color-home: #5aaeff;
+  --wl-color-on-home: #0b0d10;
+  --wl-color-away: #f47cb8;
+  --wl-color-on-away: #0b0d10;
+  --wl-color-confirmed: #3dd6a3;
+  --wl-color-confirmed-subtle: #0d2a22;
+  --wl-color-pending: #ffb547;
+  --wl-color-pending-subtle: #2d220d;
+  --wl-color-rejected: #ff6b5e;
+  --wl-color-rejected-subtle: #2e1210;
+  --wl-color-on-status: #12151a;
+  --wl-color-scrim: rgba(5, 6, 8, .72);
+  --wl-shadow-2: 0 8px 24px rgba(0, 0, 0, .48);
+  --wl-shadow-3: 0 24px 64px rgba(0, 0, 0, .6);
+}
+
+/* ---------- Light ---------- */
+[data-theme="light"] {
+  color-scheme: light;
+  --wl-color-bg-canvas: #f3f5f7;
+  --wl-color-bg-panel: #ffffff;
+  --wl-color-bg-raised: #f8f9fb;
+  --wl-color-bg-selected: #e6ebf1;
+  --wl-color-bg-sunken: #eceff3;
+  --wl-color-ink: #0d1014;
+  --wl-color-ink-muted: #535b67;
+  --wl-color-ink-disabled: #9aa2ad;
+  --wl-color-ink-inverse: #ffffff;
+  --wl-color-line: #dde2e8;
+  --wl-color-line-strong: #c3cad3;
+  --wl-color-border-control: #7a8494;
+  --wl-color-focus: #0d1014;
+  --wl-color-brand: #c6f135;
+  --wl-color-brand-hover: #d4f75a;
+  --wl-color-brand-press: #afd61f;
+  --wl-color-on-brand: #0d1014;
+  --wl-color-brand-edge: #0d1014;   /* lime on white fails 3:1, so the edge is ink */
+  --wl-color-brand-text: #4a6b00;
+  --wl-color-brand-subtle: #eef9cf;
+  --wl-color-home: #0b62c4;
+  --wl-color-on-home: #ffffff;
+  --wl-color-away: #b8246f;
+  --wl-color-on-away: #ffffff;
+  --wl-color-confirmed: #08765a;
+  --wl-color-confirmed-subtle: #dcf3ea;
+  --wl-color-pending: #8a5700;
+  --wl-color-pending-subtle: #fbeed3;
+  --wl-color-rejected: #c0261b;
+  --wl-color-rejected-subtle: #fde4e1;
+  --wl-color-on-status: #ffffff;
+  --wl-color-scrim: rgba(13, 16, 20, .48);
+  --wl-shadow-2: 0 8px 24px rgba(13, 16, 20, .14);
+  --wl-shadow-3: 0 24px 64px rgba(13, 16, 20, .22);
+}
+
+/* ---------- System ---------- */
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    color-scheme: light;
+    --wl-color-bg-canvas: #f3f5f7; --wl-color-bg-panel: #ffffff; --wl-color-bg-raised: #f8f9fb; --wl-color-bg-selected: #e6ebf1; --wl-color-bg-sunken: #eceff3;
+    --wl-color-ink: #0d1014; --wl-color-ink-muted: #535b67; --wl-color-ink-disabled: #9aa2ad; --wl-color-ink-inverse: #ffffff;
+    --wl-color-line: #dde2e8; --wl-color-line-strong: #c3cad3; --wl-color-border-control: #7a8494; --wl-color-focus: #0d1014;
+    --wl-color-on-brand: #0d1014; --wl-color-brand-edge: #0d1014; --wl-color-brand-text: #4a6b00; --wl-color-brand-subtle: #eef9cf;
+    --wl-color-home: #0b62c4; --wl-color-on-home: #ffffff; --wl-color-away: #b8246f; --wl-color-on-away: #ffffff;
+    --wl-color-confirmed: #08765a; --wl-color-confirmed-subtle: #dcf3ea; --wl-color-pending: #8a5700; --wl-color-pending-subtle: #fbeed3;
+    --wl-color-rejected: #c0261b; --wl-color-rejected-subtle: #fde4e1; --wl-color-on-status: #ffffff;
+    --wl-color-scrim: rgba(13, 16, 20, .48); --wl-shadow-2: 0 8px 24px rgba(13, 16, 20, .14); --wl-shadow-3: 0 24px 64px rgba(13, 16, 20, .22);
+  }
+}
+
+/* ---------- Status aliases (fixed meanings) ---------- */
+:root, [data-theme] {
+  --wl-color-danger: var(--wl-color-rejected);
+  --wl-color-warning: var(--wl-color-pending);
+  --wl-color-consent-given: var(--wl-color-confirmed);
+  --wl-color-consent-withdrawn: var(--wl-color-rejected);
+}
+
+/* ---------- Base ---------- */
+html { background: var(--wl-color-bg-canvas); color: var(--wl-color-ink); font-family: var(--wl-font-ui); font-size: var(--wl-text-body); line-height: var(--wl-leading-body); -webkit-font-smoothing: antialiased; }
+a { color: var(--wl-color-brand-text); text-underline-offset: 3px; }
+:focus-visible { outline: var(--wl-focus-width) solid var(--wl-color-focus); outline-offset: var(--wl-focus-offset); }
+@media (max-width: 767px) { html { font-size: 15px; } }
+
+@keyframes wl-saved { from { background-color: var(--wl-color-brand-subtle); } to { background-color: transparent; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --wl-duration-fast: 0ms; --wl-duration-base: 0ms; --wl-duration-slow: 0ms; --wl-duration-saved: 0ms; }
+  *, *::before, *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; scroll-behavior: auto !important; }
+}

@@ -367,3 +367,15 @@ export function formatRate(matched: number, total: number): string | null {
 export const SMALL_SAMPLE_TAGS = 10;
 /** Q-048: fewer matches than this behind a model version's numbers is a small sample. */
 export const SMALL_SAMPLE_MATCHES = 3;
+
+/**
+ * C11 (docs/build/design/C11.md, "Event type words"): Goal, Shot on target,
+ * Shot off target, Shot (on target unknown), Touch.
+ */
+export function eventTypeLabel(type: "goal" | "shot" | "touch", onTarget: boolean | null): string {
+  if (type === "goal") return "Goal";
+  if (type === "touch") return "Touch";
+  if (onTarget === true) return "Shot on target";
+  if (onTarget === false) return "Shot off target";
+  return "Shot";
+}

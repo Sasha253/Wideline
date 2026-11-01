@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Pause, Play, Upload, WifiOff, X } from "lucide-react";
+import { ArrowRight, Check, Info, Pause, Play, RefreshCw, Upload, Video, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -10,21 +10,24 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type DragEvent,
+  type ReactNode,
 } from "react";
 import { Banner, FieldErrorText } from "@/components/forms";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/Modal";
 import { cx } from "@/components/ui/cx";
 import { iconProps } from "@/components/ui/icons";
 import { UNEXPECTED_ERROR } from "@/lib/action-result";
 import { formatEta, formatGB, formatSize, formatSpeed } from "@/lib/labels";
 import {
   fingerprintFile,
-  MultipartUploader,
+  type MultipartUploader,
   type UploadFile,
   type UploadSnapshot,
 } from "@/lib/upload/multipart-client";
 import { ACCEPT_ATTRIBUTE, ACCEPTED_TYPES, videoKind } from "@/lib/upload/part-plan";
 import { precheckFile, type Precheck } from "@/lib/upload/precheck";
+import { clearUpload, getUpload, startUpload, useUpload } from "./upload-store";
 
 /** An upload the server still has open for this match. */
 export type OpenUpload = {
@@ -63,14 +66,34 @@ function Checklist({ limit }: { limit: number }) {
     `MP4 or MOV, up to ${formatGB(limit)}.`,
   ];
   return (
-    <ul className="wl-checklist mt-4" role="list">
+    <ul className="mt-3 flex flex-col border-t border-line" role="list">
       {items.map((t) => (
-        <li key={t} className="body">
-          <Check {...iconProps} />
-          {t}
+        <li key={t} className="flex gap-3 border-b border-line py-3">
+          <Check {...iconProps} className="mt-px shrink-0 text-confirmed" />
+          <span>{t}</span>
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A progress track: lime while the upload is live, muted while it is paused. */
+export function Track({
+  percent,
+  live,
+  className,
+}: {
+  percent: number;
+  live: boolean;
+  className?: string;
+}) {
+  return (
+    <span aria-hidden className={cx("block h-2 bg-selected", className)}>
+      <span
+        className={cx("block h-full", live ? "border border-brand-edge bg-brand" : "bg-ink-muted")}
+        style={{ width: `${percent}%` } as CSSProperties}
+      />
+    </span>
   );
 }
 
@@ -96,20 +119,21 @@ export function UploadPanel({
   // "Choose another file" in the summary view: its file input is hidden from
   // assistive technology, so a refusal there focuses this button instead.
   const chooseAgainRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const keepRef = useRef<HTMLButtonElement>(null);
-  const uploaderRef = useRef<MultipartUploader | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  // The uploader lives in the upload store, so it keeps running while the coach moves on
+  // to the lineup and markers; coming back here shows the same upload.
+  const active = useUpload(matchId);
+  const snap = active?.snap ?? null;
+  const uploader = active?.uploader ?? null;
   const [resume, setResume] = useState<OpenUpload | null>(open);
-  const [view, setView] = useState<View>("choose");
+  const [view, setView] = useState<View>(() => (getUpload(matchId) ? "uploading" : "choose"));
   const [file, setFile] = useState<File | null>(null);
   const [precheck, setPrecheck] = useState<Precheck | "checking" | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [snap, setSnap] = useState<UploadSnapshot | null>(null);
   const [over, setOver] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [uploader, setUploader] = useState<MultipartUploader | null>(null);
   // Bumped on each client refusal; the effect below focuses the control the
   // error describes once the error is in the DOM.
   const [refusals, setRefusals] = useState(0);
@@ -133,16 +157,44 @@ export function UploadPanel({
     headingRef.current?.focus();
   }, [view]);
 
-  const running =
-    view === "uploading" &&
-    snap !== null &&
-    !["complete", "cancelled", "error"].includes(snap.phase);
+  // The store warns before the tab closes while an upload runs (upload-store.ts).
+
+  // How the upload ended, handled once by whichever upload page is open. Elsewhere (the
+  // lineup or markers page) the upload strip shows the result instead.
+  const done = active?.done;
+  const activeUploader = active?.uploader;
   useEffect(() => {
-    if (!running) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [running]);
+    if (!done || !activeUploader) return;
+    let live = true;
+    void done.then((end) => {
+      if (!live) return;
+      clearUpload(matchId, activeUploader);
+      if (end.phase === "complete") {
+        router.push(`/matches/${matchId}?done=uploaded`);
+        return;
+      }
+      if (end.phase === "cancelled") return;
+      const code = end.error?.code;
+      if (code === "signed_out") {
+        setNotice({ tone: "danger", text: SIGNED_OUT, signIn: true });
+      } else if (code === "upload_gone") {
+        setResume(null);
+        setNotice({ tone: "danger", text: GONE });
+        setView("choose");
+      } else if (code === "upload_exists") {
+        router.refresh();
+      } else if (code === "upload_type" || code === "upload_empty" || code === "upload_too_big") {
+        setFileError(end.error?.message ?? UNEXPECTED_ERROR);
+        setView("choose");
+      } else {
+        setNotice({ tone: "danger", text: UNEXPECTED_ERROR });
+        setView("choose");
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [done, activeUploader, matchId, router]);
 
   // The retry countdown ticks once a second.
   useEffect(() => {
@@ -154,41 +206,11 @@ export function UploadPanel({
   // Screen readers hear each 10% step only; the percent never goes down.
   const spoken = snap ? Math.floor(snap.percent / 10) * 10 : 0;
 
-  async function begin(f: File) {
+  function begin(f: File) {
     setNotice(null);
     setFileError(null);
-    const next = new MultipartUploader({
-      matchId,
-      file: f as UploadFile,
-      onChange: (s) => setSnap(s),
-    });
-    uploaderRef.current = next;
-    setUploader(next);
-    setSnap(next.snapshot);
+    startUpload(matchId, f as UploadFile);
     setView("uploading");
-    const end = await next.start();
-    if (uploaderRef.current !== next) return;
-    if (end.phase === "complete") {
-      router.push(`/matches/${matchId}?done=uploaded`);
-      return;
-    }
-    if (end.phase === "cancelled") return;
-    const code = end.error?.code;
-    if (code === "signed_out") {
-      setNotice({ tone: "danger", text: SIGNED_OUT, signIn: true });
-    } else if (code === "upload_gone") {
-      setResume(null);
-      setNotice({ tone: "danger", text: GONE });
-      setView("choose");
-    } else if (code === "upload_exists") {
-      router.refresh();
-    } else if (code === "upload_type" || code === "upload_empty" || code === "upload_too_big") {
-      setFileError(end.error?.message ?? refuse(f, limitBytes) ?? UNEXPECTED_ERROR);
-      setView("choose");
-    } else {
-      setNotice({ tone: "danger", text: UNEXPECTED_ERROR });
-      setView("choose");
-    }
   }
 
   async function choose(f: File | undefined) {
@@ -229,14 +251,13 @@ export function UploadPanel({
   }
 
   function openCancel() {
-    dialogRef.current?.showModal();
-    requestAnimationFrame(() => keepRef.current?.focus());
+    setCancelOpen(true);
   }
 
   async function confirmCancel() {
     setCancelling(true);
     try {
-      const current = uploaderRef.current;
+      const current = getUpload(matchId)?.uploader;
       if (current) await current.cancel();
       else if (resume) {
         const res = await fetch(`/api/matches/${matchId}/upload`, {
@@ -247,18 +268,16 @@ export function UploadPanel({
         if (!res.ok && res.status !== 410) throw new Error(`cancel ${res.status}`);
         window.localStorage?.removeItem(`wideline.upload.${matchId}`);
       }
-      uploaderRef.current = null;
-      setUploader(null);
-      dialogRef.current?.close();
+      clearUpload(matchId);
+      setCancelOpen(false);
       setResume(null);
-      setSnap(null);
       setFile(null);
       setNotice({ tone: "ok", text: "Upload cancelled. Choose a file to start again." });
       setView("choose");
       router.refresh();
     } catch {
       setNotice({ tone: "danger", text: UNEXPECTED_ERROR });
-      dialogRef.current?.close();
+      setCancelOpen(false);
     } finally {
       setCancelling(false);
     }
@@ -266,7 +285,12 @@ export function UploadPanel({
 
   const dropzone = (
     <label
-      className="wl-dropzone"
+      className={cx(
+        "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-control px-6 py-8 text-center has-[:focus-visible]:ring-focus",
+        over
+          ? "border-pending bg-raised"
+          : "border border-dashed border-control bg-panel hover:bg-raised",
+      )}
       data-over={over ? "true" : "false"}
       onDragOver={(e) => {
         e.preventDefault();
@@ -287,12 +311,14 @@ export function UploadPanel({
           e.target.value = "";
         }}
       />
-      <Upload {...iconProps} />
-      <span className="body-strong">
+      <span className="grid size-10 place-items-center bg-selected" aria-hidden>
+        <Upload {...iconProps} />
+      </span>
+      <span className="font-semibold break-all">
         {resume ? `Choose ${resume.fileName}` : "Choose a video file"}
       </span>
-      <span className="caption hidden text-ink-muted md:inline">or drag it here</span>
-      <span className="caption text-ink-muted">MP4 or MOV, up to {formatGB(limitBytes)}</span>
+      <span className="hidden text-body-s text-ink-muted tablet:inline">or drag it here</span>
+      <span className="text-body-s text-ink-muted">MP4 or MOV, up to {formatGB(limitBytes)}</span>
     </label>
   );
 
@@ -311,6 +337,7 @@ export function UploadPanel({
     title = "Uploading";
     body = (
       <Progress
+        matchId={matchId}
         snap={snap}
         headingId={headingId}
         now={now}
@@ -328,15 +355,14 @@ export function UploadPanel({
         : null;
     title = "Choose the recording";
     body = (
-      <div className="wl-stack">
-        <div>
-          <p className="body-strong break-all">{file.name}</p>
-          <p className="caption text-ink-muted">
-            <span className="data">{formatSize(file.size)}</span>
-            {kind && ` · ${ACCEPTED_TYPES[kind].label}`}
-          </p>
-        </div>
-        {precheck === "checking" && <p className="caption text-ink-muted">Checking the file…</p>}
+      <div className="flex flex-col gap-4">
+        <FileLine name={file.name}>
+          {formatSize(file.size)}
+          {kind && ` · ${ACCEPTED_TYPES[kind].label}`}
+        </FileLine>
+        {precheck === "checking" && (
+          <p className="text-body-s text-ink-muted">Checking the file…</p>
+        )}
         {warn && (
           <>
             <Banner tone="warn">
@@ -344,13 +370,17 @@ export function UploadPanel({
                 ? "This video looks like it was filmed upright (portrait). Portrait footage is rejected after upload."
                 : `This video looks like ${warn.width} × ${warn.height}. Footage under 1080p is rejected after upload.`}
             </Banner>
-            <p className="body">Uploading takes time and data. Check the file first.</p>
+            <p>Uploading takes time and data. Check the file first.</p>
           </>
         )}
-        <p className="caption text-ink-muted">
-          This upload uses about {formatSize(file.size)} of data. Use Wi-Fi if you can.
+        <p className="flex gap-2.5 text-ink-muted">
+          <Info {...iconProps} className="mt-px shrink-0 text-ink" />
+          <span>
+            This upload uses about {formatSize(file.size)} of data. Large recordings upload faster
+            on Wi-Fi.
+          </span>
         </p>
-        <div className="wl-row">
+        <div className="flex flex-col gap-2 tablet:flex-row">
           {warn ? (
             <>
               <Button
@@ -415,7 +445,7 @@ export function UploadPanel({
   } else if (resume) {
     title = "Carry on uploading";
     body = (
-      <div className="wl-stack">
+      <div className="flex flex-col gap-4">
         <Banner tone="warn">
           The upload of {resume.fileName} stopped at {resume.percent}%. Choose the same file to
           carry on from there.
@@ -423,7 +453,7 @@ export function UploadPanel({
         {dropzone}
         {fileErrorText}
         <div>
-          <Button variant="danger" icon={X} block className="justify-center" onClick={openCancel}>
+          <Button variant="ghost" icon={X} block className="justify-center" onClick={openCancel}>
             Cancel upload and start again
           </Button>
         </div>
@@ -446,7 +476,7 @@ export function UploadPanel({
     <div className="max-w-2xl" data-upload-ready={hydrated ? "true" : undefined}>
       <div aria-live="polite" className="mt-6 empty:mt-0">
         {notice && (
-          <div className="wl-stack">
+          <div className="flex flex-col items-start gap-3">
             <Banner tone={notice.tone}>{notice.text}</Banner>
             {notice.signIn && (
               <div>
@@ -461,61 +491,81 @@ export function UploadPanel({
           </div>
         )}
       </div>
+      <section aria-labelledby={headingId} className="mt-6">
+        <h2
+          id={headingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="font-display text-heading-section stretch-wide uppercase outline-none"
+        >
+          {title}
+        </h2>
+        <div className="mt-3 border border-line bg-panel p-4">{body}</div>
+      </section>
       {view === "uploading" ? (
-        <details className="mt-6">
-          <summary className="body-strong">Before you upload</summary>
+        <details className="mt-6 border-t border-line pt-3">
+          <summary className="cursor-pointer text-label">Before you upload</summary>
           <Checklist limit={limitBytes} />
         </details>
       ) : (
-        <section aria-labelledby={`${ids}-before`} className="mt-6">
-          <h2 id={`${ids}-before`} className="heading-2">
+        <section aria-labelledby={`${ids}-before`} className="mt-8">
+          <h2
+            id={`${ids}-before`}
+            className="font-display text-heading-section stretch-wide uppercase"
+          >
             Before you upload
           </h2>
           <Checklist limit={limitBytes} />
         </section>
       )}
-      <section aria-labelledby={headingId} className="mt-8">
-        <h2 id={headingId} ref={headingRef} tabIndex={-1} className="heading-2">
-          {title}
-        </h2>
-        <div className="wl-card mt-4">{body}</div>
-      </section>
       <span className="sr-only" aria-live="polite">
         {view === "uploading" && spoken > 0 ? `Uploaded ${spoken}%` : ""}
       </span>
-      <dialog
-        ref={dialogRef}
-        className="wl-dialog"
-        aria-labelledby={`${ids}-cancel-title`}
-        aria-describedby={`${ids}-cancel-body`}
+      <ConfirmModal
+        open={cancelOpen}
+        onClose={() => {
+          if (!cancelling) setCancelOpen(false);
+        }}
+        onConfirm={() => void confirmCancel()}
+        title="Cancel this upload?"
+        icon={X}
+        confirmLabel="Cancel upload"
+        cancelLabel="Keep uploading"
+        tone="danger"
+        loading={cancelling}
+        loadingLabel="Cancelling"
       >
-        <h2 id={`${ids}-cancel-title`} className="heading-2">
-          Cancel this upload?
-        </h2>
-        <p id={`${ids}-cancel-body`} className="body mt-2 text-ink-muted">
-          The {formatSize(sentBytes)} uploaded so far is thrown away. You can start again with the
-          same file or another one.
-        </p>
-        <div className="wl-dialog__actions">
-          <Button ref={keepRef} variant="secondary" onClick={() => dialogRef.current?.close()}>
-            Keep uploading
-          </Button>
-          <Button variant="danger" disabled={cancelling} onClick={() => void confirmCancel()}>
-            {cancelling ? "Cancelling…" : "Cancel upload"}
-          </Button>
-        </div>
-      </dialog>
+        The {formatSize(sentBytes)} uploaded so far is thrown away. You can start again with the
+        same file or another one.
+      </ConfirmModal>
+    </div>
+  );
+}
+
+/** The file being uploaded: a video tile, the name in mono, and its facts. */
+function FileLine({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[40px_minmax(0,1fr)] items-center gap-3">
+      <span className="grid size-10 place-items-center bg-selected" aria-hidden>
+        <Video {...iconProps} />
+      </span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="font-mono text-mono-m font-medium break-all">{name}</span>
+        <span className="font-mono text-body-s text-ink-muted tabular-nums">{children}</span>
+      </span>
     </div>
   );
 }
 
 function Progress({
+  matchId,
   snap,
   headingId,
   now,
   uploader,
   onCancel,
 }: {
+  matchId: string;
   snap: UploadSnapshot;
   headingId: string;
   now: number;
@@ -540,52 +590,72 @@ function Progress({
 
   const retryIn = snap.retryAt ? Math.max(1, Math.ceil((snap.retryAt - now) / 1000)) : null;
 
+  const stalled = paused || offline || retrying;
+
   return (
-    <div>
-      <div className="wl-progress__head">
-        <span className="body-strong min-w-0 break-all">{snap.fileName}</span>
-        <span className="data">{paused ? `Paused at ${percent}%` : `${percent}%`}</span>
+    <div className="flex flex-col gap-4">
+      <FileLine name={snap.fileName}>
+        {sent} of {total}
+      </FileLine>
+      <div className="flex flex-col gap-2.5">
+        <div
+          role="progressbar"
+          aria-labelledby={headingId}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+          aria-valuetext={`${percent}%, ${sent} of ${total}`}
+        >
+          <Track percent={percent} live={!stalled} />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {stalled ? (
+            <span className="inline-flex h-6 items-center gap-1.5 rounded-control border-pending pr-2.5 pl-2 text-body-s font-semibold text-pending">
+              <Pause {...iconProps} size={14} />
+              {paused
+                ? `Paused at ${percent}%`
+                : offline
+                  ? "Paused · no connection"
+                  : "Paused · connection lost"}
+            </span>
+          ) : (
+            <span className="font-mono text-mono-m font-semibold tabular-nums">{percent}%</span>
+          )}
+          <span className="font-mono text-body-s text-ink-muted tabular-nums">{caption}</span>
+        </div>
       </div>
-      <div
-        className={cx("wl-progress", (paused || offline || retrying) && "wl-progress--paused")}
-        role="progressbar"
-        aria-labelledby={headingId}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percent}
-        aria-valuetext={`${percent}%, ${sent} of ${total}`}
-      >
-        <span
-          className="wl-progress__fill"
-          style={{ "--wl-progress": `${percent}%` } as CSSProperties}
-        />
-      </div>
-      <p className="caption data mt-2">{caption}</p>
       {retrying && (
-        <div className="mt-4 wl-stack">
+        <div className="flex flex-col items-start gap-3">
           <Banner tone="warn">
             <span className="sr-only">Connection lost. Retrying automatically.</span>
             <span aria-hidden="true">Connection lost. Retrying in {retryIn ?? 1} s.</span>
           </Banner>
-          <div>
-            <Button variant="ghost" size="sm" onClick={() => uploader?.retryNow()}>
-              Retry now
-            </Button>
-          </div>
+          <Button
+            variant="secondary"
+            size="s"
+            icon={RefreshCw}
+            onClick={() => uploader?.retryNow()}
+          >
+            Retry now
+          </Button>
         </div>
       )}
       {offline && (
-        <div className="mt-4 wl-banner" role="status">
-          <WifiOff {...iconProps} />
-          <p className="body">Paused: you are offline. The upload carries on when you reconnect.</p>
-        </div>
+        <p role="status" className="text-pretty">
+          Your upload is safe. It carries on from {sent} when you are back online.
+        </p>
       )}
       {snap.missingPartsNotice && !finishing && (
-        <div className="mt-4">
-          <Banner tone="warn">Some parts did not arrive. Sending them again.</Banner>
-        </div>
+        <Banner tone="warn">Some parts did not arrive. Sending them again.</Banner>
       )}
-      <div className="wl-row mt-4">
+      <p className="flex gap-2.5 text-ink-muted">
+        <Info {...iconProps} className="mt-px shrink-0 text-ink" />
+        <span>
+          Large recordings upload faster on Wi-Fi. You can fill in the lineup while you wait.
+        </span>
+      </p>
+      {/* Screens A, "Upload · phone paused": the one primary, the next step, then cancel. */}
+      <div className="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap">
         {paused ? (
           <Button
             variant="primary"
@@ -596,35 +666,50 @@ function Progress({
           >
             Resume upload
           </Button>
+        ) : offline ? (
+          <Button
+            variant="primary"
+            icon={RefreshCw}
+            block
+            className="justify-center"
+            onClick={() => uploader?.retryNow()}
+          >
+            Try to resume now
+          </Button>
         ) : (
-          !offline && (
-            <Button
-              variant="secondary"
-              icon={Pause}
-              block
-              className="justify-center"
-              disabled={finishing}
-              onClick={() => uploader?.pause()}
-            >
-              Pause upload
-            </Button>
-          )
+          <Button
+            variant="secondary"
+            icon={Pause}
+            block
+            className="justify-center"
+            disabled={finishing}
+            onClick={() => uploader?.pause()}
+          >
+            Pause upload
+          </Button>
+        )}
+        {!finishing && (
+          <ButtonLink
+            variant="secondary"
+            block
+            className="justify-center touch:h-row"
+            href={`/matches/${matchId}/lineup`}
+          >
+            Continue to lineup
+            <ArrowRight {...iconProps} />
+          </ButtonLink>
         )}
         <Button
-          variant="danger"
+          variant="ghost"
           icon={X}
           block
-          className="justify-center"
+          className="justify-center text-ink-muted"
           disabled={finishing}
           onClick={onCancel}
         >
           Cancel upload
         </Button>
       </div>
-      <p className="caption mt-4 text-ink-muted">
-        Keep this page open until the upload finishes. If it stops, come back here and choose the
-        same file to carry on.
-      </p>
     </div>
   );
 }

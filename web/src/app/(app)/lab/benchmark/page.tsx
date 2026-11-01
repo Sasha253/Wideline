@@ -74,13 +74,13 @@ function VersionLink({ v, index }: { v: ModelBenchmark; index: number }) {
       <span className="wl-row">
         <a
           href={`#h-${slug(v.modelVersion, index)}`}
-          className="body-strong break-all text-pitch underline"
+          className="font-semibold break-all text-brand-text underline"
         >
           {parts.detector}
         </a>
         {isSynthetic(v.modelVersion) && <SyntheticChip />}
       </span>
-      <span className="caption break-all text-ink-muted">
+      <span className="text-body-s break-all text-ink-muted">
         {[parts.tracker, parts.events].filter(Boolean).join(" · ")}
       </span>
     </span>
@@ -124,7 +124,10 @@ export default async function BenchmarkPage() {
       }
     >
       <section aria-labelledby="by-version">
-        <h2 id="by-version" className="heading-2 mb-4">
+        <h2
+          id="by-version"
+          className="font-display text-heading-section stretch-wide uppercase mb-4"
+        >
           By model version
         </h2>
         <DataTable
@@ -145,7 +148,7 @@ export default async function BenchmarkPage() {
               <Fragment key="goal">{goalShot(v, "goal")}</Fragment>,
               <Fragment key="shot">{goalShot(v, "shot")}</Fragment>,
               <Gate key="g" v={v} />,
-              <span key="l" className="data whitespace-nowrap">
+              <span key="l" className="font-mono text-mono-m tabular-nums whitespace-nowrap">
                 {formatDate(v.lastRun)}
               </span>,
             ],
@@ -154,22 +157,22 @@ export default async function BenchmarkPage() {
             <li key={v.modelVersion} className="wl-card flex flex-col gap-2">
               <VersionLink v={v} index={i} />
               <dl className="wl-facts">
-                <dt className="label">Matches</dt>
-                <dd className="data">{v.matches}</dd>
-                <dt className="label">Goal recall</dt>
-                <dd className="data">
+                <dt className="text-label">Matches</dt>
+                <dd className="font-mono text-mono-m tabular-nums">{v.matches}</dd>
+                <dt className="text-label">Goal recall</dt>
+                <dd className="font-mono text-mono-m tabular-nums">
                   {rateText(row(v, "goal").matched, row(v, "goal").tagged) ?? "No tags"}
                 </dd>
-                <dt className="label">Shot recall</dt>
-                <dd className="data">
+                <dt className="text-label">Shot recall</dt>
+                <dd className="font-mono text-mono-m tabular-nums">
                   {rateText(row(v, "shot").matched, row(v, "shot").tagged) ?? "No tags"}
                 </dd>
-                <dt className="label">v0 gate</dt>
+                <dt className="text-label">v0 gate</dt>
                 <dd>
                   <Gate v={v} />
                 </dd>
-                <dt className="label">Last run</dt>
-                <dd className="data">{formatDate(v.lastRun)}</dd>
+                <dt className="text-label">Last run</dt>
+                <dd className="font-mono text-mono-m tabular-nums">{formatDate(v.lastRun)}</dd>
               </dl>
             </li>
           ))}
@@ -189,7 +192,11 @@ export default async function BenchmarkPage() {
             className="mt-8"
             aria-labelledby={`h-${slug(v.modelVersion, i)}`}
           >
-            <h2 id={`h-${slug(v.modelVersion, i)}`} tabIndex={-1} className="heading-2 break-all">
+            <h2
+              id={`h-${slug(v.modelVersion, i)}`}
+              tabIndex={-1}
+              className="font-display text-heading-section stretch-wide uppercase break-all"
+            >
               {parts.detector}
             </h2>
             {isSynthetic(v.modelVersion) && (
@@ -197,11 +204,13 @@ export default async function BenchmarkPage() {
                 <SyntheticChip />
               </div>
             )}
-            <p className="caption mt-2 text-ink-muted">
+            <p className="text-body-s mt-2 text-ink-muted">
               {v.matches} {v.matches === 1 ? "match" : "matches"} · {row(v, "goal").tagged} tagged
               goals · {row(v, "shot").tagged} tagged shots · last run {formatDate(v.lastRun)}
             </p>
-            <p className="data mt-1 break-all text-ink-muted">{v.modelVersion}</p>
+            <p className="font-mono text-mono-m tabular-nums mt-1 break-all text-ink-muted">
+              {v.modelVersion}
+            </p>
             {fewMatches && (
               <p className="mt-1">
                 <SmallSample text={fewMatches} />

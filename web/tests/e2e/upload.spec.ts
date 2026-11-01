@@ -210,7 +210,8 @@ test("accepted footage takes kickoff and half-time markers, typed as mm:ss", asy
   await expect(page.getByText("1920 × 1080")).toBeVisible();
   // C07: the processing steps in the Footage card.
   await expect(page.getByRole("heading", { level: 3, name: "Processing" })).toBeVisible();
-  await expect(page.getByText(/^Preparing playback · /)).toBeVisible();
+  // Floodlight pipeline rows: the step name, with its state in words beside it.
+  await expect(page.getByText("Preparing playback", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Watch" })).toBeVisible();
   // No lineup yet on the own side: that is the next step.
   await expect(page.getByRole("link", { name: "Enter lineups" }).first()).toBeVisible();

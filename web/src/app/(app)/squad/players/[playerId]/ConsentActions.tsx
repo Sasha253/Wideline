@@ -152,7 +152,7 @@ export function ConsentActions({
             body={`We make a link where they answer on their phone. It works for ${CONSENT_LINK_DAYS} days. Anyone with the link can answer, so send it only to them.`}
             form={ask}
             hidden={hidden}
-            submit={{ label: "Create link", pendingLabel: "Creating link…", variant: "primary" }}
+            submit={{ label: "Create link", pendingLabel: "Creating link", variant: "primary" }}
           >
             {(visible) => (
               <GuardianEmailField
@@ -172,7 +172,7 @@ export function ConsentActions({
             hidden={hidden}
             submit={{
               label: "Create new link",
-              pendingLabel: "Creating link…",
+              pendingLabel: "Creating link",
               variant: "primary",
             }}
           >
@@ -201,7 +201,7 @@ export function ConsentActions({
             }
             form={resend}
             hidden={hidden}
-            submit={{ label: "Email the link", pendingLabel: "Sending…", variant: "primary" }}
+            submit={{ label: "Email the link", pendingLabel: "Sending", variant: "primary" }}
           >
             {(visible) => (
               <GuardianEmailField
@@ -227,7 +227,7 @@ export function ConsentActions({
             body={`The link stops working at once. ${firstName}'s consent stays as it is.`}
             form={revoke}
             hidden={hidden}
-            submit={{ label: "Turn off link", pendingLabel: "Turning off…", variant: "danger" }}
+            submit={{ label: "Turn off link", pendingLabel: "Turning off", variant: "danger" }}
           />
         )}
         {active && (
@@ -248,7 +248,7 @@ export function ConsentActions({
             body={`The club and scouts stop seeing ${firstName}'s stats straight away. Wideline keeps no new stats for ${firstName}, and removes ${firstName} from clips, searches and saved lists within 24 hours.${active ? " You can record consent again later." : ""}`}
             form={withdraw}
             hidden={hidden}
-            submit={{ label: "Withdraw consent", pendingLabel: "Withdrawing…", variant: "danger" }}
+            submit={{ label: "Withdraw consent", pendingLabel: "Withdrawing", variant: "danger" }}
           >
             {(visible) => (
               <>
@@ -294,7 +294,7 @@ export function ConsentActions({
       </div>
       {notes}
       {!admin && (
-        <p className="caption mt-2 text-ink-muted">
+        <p className="text-body-s mt-2 text-ink-muted">
           Only owners and admins can record or withdraw consent.
         </p>
       )}
@@ -383,15 +383,15 @@ function CopyBox({
   }
 
   return (
-    <div className="wl-card mt-4 bg-surface-sunken">
-      <h3 className="body-strong">Guardian link for {firstName}</h3>
+    <div className="wl-card mt-4 bg-sunken">
+      <h3 className="font-semibold">Guardian link for {firstName}</h3>
       <div className="wl-copybox mt-2">
         <label htmlFor="consent-link" className="sr-only">
           Guardian link
         </label>
         <input
           id="consent-link"
-          className="wl-input data"
+          className="wl-input font-mono text-mono-m tabular-nums"
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
@@ -421,12 +421,12 @@ function CopyBox({
       <span className="sr-only" aria-live="polite">
         {announce}
       </span>
-      <p className="body mt-2 text-ink-muted">
+      <p className="mt-2 text-ink-muted">
         Send this link to {firstName}&apos;s parent or guardian by WhatsApp or SMS, or hand them
         your phone to answer now. Anyone with the link can answer, so send it only to them. It works
         until {until}.
       </p>
-      <p className="caption wl-inline-status wl-inline-status--warn mt-2">
+      <p className="text-body-s wl-inline-status wl-inline-status--warn mt-2">
         <Clock {...iconProps} />
         You will not see this link again after you leave this page. If it is lost, create a new one.
       </p>

@@ -28,22 +28,29 @@ test.describe("layout per width", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const sidebar = page.getByRole("complementary", { name: "Sidebar" });
     await expect(sidebar).toBeVisible();
-    expect((await sidebar.boundingBox())!.width).toBe(240);
+    // Floodlight: a 232px sidebar from 992px.
+    expect((await sidebar.boundingBox())!.width).toBe(232);
     await expect(mainNav(page)).toHaveCount(1);
     expect(await navLabels(page)).toEqual(["Admin", "Lab"]);
     await expect(page.getByRole("link", { name: "Lab" })).toHaveAttribute("aria-current", "page");
+    // Sign out sits inside the account menu.
+    await page.getByRole("button", { name: "Account and theme" }).click();
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await page.keyboard.press("Escape");
     await expectNoAxeViolations(page);
   });
 
-  test("768: the rail, with a visible label under each icon", async ({ page }) => {
+  test("768: the 64px icon rail, labels named for screen readers", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 900 });
     const sidebar = page.getByRole("complementary", { name: "Sidebar" });
     await expect(sidebar).toBeVisible();
-    expect((await sidebar.boundingBox())!.width).toBe(96);
+    expect((await sidebar.boundingBox())!.width).toBe(64);
     await expect(mainNav(page)).toHaveCount(1);
-    expect(await navLabels(page)).toEqual(["Admin", "Lab"]);
-    await expect(page.getByRole("button", { name: "Account" })).toBeVisible();
+    // The labels are visually hidden in the rail (tooltips on hover and focus), so the
+    // accessible names are checked rather than the rendered text.
+    await expect(mainNav(page).getByRole("link", { name: "Admin" })).toBeVisible();
+    await expect(mainNav(page).getByRole("link", { name: "Lab" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Account and theme" })).toBeVisible();
     await expectNoAxeViolations(page);
   });
 
@@ -62,7 +69,7 @@ test.describe("layout per width", () => {
 
   test("375: the account popover opens and shows Sign out", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
-    const account = page.getByRole("button", { name: "Account" });
+    const account = page.getByRole("button", { name: "Account and theme" });
     await account.click();
     await expect(account).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("region", { name: "Account" })).toContainText("Lab Admin");
@@ -179,7 +186,7 @@ test("each role sees only its nav items, and the server still guards the pages",
   await expect(coach).toHaveURL(/\/forbidden$/);
   await expect(coach.getByRole("heading", { level: 1, name: "No access" })).toBeVisible();
   expect(await navLabels(coach)).toEqual(["Dashboard", "Squad", "Matches"]);
-  await expect(coach.getByRole("link", { name: "Go to your home page" })).toHaveAttribute(
+  await expect(coach.getByRole("link", { name: "Go to dashboard" })).toHaveAttribute(
     "href",
     "/dashboard",
   );

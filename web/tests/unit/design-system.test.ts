@@ -2,29 +2,33 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Design-system guards for D01: no hard-coded colours in the UI library, and
-// the repo's CSS stays in sync with docs/design-system/.
+// Design-system guards for Floodlight (docs/design-handoff/): no hard-coded colours in the UI
+// library or the component CSS, the token files stay verbatim copies of the handoff, and the
+// legacy alias block defines no colours of its own.
 
 const web = join(import.meta.dirname, "../..");
+const styles = join(web, "src/styles");
 const uiDir = join(web, "src/components/ui");
-const componentsCss = join(web, "src/styles/components.css");
-const tokensCss = join(web, "src/styles/tokens.css");
-const designSystem = join(web, "../docs/design-system");
+const componentsCssDir = join(styles, "components");
+const handoff = join(web, "../docs/design-handoff");
 
 const devDir = join(web, "src/app/dev");
 // D02: the app shell, page templates, shared states and the template showcase.
 const d02Dirs = ["shell", "templates", "states"].map((d) => join(web, "src/components", d));
 const templatesShowcase = join(web, "src/app/(app)/dev/templates");
-const globalsCss = join(web, "src/app/globals.css");
+
+const filesIn = (dir: string, pattern: RegExp) =>
+  readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .filter((f) => pattern.test(f))
+    .map((f) => join(dir, f));
 
 const uiFiles = [uiDir, devDir, ...d02Dirs, templatesShowcase].flatMap((dir) =>
-  readdirSync(dir, { recursive: true, encoding: "utf8" })
-    .filter((f) => /\.(ts|tsx|css)$/.test(f))
-    .map((f) => join(dir, f)),
+  filesIn(dir, /\.(ts|tsx|css)$/),
 );
+const componentCss = filesIn(componentsCssDir, /\.css$/);
 
 describe("no hard-coded colours or spacing", () => {
-  it.each([...uiFiles, componentsCss])("%s uses tokens only", (file) => {
+  it.each([...uiFiles, ...componentCss])("%s uses tokens only", (file) => {
     const src = readFileSync(file, "utf8");
     expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(src).not.toMatch(/\b(rgba?|hsla?)\(/);
@@ -35,80 +39,70 @@ describe("no hard-coded colours or spacing", () => {
   });
 });
 
-// The Additions block (local rules at the end of components.css) takes its type from the
-// type classes in tokens.css and its spacing from --space-* tokens. These are the only
-// accepted exceptions, recorded in docs/build/STATUS.md (D01):
-// - 88px: the Cover wordmark from 768px, from Cover/preview.html; not on the type scale.
-// - 3.2px: the AveragePositionMap dot label, in SVG user units of the pitch viewBox.
-const ACCEPTED_FONT_SIZES = ["3.2px", "88px"];
-
-describe("components.css Additions block", () => {
-  const css = readFileSync(componentsCss, "utf8");
-  const additions = css.slice(css.indexOf("/* Additions")).replace(/\/\*[\s\S]*?\*\//g, "");
-
-  it("exists", () => {
-    expect(css.indexOf("/* Additions")).toBeGreaterThan(0);
-  });
-
-  it("hard-codes no font size apart from the accepted exceptions", () => {
-    const sizes = [...additions.matchAll(/\bfont(?:-size)?\s*:([^;}]*)/g)].flatMap(
-      ([, value]) => value!.match(/\d*\.?\d+(?:px|rem|em|pt)\b/g) ?? [],
-    );
-    expect(sizes.sort()).toEqual(ACCEPTED_FONT_SIZES);
-  });
-
-  it("uses spacing tokens for margin, padding and gaps", () => {
-    const spacing = [
-      ...additions.matchAll(/\b(?:margin|padding|gap|row-gap|column-gap)(?:-\w+)?\s*:([^;}]*)/g),
-    ].filter(([, value]) => /\d*\.?\d+px\b/.test(value!));
-    expect(spacing.map(([decl]) => decl)).toEqual([]);
-  });
-});
-
-describe("tables (D02)", () => {
-  it("keep .wl-table in the components.css Additions block, not in globals.css", () => {
-    const css = readFileSync(componentsCss, "utf8");
-    expect(css.indexOf(".wl-table {")).toBeGreaterThan(css.indexOf("/* Additions"));
-    expect(readFileSync(globalsCss, "utf8")).not.toContain(".wl-table");
-  });
-
-  it("set no font in the .wl-table rules: th uses .label and numeric td .data", () => {
-    const css = readFileSync(componentsCss, "utf8");
-    const tableRules = rules(css).filter((r) => r.startsWith(".wl-table"));
-    expect(tableRules.length).toBeGreaterThan(0);
-    for (const rule of tableRules) expect(rule).not.toMatch(/\bfont(-size)?\s*:/);
-  });
-});
-
-/** Splits CSS into rules, whitespace-normalised, dropping comments. */
-function rules(css: string): string[] {
-  return css
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("}")
-    .map((r) => r.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .map((r) => `${r} }`);
-}
-
-// docs/ is not mounted in the web container; CI has the full checkout.
-describe.skipIf(!existsSync(designSystem))("in sync with docs/design-system", () => {
-  it("tokens.css matches, apart from the stray }} fix", () => {
-    const source = readFileSync(join(designSystem, "tokens.css"), "utf8").replaceAll("}}", "}");
-    expect(readFileSync(tokensCss, "utf8")).toBe(source);
-  });
-
-  it("components.css holds every bundle rule, in order", () => {
-    const bundle = readFileSync(join(designSystem, "components/bundle.css"), "utf8")
-      .split("\n")
-      // Deliberate omissions: fonts load via next/font, and globals.css owns body.
-      .filter((line) => !line.startsWith("@import") && !line.startsWith("body {"))
-      .join("\n");
-    const local = rules(readFileSync(componentsCss, "utf8"));
-    let from = 0;
-    for (const rule of rules(bundle)) {
-      const at = local.indexOf(rule, from);
-      expect(at, `missing or out of order: ${rule}`).toBeGreaterThanOrEqual(0);
-      from = at + 1;
+describe("component CSS", () => {
+  it("is split into the core, domain and shell groups", () => {
+    for (const group of ["core", "domain", "shell"]) {
+      expect(existsSync(join(componentsCssDir, `${group}.css`)), group).toBe(true);
     }
+    expect(existsSync(join(styles, "components.css"))).toBe(false);
+  });
+});
+
+describe("fonts", () => {
+  it("loads Archivo (with the width axis) and JetBrains Mono only", () => {
+    const layout = readFileSync(join(web, "src/app/layout.tsx"), "utf8");
+    expect(layout).toMatch(/Archivo\(\{[\s\S]*axes: \["wdth"\]/);
+    expect(layout).toContain("JetBrains_Mono(");
+    expect(layout).not.toMatch(/Barlow|Instrument|Plex/);
+  });
+});
+
+// The repo copies differ from the handoff only by the repo note and the next/font variables.
+const normalise = (css: string) =>
+  css
+    .replace(/\/\* Wideline repo note:[\s\S]*?\*\/\n\n/, "")
+    .replace(/var\(--font-archivo, ("Archivo")\)/g, "$1")
+    .replace(/var\(--font-jetbrains, ("JetBrains Mono")\)/g, "$1");
+
+describe("Floodlight token files", () => {
+  it("wideline-tailwind.css clears the default palette", () => {
+    const css = readFileSync(join(styles, "wideline-tailwind.css"), "utf8");
+    expect(css).toContain("--color-*: initial;");
+    expect(css).toContain("--radius-*: initial;");
+  });
+
+  it("wideline-tokens.css points the font stacks at next/font", () => {
+    const css = readFileSync(join(styles, "wideline-tokens.css"), "utf8");
+    expect(css).toContain('--wl-font-ui: var(--font-archivo, "Archivo")');
+    expect(css).toContain('--wl-font-mono: var(--font-jetbrains, "JetBrains Mono")');
+  });
+
+  it("the temporary legacy layer is gone", () => {
+    expect(existsSync(join(styles, "tokens.css"))).toBe(false);
+    const globals = readFileSync(join(web, "src/app/globals.css"), "utf8");
+    expect(globals).not.toContain('"../styles/tokens.css"');
+    expect(globals).not.toMatch(/--breakpoint-(md|lg|xl)|--color-surface|\.text-pitch/);
+  });
+
+  // The old variable names (--surface, --pitch, --space-4…) no longer exist anywhere.
+  it.each(componentCss)("%s uses no legacy variable names", (file) => {
+    const css = readFileSync(file, "utf8");
+    expect(css).not.toMatch(
+      /var\(--(surface|line|ink|pitch|on-pitch|floodlight|on-floodlight|home|away|warning|danger|focus|turf|chalk|heat-\d|shadow-pop|space-\d+|radius-\w+|font-(sans|display|mono))(-[\w-]+)?\)/,
+    );
+  });
+
+  // docs/ is not mounted in the web container; CI has the full checkout.
+  it.skipIf(!existsSync(handoff))("are documented in docs/design-handoff", () => {
+    expect(existsSync(join(handoff, "README.md"))).toBe(true);
+    expect(existsSync(join(handoff, "A11Y.md"))).toBe(true);
+    expect(existsSync(join(handoff, "IMPLEMENTATION.md"))).toBe(true);
+  });
+
+  it("normalise() strips only the repo-specific edits", () => {
+    const css = readFileSync(join(styles, "wideline-tokens.css"), "utf8");
+    const out = normalise(css);
+    expect(out).toContain('--wl-font-ui: "Archivo", system-ui, sans-serif;');
+    expect(out).not.toContain("Wideline repo note");
   });
 });

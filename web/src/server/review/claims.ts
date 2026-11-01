@@ -12,7 +12,7 @@ import { rawDb } from "../db/raw";
 import { withinLimit } from "../entitlements/resolve";
 import { prismaErrorCode } from "../squad/errors";
 import { reviewConflict, type ConflictReason } from "./conflicts";
-import { ReviewError, type ReviewErrorCode } from "./errors";
+import { refuseImpersonation, ReviewError, type ReviewErrorCode } from "./errors";
 import { auditReview, endClaim, expireStaleClaims } from "./lifecycle";
 import { claimLimit, QUEUE_MATCH_SELECT, QUEUE_VIDEO_SELECT, toRow, type QueueRow } from "./queue";
 
@@ -24,11 +24,6 @@ import { claimLimit, QUEUE_MATCH_SELECT, QUEUE_VIDEO_SELECT, toRow, type QueueRo
  * claim nor release: the declaration and the audit trail must be the scout's
  * own (Q-064, AUTH07, NFR20).
  */
-
-/** Throws impersonation_refused in a "Log in as" session (Q-064). */
-function refuseImpersonation(ctx: ReviewerContext): void {
-  if (ctx.impersonator) throw new ReviewError("impersonation_refused");
-}
 
 type Refusal = {
   ok: false;

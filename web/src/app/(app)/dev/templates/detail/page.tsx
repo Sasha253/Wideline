@@ -33,7 +33,7 @@ export default async function DetailTemplatePage() {
           id: "season",
           title: "Season 2026 · U17",
           content: (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
+            <div className="grid grid-cols-1 gap-4 tablet:grid-cols-3 tablet:gap-6">
               <StatTile label="Goals per 90" value="0.62" matches={14} minutes={1180} />
               <StatTile label="Distance covered" value="8.4" unit="km per match" matches={14} />
               <StatTile label="Shots on target" value="71" unit="%" matches={2} />
@@ -56,7 +56,7 @@ export default async function DetailTemplatePage() {
                 id: m.id,
                 cells: [
                   m.fixture,
-                  <span key="date" className="data whitespace-nowrap">
+                  <span key="date" className="font-mono text-mono-m tabular-nums whitespace-nowrap">
                     {m.date}
                   </span>,
                   m.minutes,

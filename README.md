@@ -12,6 +12,7 @@ Needs Docker Desktop (Compose v2), and port 80 free.
 ```sh
 make up      # creates .env with fresh secrets, builds and starts everything
 make seed    # creates the Lab and demo organisations, an admin user, two teams and a match
+make demo    # optional: fills Wideline Demo FC with squads, consent, matches, staff, scouts and applications
 ```
 
 Open http://wideline.localhost and sign in with the email and password `make
@@ -340,6 +341,34 @@ dependencies, run `make up` again: it rebuilds the image and refreshes
 
 For editor support on the host, run `pnpm install` in `web/` and `uv sync` in
 `cv_worker/`.
+
+## Demo VM
+
+[`.github/workflows/deploy-vm.yml`](.github/workflows/deploy-vm.yml) runs this
+same dev stack on a VM after CI passes on `main` (or from **Actions → Deploy to
+VM → Run workflow**). It copies the tested commit over with rsync, runs `make
+up`, and runs `make seed` on the first deploy. The VM keeps its own `.env`, so
+secrets and data survive redeploys. It is a private demo, not production: Caddy
+binds to the VM's loopback only, because Mailpit (magic links) and the RustFS
+console sit behind it with no auth.
+
+VM setup (once): Linux with Docker Engine and the Compose plugin, `make`,
+`rsync` and `openssl`; the SSH user in the `docker` group; about 8 GB of RAM.
+Then on the GitHub environment `demo-vm` add the secrets `VM_HOST`, `VM_USER`,
+`VM_SSH_KEY` (a private key whose public half is in the VM user's
+`authorized_keys`) and `VM_SSH_KNOWN_HOSTS` (`ssh-keyscan -p <port> <host>`
+output). The variables `VM_PORT`, `VM_APP_DIR` and `VM_HTTP_BIND` are optional.
+
+To use it, open a tunnel and browse http://wideline.localhost as usual (stop
+your local stack first, since both need port 80):
+
+```sh
+ssh -L 80:127.0.0.1:80 <user>@<vm-host>
+ssh <user>@<vm-host> cat wideline/seed.log   # admin sign-in from the first deploy
+```
+
+Running the workflow by hand with **seed** ticked re-seeds, which resets the
+admin password.
 
 ## Build conventions
 

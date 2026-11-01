@@ -112,10 +112,15 @@ export function ImportFlow({ teams, defaultTeamId }: { teams: Team[]; defaultTea
   const n = STEP_NUMBER[step];
   return (
     <section aria-labelledby={`${ids}-eyebrow ${ids}-title`} className="mt-8">
-      <p id={`${ids}-eyebrow`} className="eyebrow text-ink-muted">
+      <p id={`${ids}-eyebrow`} className="font-mono text-overline uppercase text-ink-muted">
         Step {n} of 3
       </p>
-      <h2 id={`${ids}-title`} ref={headingRef} tabIndex={-1} className="heading-2">
+      <h2
+        id={`${ids}-title`}
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-heading-section uppercase stretch-wide"
+      >
         {STEP_TITLES[step]}
       </h2>
       <div className="wl-steps mt-3" aria-hidden="true">
@@ -195,14 +200,14 @@ function UploadStep({
   }
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+    <div className="mt-6 grid grid-cols-1 gap-6 desktop:grid-cols-12">
       <form
         ref={formRef}
         action={action}
         onSubmit={check}
         encType="multipart/form-data"
         noValidate
-        className="wl-card flex flex-col gap-4 lg:col-span-6"
+        className="wl-card flex flex-col gap-4 desktop:col-span-6"
       >
         <FormBusy formRef={formRef} />
         <Field
@@ -238,7 +243,7 @@ function UploadStep({
         </Field>
         <FormErrorBanner result={shown} />
         <div className="wl-row">
-          <SubmitButton block pendingLabel="Checking…" className="justify-center">
+          <SubmitButton block pendingLabel="Checking" className="justify-center">
             Check file
           </SubmitButton>
           <ButtonLink
@@ -282,25 +287,25 @@ const COLUMN_HELP: [string, boolean, string][] = [
 function ColumnHelp() {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="wl-card lg:col-span-6">
-      <h3 id={id} className="body-strong">
+    <section aria-labelledby={id} className="wl-card desktop:col-span-6">
+      <h3 id={id} className="font-semibold">
         Columns
       </h3>
-      <p className="body mt-1 text-ink-muted">
+      <p className="mt-1 text-ink-muted">
         The first row of the file names the columns. Upper or lower case both work, and columns we
         do not use are ignored.
       </p>
-      <table className="wl-table mt-4 hidden md:table">
+      <table className="wl-table mt-4 hidden tablet:table">
         <caption className="sr-only">CSV columns</caption>
         <thead>
           <tr>
-            <th scope="col" className="label">
+            <th scope="col" className="text-label">
               Column
             </th>
-            <th scope="col" className="label">
+            <th scope="col" className="text-label">
               Needed
             </th>
-            <th scope="col" className="label">
+            <th scope="col" className="text-label">
               What to put in it
             </th>
           </tr>
@@ -308,24 +313,24 @@ function ColumnHelp() {
         <tbody>
           {COLUMN_HELP.map(([name, needed, text]) => (
             <tr key={name}>
-              <td className="body-strong">{name}</td>
-              <td className="body">{needed ? "Yes" : "No"}</td>
-              <td className="body">{text}</td>
+              <td className="font-semibold">{name}</td>
+              <td>{needed ? "Yes" : "No"}</td>
+              <td>{text}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <dl className="mt-4 flex flex-col gap-3 md:hidden">
+      <dl className="mt-4 flex flex-col gap-3 tablet:hidden">
         {COLUMN_HELP.map(([name, needed, text]) => (
           <div key={name}>
-            <dt className="body-strong">{name}</dt>
-            <dd className="body">
+            <dt className="font-semibold">{name}</dt>
+            <dd>
               {needed ? "Needed" : "Optional"}. {text}
             </dd>
           </div>
         ))}
       </dl>
-      <p className="caption mt-2 text-ink-muted">
+      <p className="text-body-s mt-2 text-ink-muted">
         Commas, semicolons and tabs all work as separators.
       </p>
     </section>
@@ -336,7 +341,7 @@ function RowErrors({ row }: { row: ImportRow }) {
   return (
     <ul className="flex flex-col gap-1">
       {row.errors.map((e, i) => (
-        <li key={i} className="wl-inline-status wl-inline-status--danger caption">
+        <li key={i} className="wl-inline-status wl-inline-status--danger text-body-s">
           <CircleAlert {...iconProps} />
           <span>
             {e.label}: {e.message}
@@ -349,7 +354,7 @@ function RowErrors({ row }: { row: ImportRow }) {
 
 function Ready() {
   return (
-    <span className="wl-inline-status wl-inline-status--ok caption">
+    <span className="wl-inline-status wl-inline-status--ok text-body-s">
       <CircleCheck {...iconProps} />
       Ready
     </span>
@@ -400,19 +405,19 @@ function PreviewStep({
         )}
       </div>
       <div className="mt-4">
-        <p className="body-strong">
+        <p className="font-semibold">
           {teamLabel(preview.team)}{" "}
-          <span className="caption break-all text-ink-muted">· from {fileName}</span>
+          <span className="text-body-s break-all text-ink-muted">· from {fileName}</span>
         </p>
-        <p className="body-lg mt-1">{summary}</p>
+        <p className="text-body mt-1">{summary}</p>
         {e > 0 && v > 0 && (
-          <p className="body mt-1 text-ink-muted">
+          <p className="mt-1 text-ink-muted">
             Rows with errors are skipped. Fix them in your file and import it again later to add
             those players.
           </p>
         )}
         {preview.ignoredColumns.length > 0 && (
-          <p className="wl-inline-status wl-inline-status--muted caption mt-2">
+          <p className="wl-inline-status wl-inline-status--muted text-body-s mt-2">
             <Info {...iconProps} />
             Ignored columns: {preview.ignoredColumns.join(", ")}. They are not imported.
           </p>
@@ -428,7 +433,7 @@ function PreviewStep({
         <input type="hidden" name="fileName" value={fileName} />
         <div className="wl-row">
           {v > 0 && (
-            <SubmitButton block pendingLabel="Importing…" className="justify-center">
+            <SubmitButton block pendingLabel="Importing" className="justify-center">
               {importLabel}
             </SubmitButton>
           )}
@@ -459,7 +464,7 @@ function PreviewStep({
 
       {hydrated && e > 0 && (
         <>
-          <label className="wl-choice body mt-6">
+          <label className="wl-choice mt-6">
             <input
               type="checkbox"
               checked={onlyErrors}
@@ -498,7 +503,7 @@ function PreviewStep({
               <span key="last" className="break-words">
                 {asIs(r.values.lastName)}
               </span>,
-              <span key="dob" className="data">
+              <span key="dob" className="font-mono text-mono-m tabular-nums">
                 {asIs(r.values.dateOfBirth)}
               </span>,
               asIs(r.values.position),
@@ -522,18 +527,18 @@ function PreviewStep({
             return (
               <li key={r.line} className="wl-card flex flex-col gap-2">
                 <div className="flex justify-between gap-3">
-                  <span className="label text-ink-muted">Line {r.line}</span>
+                  <span className="text-label text-ink-muted">Line {r.line}</span>
                   {r.errors.length === 0 ? (
                     <Ready />
                   ) : (
-                    <span className="wl-inline-status wl-inline-status--danger caption">
+                    <span className="wl-inline-status wl-inline-status--danger text-body-s">
                       <CircleAlert {...iconProps} />
                       {plural(r.errors.length, "error", "errors")}
                     </span>
                   )}
                 </div>
-                <p className="body-strong break-words">{name || "No name"}</p>
-                {meta && <p className="caption break-words text-ink-muted">{meta}</p>}
+                <p className="font-semibold break-words">{name || "No name"}</p>
+                {meta && <p className="text-body-s break-words text-ink-muted">{meta}</p>}
                 {r.errors.length > 0 && <RowErrors row={r} />}
               </li>
             );
@@ -559,7 +564,7 @@ function DoneStep({
         </Banner>
       </div>
       {state.skipped > 0 && (
-        <p className="body mt-4 max-w-prose text-ink-muted">
+        <p className="mt-4 max-w-prose text-ink-muted">
           {plural(state.skipped, "row was", "rows were")} skipped. Fix them in your file, then
           import it again: players already added are flagged as already in the club, not added
           twice.

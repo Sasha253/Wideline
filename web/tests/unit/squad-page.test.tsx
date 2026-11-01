@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-// The squad list (/squad, C04): the status tabs read "Current 1 players" to a
-// screen reader, the phone card keeps each number with its unit, and the
-// full-width Show button centres its label.
+// The squad list (/squad, C04; Floodlight "Squad"): team tabs with counts, consent filters
+// that never rely on colour alone, a table on desktop and initials-or-number rows on phones
+// (never a photo), and a search that works without JavaScript.
 
 vi.mock("@/server/auth/session", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/auth/session")>()),
@@ -64,24 +64,35 @@ const render = async () =>
   renderToStaticMarkup(await SquadPage({ searchParams: Promise.resolve({}) }));
 
 describe("/squad", () => {
-  it("spaces the status tab's label, count and sr-only word", async () => {
+  it("names the team tabs and puts the count beside the current tab's label", async () => {
     const html = await render();
-    expect(html).toContain(
-      'Current <span class="data">1</span> <span class="sr-only">players</span>',
-    );
-  });
-
-  it("joins numbers to their units with a non-breaking space in the phone card", async () => {
-    const html = await render();
-    expect(html).toContain("No.\u00a07");
-    expect(html).toMatch(/Age\u00a0\d+/);
-    expect(html).toContain("165\u00a0cm");
-  });
-
-  it("centres the label of the full-width Show button", async () => {
-    const html = await render();
+    expect(html).toContain('aria-label="Teams"');
     expect(html).toMatch(
-      /<button type="submit" class="[^"]*\bjustify-center\b[^"]*">Show<\/button>/,
+      /aria-current="page"[^>]*>All teams<span class="wl-tabset__count">1<\/span>/,
     );
+    expect(html).toContain('Departed<span class="wl-tabset__count">0</span>');
+  });
+
+  it("filters by consent with an icon and a word on every option", async () => {
+    const html = await render();
+    expect(html).toContain('aria-label="Consent"');
+    for (const word of ["All", "Given", "Club only", "Awaiting", "Withdrawn", "Not requested"]) {
+      expect(html).toContain(word);
+    }
+  });
+
+  it("shows the shirt number or initials on phone rows, never a photo", async () => {
+    const html = await render();
+    expect(html).toContain("Thabo Nkosi");
+    expect(html).toMatch(/>7<\/span>/);
+    expect(html).not.toContain("<img");
+  });
+
+  it("searches with a plain GET form", async () => {
+    const html = await render();
+    const form = html.match(/<form [^>]*role="search"[^>]*>/)?.[0] ?? "";
+    expect(form).toContain('method="get"');
+    expect(form).toContain('action="/squad"');
+    expect(html).toContain('<span class="sr-only">Search players</span>');
   });
 });

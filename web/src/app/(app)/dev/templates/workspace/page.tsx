@@ -12,22 +12,27 @@ export default async function WorkspaceTemplatePage() {
       toolbar={
         <>
           {/* The page's one h1: the workspace is about this match. */}
-          <h1 className="heading-2">Wideline Demo FC v Hellenic U17</h1>
-          <span className="data text-ink-muted">12 Oct 2026</span>
+          <h1 className="font-display text-heading-section stretch-wide uppercase">
+            Wideline Demo FC v Hellenic U17
+          </h1>
+          <span className="font-mono text-mono-m tabular-nums text-ink-muted">12 Oct 2026</span>
         </>
       }
       primary={{
         title: "Match video",
         content: (
-          <div className="grid aspect-video place-items-center rounded-md bg-surface-sunken">
-            <span className="caption text-ink-muted">Video plays here</span>
+          <div className="grid aspect-video place-items-center rounded-control bg-sunken">
+            <span className="text-body-s text-ink-muted">Video plays here</span>
           </div>
         ),
       }}
       side={{
         title: "Events",
         content: (
-          <ul aria-label="Sample events" className="overflow-hidden rounded-md border border-line">
+          <ul
+            aria-label="Sample events"
+            className="overflow-hidden rounded-control border border-line"
+          >
             <ReviewEventRow
               time="31:24"
               type="Shot on target"

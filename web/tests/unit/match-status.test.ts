@@ -3,7 +3,8 @@ import { canMove, fromStatusesFor } from "@/server/matches/status";
 
 // MATCH07 moves owned so far: C06 (draft and uploading), C07 (processing to
 // failed), C08 (processing to awaiting review, once every required job has
-// succeeded) and C10 (a review claim: awaiting review to in review and back).
+// succeeded), C10 (a review claim: awaiting review to in review and back) and
+// C11 (marking the match as reviewed: in review to published).
 // Nothing moves back to processing.
 
 describe("match status moves", () => {
@@ -20,8 +21,15 @@ describe("match status moves", () => {
     expect(fromStatusesFor("awaiting_review").sort()).toEqual(["in_review", "processing"]);
   });
 
-  it("does not publish yet (C11, C12) and never moves back to processing", () => {
-    expect(canMove("in_review", "published")).toBe(false);
+  it("publishes from in review only (C11)", () => {
+    expect(canMove("in_review", "published")).toBe(true);
+    expect(fromStatusesFor("published")).toEqual(["in_review"]);
+    expect(canMove("awaiting_review", "published")).toBe(false);
+    expect(canMove("published", "in_review")).toBe(false);
+    expect(canMove("published", "awaiting_review")).toBe(false);
+  });
+
+  it("never moves back to processing", () => {
     expect(canMove("awaiting_review", "processing")).toBe(false);
     expect(canMove("in_review", "processing")).toBe(false);
     expect(canMove("failed", "processing")).toBe(false);

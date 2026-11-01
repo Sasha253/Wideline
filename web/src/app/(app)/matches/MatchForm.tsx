@@ -92,12 +92,12 @@ export function MatchForm(
       ref={formRef}
       {...formProps}
       noValidate
-      className="wl-card mt-6 flex max-w-2xl flex-col gap-4"
+      className="mt-6 flex max-w-2xl flex-col gap-4 border border-line bg-panel p-5 touch:p-4"
     >
       <FormBusy formRef={formRef} />
       {props.mode === "edit" && <input type="hidden" name="matchId" value={props.matchId} />}
       <div>
-        <div className="wl-versus">
+        <div className="grid gap-3 tablet:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] tablet:items-end">
           <TeamSelect
             name="homeTeamId"
             label="Home team"
@@ -106,7 +106,10 @@ export function MatchForm(
             opposition={props.opposition}
             error={fieldError(state, "homeTeamId")}
           />
-          <span className="wl-versus__v heading-2 text-ink-muted" aria-hidden="true">
+          <span
+            className="hidden font-mono text-ink-muted tablet:block tablet:pb-2.5"
+            aria-hidden="true"
+          >
             v
           </span>
           <TeamSelect
@@ -119,11 +122,11 @@ export function MatchForm(
           />
         </div>
         {props.mode === "create" && (
-          <p className="caption mt-2 text-ink-muted">
+          <p className="mt-2 text-body-s text-ink-muted">
             Opposition not listed?{" "}
             <Link
               href="/squad/teams/new?kind=opposition&next=/matches/new"
-              className="text-pitch underline"
+              className="text-brand-text underline underline-offset-3"
             >
               Add an opposition team
             </Link>
@@ -179,7 +182,7 @@ export function MatchForm(
             name="halfLengthMinutes"
             min={10}
             max={60}
-            className="wl-input w-full md:w-auto"
+            className="wl-input w-full font-mono tabular-nums tablet:w-auto"
             defaultValue={v.halfLengthMinutes}
           />
         )}

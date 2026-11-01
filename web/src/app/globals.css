@@ -1,88 +1,23 @@
 @import "tailwindcss";
-/* Tokens and type styles (.body, .display-xl…) sit in the base layer, under the components
-   and utilities layers, so a wl- rule or a utility on the same element can adjust them. */
-@import "../styles/tokens.css" layer(base);
-/* The wl- component classes sit in Tailwind's components layer, so utilities on the same
-   element (h-12, w-full, p-0, relative…) override them instead of losing to unlayered CSS. */
-@import "../styles/components.css" layer(components);
 
-/* Point the token font stacks at the self-hosted next/font families. */
-:root {
-  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
-  --font-sans: var(--font-instrument), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-}
+/* Floodlight (docs/design-handoff/). wideline-tokens.css holds every --wl-* token for both
+   themes plus the base rules (html, links, the focus ring, reduced motion); it sits in the
+   base layer so components and utilities can adjust it. wideline-tailwind.css maps the
+   tokens to utilities and clears Tailwind's default palette, radii, shadows, type and
+   breakpoints, so only Wideline roles exist (bg-panel, text-ink-muted, h-control-l…). */
+@import "../styles/wideline-tokens.css" layer(base);
+@import "../styles/wideline-tailwind.css";
 
-/* Expose design tokens as Tailwind utilities: bg-surface, text-ink, border-line… */
-@theme inline {
-  --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-surface-sunken: var(--surface-sunken);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-ink: var(--ink);
-  --color-ink-muted: var(--ink-muted);
-  --color-pitch: var(--pitch);
-  --color-on-pitch: var(--on-pitch);
-  --color-pitch-soft: var(--pitch-soft);
-  --color-floodlight: var(--floodlight);
-  --color-on-floodlight: var(--on-floodlight);
-  --color-home: var(--home);
-  --color-away: var(--away);
-  --color-warning: var(--warning);
-  --color-warning-soft: var(--warning-soft);
-  --color-danger: var(--danger);
-  --color-danger-soft: var(--danger-soft);
-  --color-focus: var(--focus);
-  --color-turf: var(--turf);
-  --color-chalk: var(--chalk);
-  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
-  --font-sans: var(--font-instrument), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 16px;
-}
-
-html {
-  background: var(--surface);
-  color: var(--ink);
-}
-
-/* Native controls and scrollbars follow the theme, on <html> and inside any ThemeScope. */
-[data-theme="light"] {
-  color-scheme: light;
-}
-[data-theme="dark"] {
-  color-scheme: dark;
-}
+/* Component classes, by group, in Tailwind's components layer, so utilities on the same
+   element (h-12, w-full, p-0, relative…) override them. screens.css and review.css hold the
+   few per-screen rules utilities can't express (video player, calibration, watermark). */
+@import "../styles/components/core.css" layer(components);
+@import "../styles/components/domain.css" layer(components);
+@import "../styles/components/shell.css" layer(components);
+@import "../styles/components/screens.css" layer(components);
+@import "../styles/components/review.css" layer(components);
 
 body {
-  font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 22px;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* The focus ring is the bundle's :focus-visible rule in components.css. It sits in the
-   components layer, so a component can swap it for a replacement ring (see PlayerCard). */
-
-/* Tailwind ships an `overline` utility (text-decoration), which collides with
-   the design system's .overline text style. Use .eyebrow in markup instead. */
-.eyebrow {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0ms !important;
-    animation-duration: 0ms !important;
-  }
+  margin: 0;
+  font-family: var(--wl-font-ui);
 }

@@ -14,7 +14,7 @@ import { ListPage } from "@/components/templates/ListPage";
 import { PageHeader } from "@/components/templates/PageHeader";
 import { Workspace } from "@/components/templates/Workspace";
 
-// D02 shared states and page templates (docs/build/design/D02.md, Surfaces 5 and 6).
+// Shared states and page templates, restyled for Floodlight (docs/design-handoff/).
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -48,13 +48,20 @@ describe("ErrorState", () => {
     container = null;
   });
 
-  it("renders the copy and the reference", () => {
+  it("renders the copy, the reference and role=alert", () => {
     const out = html(<ErrorState reset={() => {}} digest="a1b2c3" />);
     expect(out).toContain("<h1");
-    expect(out).toContain("Something went wrong");
-    expect(out).toContain("We could not load this page. Try again, or come back in a few minutes.");
-    expect(out).toContain('Reference: <span class="data">a1b2c3</span>');
-    expect(out).toContain("Go to your home page");
+    expect(out).toContain('role="alert"');
+    expect(out).toContain("We couldn&#x27;t load this page");
+    expect(out).toContain("Something went wrong on our side. Nothing you entered has been lost.");
+    expect(out).toContain("Reference a1b2c3");
+    expect(out).toContain("wl-state--error");
+  });
+
+  it("names what failed to load", () => {
+    expect(html(<ErrorState reset={() => {}} what="the squad" />)).toContain(
+      "We couldn&#x27;t load the squad",
+    );
   });
 
   it("leaves out the reference without a digest", () => {
@@ -69,7 +76,7 @@ describe("ErrorState", () => {
     const root = createRoot(container);
     await act(async () => root.render(<ErrorState reset={reset} />));
 
-    expect(document.activeElement?.textContent).toBe("Something went wrong");
+    expect(document.activeElement?.textContent).toBe("We couldn't load this page");
     const button = [...container.querySelectorAll("button")].find(
       (b) => b.textContent === "Try again",
     );
@@ -80,37 +87,42 @@ describe("ErrorState", () => {
 });
 
 describe("EmptyState", () => {
-  it("hides its art from screen readers", () => {
+  it("hides its pitch-line mark from screen readers", () => {
     const out = html(<EmptyState title="No matches waiting" body="New matches appear here." />);
-    expect(out).toMatch(/<svg class="wl-empty__art"[^>]*aria-hidden="true"[^>]*focusable="false"/);
-    expect(out).toContain('<h2 class="heading-2">No matches waiting</h2>');
+    expect(out).toMatch(/<span class="wl-state__mark" aria-hidden="true"><svg/);
+    expect(out).toContain("wl-state wl-state--empty");
+    expect(out).toMatch(/<h2 id="[^"]+" class="wl-state__title">No matches waiting<\/h2>/);
   });
 
   it("can drop the art and use a level 1 heading", () => {
     const out = html(<EmptyState title="Page not found" art={false} headingLevel={1} />);
     expect(out).not.toContain("<svg");
-    expect(out).toContain('<h1 class="heading-1">Page not found</h1>');
+    expect(out).toContain('<h1 class="wl-state__title">Page not found</h1>');
   });
 });
 
 describe("ForbiddenState", () => {
-  it("keeps the C01 copy", () => {
-    const out = html(<ForbiddenState />);
-    expect(out).toContain("No access");
+  it("says who can grant access", () => {
+    const out = html(<ForbiddenState reason="Shortlists are only for scouts." />);
+    expect(out).toContain("You don&#x27;t have access to this page");
     expect(out).toContain(
-      "Your account does not have access to this page. Ask a Wideline admin if you think you need\n        it.".replace(
-        /\s+/g,
-        " ",
-      ),
+      "Shortlists are only for scouts. If you think you should have access, ask your organisation&#x27;s admin.",
     );
+    expect(out).toContain("wl-state--forbidden");
     expect(out).toContain('href="/login"');
     expect(out).toContain("Sign in as someone else");
   });
 
-  it("shows the home link only with homeHref", () => {
+  it("shows the home link with homeHref, and the switch and code when given", () => {
     expect(html(<ForbiddenState />)).not.toContain("Go to your home page");
     const out = html(<ForbiddenState homeHref="/dashboard" />);
     expect(out).toMatch(/href="\/dashboard"[^>]*>.*Go to your home page/);
+    expect(out).not.toContain("Sign in as someone else");
+    const full = html(
+      <ForbiddenState switchHref="/organisations" homeHref="/dashboard" signedInAs="club admin" />,
+    );
+    expect(full).toContain("Switch organisation");
+    expect(full).toContain("403 · signed in as club admin");
   });
 });
 
@@ -128,17 +140,37 @@ describe("templates", () => {
     );
     expect(out).toMatch(/<div role="region" aria-label="Players, by name" tabindex="0"/);
     expect(out).toContain('<caption class="sr-only">Players, by name</caption>');
-    expect(out).toContain('<th scope="col" class="label num">Matches</th>');
-    expect(out).toContain('<td class="data num">14</td>');
-    expect(out).toContain('<td class="body">Thabo Nkosi</td>');
+    expect(out).toContain('<th scope="col" class="num">Matches</th>');
+    expect(out).toContain('<td class="num">14</td>');
+    expect(out).toContain("<td>Thabo Nkosi</td>");
+  });
+
+  it("DataTable marks the sorted column and swaps the toolbar for the bulk bar", () => {
+    const out = html(
+      <DataTable
+        caption="Squad"
+        columns={[
+          { id: "name", header: "Player" },
+          { id: "min", header: "Min", numeric: true, sort: "descending" },
+        ]}
+        rows={[{ id: "1", cells: ["Sipho Ndlovu", 612], selected: true }]}
+        toolbar={<span>Filters</span>}
+        bulkBar={<span>2 selected</span>}
+      />,
+    );
+    expect(out).toContain('aria-sort="descending"');
+    expect(out).toContain("wl-table__bar wl-table__bar--bulk");
+    expect(out).toContain("2 selected");
+    expect(out).not.toContain("Filters");
+    expect(out).toContain('aria-selected="true"');
   });
 
   it("DataTable with cards hides the table on phones", () => {
     const out = html(
       <DataTable caption="Players" columns={[]} rows={[]} cards={<li className="wl-card">A</li>} />,
     );
-    expect(out).toContain("hidden md:block");
-    expect(out).toContain('<ul role="list" class="flex flex-col gap-3 md:hidden">');
+    expect(out).toContain("hidden tablet:block");
+    expect(out).toContain('<div class="tablet:hidden"><ul role="list" class="wl-listrows">');
   });
 
   it("DecisionFlow renders one h1 and radio inputs inside labels", () => {
@@ -154,7 +186,7 @@ describe("templates", () => {
     );
     expect(out.match(/<h1/g)).toHaveLength(1);
     const labels = out.match(
-      /<label class="wl-decision__choice body-lg"><input type="radio"[^>]*required/g,
+      /<label class="wl-decision__choice"><input type="radio"[^>]*required/g,
     );
     expect(labels).toHaveLength(2);
     expect(out).toContain('<legend class="sr-only">Can scouts see Lebo&#x27;s stats?</legend>');
@@ -184,17 +216,17 @@ describe("templates", () => {
     expect(out).not.toContain("Content");
   });
 
-  it("DetailPage reads its title once at each size and labels its sections", () => {
+  it("DetailPage reads its title once and labels its sections", () => {
     const out = html(
       <DetailPage
         title="Thabo Nkosi"
         sections={[{ id: "log", title: "Match log", content: <p>Log</p> }]}
       />,
     );
-    expect(out).toContain('<span class="heading-1 md:hidden">Thabo Nkosi</span>');
-    expect(out).toContain('<span class="display-xl hidden md:inline">Thabo Nkosi</span>');
+    expect(out.match(/<h1/g)).toHaveLength(1);
+    expect(out).toMatch(/<h1 id="[^"]+" class="wl-hero__title">Thabo Nkosi<\/h1>/);
     expect(out).toMatch(
-      /<section aria-labelledby="[^"]+" class="mt-8"><h2 id="[^"]+" class="heading-2">Match log<\/h2>/,
+      /<section aria-labelledby="[^"]+" class="mt-8"><h2 id="[^"]+" class="wl-section-title">Match log<\/h2>/,
     );
   });
 

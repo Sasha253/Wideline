@@ -87,7 +87,7 @@ function RecallSection({ b }: { b: MatchBenchmark }) {
         title="No tags yet"
         body="Import hand-tagged events to measure recall for this match."
         action={
-          <a href="#import" className="body wl-link-row text-pitch underline">
+          <a href="#import" className="wl-link-row text-brand-text underline">
             Go to Import tags
           </a>
         }
@@ -110,7 +110,7 @@ function RecallSection({ b }: { b: MatchBenchmark }) {
     );
     return (
       <>
-        <p className="body mb-3 text-ink-muted">Recall appears once the CV job has finished.</p>
+        <p className="mb-3 text-ink-muted">Recall appears once the CV job has finished.</p>
         <RecallTable caption="Recall by event type" rows={rows} notYet />
       </>
     );
@@ -136,7 +136,7 @@ function MissedSection({ b }: { b: MatchBenchmark }) {
   const missed = b.recall!.missed;
   if (missed.length === 0) {
     return (
-      <p className="body">
+      <p>
         <span className="wl-inline-status wl-inline-status--ok">
           <Check {...iconProps} />
           Every tag was found.
@@ -154,7 +154,7 @@ function MissedSection({ b }: { b: MatchBenchmark }) {
   const tagSide = (t: Tag) => b.tags.find((x) => x.id === t.id)?.teamSide ?? null;
   return (
     <>
-      <p className="body mb-3 text-ink-muted">Hand tags the pipeline did not find.</p>
+      <p className="mb-3 text-ink-muted">Hand tags the pipeline did not find.</p>
       <DataTable
         caption="Missed tags, goals and shots first"
         columns={[
@@ -166,7 +166,7 @@ function MissedSection({ b }: { b: MatchBenchmark }) {
         rows={shown.map((t) => ({
           id: t.id,
           cells: [
-            <span key="time" className="data tabular-nums">
+            <span key="time" className="font-mono text-mono-m tabular-nums">
               {formatVideoTime(t.timestampMs, 1)}
             </span>,
             <span key="type">{kindLabel(t.type, t.onTarget)}</span>,
@@ -177,16 +177,18 @@ function MissedSection({ b }: { b: MatchBenchmark }) {
         cards={shown.map((t) => (
           <li key={t.id} className="wl-card flex flex-col gap-2">
             <div className="wl-row">
-              <span className="data tabular-nums">{formatVideoTime(t.timestampMs, 1)}</span>
-              <span className="body-strong">{kindLabel(t.type, t.onTarget)}</span>
+              <span className="font-mono text-mono-m tabular-nums">
+                {formatVideoTime(t.timestampMs, 1)}
+              </span>
+              <span className="font-semibold">{kindLabel(t.type, t.onTarget)}</span>
               <Side side={tagSide(t)} b={b} />
             </div>
-            <p className="caption text-ink-muted">{near(t) ?? <Missing />}</p>
+            <p className="text-body-s text-ink-muted">{near(t) ?? <Missing />}</p>
           </li>
         ))}
       />
       {missed.length > LIST_CAP && (
-        <p className="caption mt-3 text-ink-muted">
+        <p className="text-body-s mt-3 text-ink-muted">
           Showing the first 100 of {formatCount(missed.length)} missed tags.
         </p>
       )}
@@ -204,7 +206,7 @@ function ClipCell({ b, d }: { b: MatchBenchmark; d: Detection }) {
         href={`/lab/clips/${clip.id}`}
         target="_blank"
         rel="noopener"
-        className="body wl-link-row text-pitch underline"
+        className="wl-link-row text-brand-text underline"
         aria-label={`Open clip of ${what} at ${formatVideoTime(d.timestampMs, 1)} (opens in a new tab)`}
       >
         Open clip
@@ -228,7 +230,7 @@ function UnmatchedSection({ b }: { b: MatchBenchmark }) {
   const list = b.recall!.unmatched;
   if (list.length === 0) {
     return (
-      <p className="body">
+      <p>
         <span className="wl-inline-status wl-inline-status--ok">
           <Check {...iconProps} />
           Every detection matches a tag.
@@ -242,9 +244,7 @@ function UnmatchedSection({ b }: { b: MatchBenchmark }) {
     (b.statusByEvent.get(d.id) ?? "pending_review") as EventReviewState;
   return (
     <>
-      <p className="body mb-3 text-ink-muted">
-        Events the pipeline found that no hand tag matches.
-      </p>
+      <p className="mb-3 text-ink-muted">Events the pipeline found that no hand tag matches.</p>
       <DataTable
         caption="Unmatched detections, goals and shots first"
         columns={[
@@ -258,7 +258,7 @@ function UnmatchedSection({ b }: { b: MatchBenchmark }) {
         rows={shown.map((d) => ({
           id: d.id,
           cells: [
-            <span key="time" className="data tabular-nums">
+            <span key="time" className="font-mono text-mono-m tabular-nums">
               {formatVideoTime(d.timestampMs, 1)}
             </span>,
             <span key="type">{kindLabel(d.type, d.onTarget)}</span>,
@@ -271,8 +271,10 @@ function UnmatchedSection({ b }: { b: MatchBenchmark }) {
         cards={shown.map((d) => (
           <li key={d.id} className="wl-card flex flex-col gap-2">
             <div className="wl-row">
-              <span className="data tabular-nums">{formatVideoTime(d.timestampMs, 1)}</span>
-              <span className="body-strong">{kindLabel(d.type, d.onTarget)}</span>
+              <span className="font-mono text-mono-m tabular-nums">
+                {formatVideoTime(d.timestampMs, 1)}
+              </span>
+              <span className="font-semibold">{kindLabel(d.type, d.onTarget)}</span>
               <EventStatusChip state={status(d)} />
             </div>
             <div className="wl-row">
@@ -284,7 +286,7 @@ function UnmatchedSection({ b }: { b: MatchBenchmark }) {
         ))}
       />
       {list.length > LIST_CAP && (
-        <p className="caption mt-3 text-ink-muted">
+        <p className="text-body-s mt-3 text-ink-muted">
           Showing the first 100 of {formatCount(list.length)} unmatched detections.
         </p>
       )}
@@ -315,46 +317,54 @@ function PipelineCard({ b, job }: { b: MatchBenchmark; job: LabJob }) {
   const clipsMeta = clips?.metadata ?? {};
   return (
     <div className="wl-card">
-      <h3 className="body-strong">Pipeline</h3>
+      <h3 className="font-semibold">Pipeline</h3>
       <dl className="wl-facts mt-3">
-        <dt className="label">CV job</dt>
-        <dd className="body">
+        <dt className="text-label">CV job</dt>
+        <dd>
           <span className="wl-row">
             <JobStatusChip status={job.status} attempts={job.attempts} />
             <JobAttempt job={job} />
           </span>
         </dd>
-        <dt className="label">Detector</dt>
-        <dd className="body">
+        <dt className="text-label">Detector</dt>
+        <dd>
           {parts ? (
             <span className="wl-row">
-              <span className="data break-all">{parts.detector}</span>
+              <span className="font-mono text-mono-m tabular-nums break-all">{parts.detector}</span>
               {isSynthetic(job.modelVersion) && <SyntheticChip />}
             </span>
           ) : (
             <Missing />
           )}
         </dd>
-        <dt className="label">Tracker</dt>
-        <dd className="data break-all">{parts?.tracker ?? <Missing />}</dd>
-        <dt className="label">Events</dt>
-        <dd className="data break-all">{parts?.events ?? <Missing />}</dd>
-        <dt className="label">Finished</dt>
-        <dd className="body">{job.finishedAt ? formatDateTime(job.finishedAt) : <Missing />}</dd>
-        <dt className="label">Speed</dt>
-        <dd className="body">
-          {rtf !== null ? <span className="data">{rtf.toFixed(2)} × real time</span> : <Missing />}
+        <dt className="text-label">Tracker</dt>
+        <dd className="font-mono text-mono-m tabular-nums break-all">
+          {parts?.tracker ?? <Missing />}
         </dd>
-        <dt className="label">GPU start-up</dt>
-        <dd className="body">
-          {startup !== null && b.cv?.metadata && !isSynthetic(job.modelVersion) ? (
-            <span className="data">{formatEta(startup / 1000)}</span>
+        <dt className="text-label">Events</dt>
+        <dd className="font-mono text-mono-m tabular-nums break-all">
+          {parts?.events ?? <Missing />}
+        </dd>
+        <dt className="text-label">Finished</dt>
+        <dd>{job.finishedAt ? formatDateTime(job.finishedAt) : <Missing />}</dd>
+        <dt className="text-label">Speed</dt>
+        <dd>
+          {rtf !== null ? (
+            <span className="font-mono text-mono-m tabular-nums">{rtf.toFixed(2)} × real time</span>
           ) : (
             <Missing />
           )}
         </dd>
-        <dt className="label">Clips job</dt>
-        <dd className="body">
+        <dt className="text-label">GPU start-up</dt>
+        <dd>
+          {startup !== null && b.cv?.metadata && !isSynthetic(job.modelVersion) ? (
+            <span className="font-mono text-mono-m tabular-nums">{formatEta(startup / 1000)}</span>
+          ) : (
+            <Missing />
+          )}
+        </dd>
+        <dt className="text-label">Clips job</dt>
+        <dd>
           {clips ? (
             <>
               <span className="wl-row">
@@ -362,7 +372,7 @@ function PipelineCard({ b, job }: { b: MatchBenchmark; job: LabJob }) {
                 <JobAttempt job={clips} />
               </span>
               {clips.status === "succeeded" && (
-                <span className="caption block text-ink-muted">
+                <span className="text-body-s block text-ink-muted">
                   {formatCount(num(clipsMeta.count) ?? 0)} clips ·{" "}
                   {formatSize(num(clipsMeta.bytes) ?? 0)} ·{" "}
                   {formatEta((num(clipsMeta.cutMs) ?? 0) / 1000)}
@@ -373,13 +383,15 @@ function PipelineCard({ b, job }: { b: MatchBenchmark; job: LabJob }) {
             <Missing />
           )}
         </dd>
-        <dt className="label">Ready in</dt>
-        <dd className="body">
+        <dt className="text-label">Ready in</dt>
+        <dd>
           {b.readySec === null ? (
             "Not ready yet"
           ) : (
             <span className="wl-row">
-              <span className="data">{formatEta(b.readySec)} after upload</span>
+              <span className="font-mono text-mono-m tabular-nums">
+                {formatEta(b.readySec)} after upload
+              </span>
               {b.readySec <= REVIEW_READY_TARGET_SEC ? (
                 <span className="wl-inline-status wl-inline-status--ok">
                   <Check {...iconProps} />
@@ -396,9 +408,9 @@ function PipelineCard({ b, job }: { b: MatchBenchmark; job: LabJob }) {
         </dd>
         {job.status === "failed" && job.errorMessage && (
           <>
-            <dt className="label">Last error</dt>
+            <dt className="text-label">Last error</dt>
             <dd>
-              <p className="data break-words">{job.errorMessage}</p>
+              <p className="font-mono text-mono-m break-words">{job.errorMessage}</p>
             </dd>
           </>
         )}
@@ -413,37 +425,39 @@ function CountsCard({ b, from }: { b: MatchBenchmark; from: LabJob | null }) {
   const swapped = from?.metadata.teamSideSwapped === true;
   return (
     <div className="wl-card">
-      <h3 className="body-strong">Tracks and events</h3>
+      <h3 className="font-semibold">Tracks and events</h3>
       {!counts ? (
-        <p className="body mt-3 text-ink-muted">Counts appear when the run finishes.</p>
+        <p className="mt-3 text-ink-muted">Counts appear when the run finishes.</p>
       ) : (
         <>
           {from && b.cv && from.id !== b.cv.id && from.finishedAt && (
-            <p className="caption mt-2 text-ink-muted">
+            <p className="text-body-s mt-2 text-ink-muted">
               From the run on {formatDateTime(from.finishedAt)}.
             </p>
           )}
           <dl className="wl-facts mt-3">
-            <dt className="label">Tracks kept</dt>
-            <dd className="data">{formatCount(counts.tracks)}</dd>
-            <dt className="label">Linked to players</dt>
-            <dd className="data">{formatCount(counts.linked)}</dd>
-            <dt className="label">Discarded at the consent check</dt>
-            <dd className="data">{formatCount(counts.discarded)}</dd>
-            <dt className="label">Unlinked</dt>
-            <dd className="data">{formatCount(counts.unlinked)}</dd>
-            <dt className="label">Position points</dt>
-            <dd className="data">{formatCount(counts.points)}</dd>
-            <dt className="label">Events</dt>
-            <dd className="body">
-              <span className="data">{formatCount(counts.events)}</span>
-              <span className="caption block text-ink-muted">
+            <dt className="text-label">Tracks kept</dt>
+            <dd className="font-mono text-mono-m tabular-nums">{formatCount(counts.tracks)}</dd>
+            <dt className="text-label">Linked to players</dt>
+            <dd className="font-mono text-mono-m tabular-nums">{formatCount(counts.linked)}</dd>
+            <dt className="text-label">Discarded at the consent check</dt>
+            <dd className="font-mono text-mono-m tabular-nums">{formatCount(counts.discarded)}</dd>
+            <dt className="text-label">Unlinked</dt>
+            <dd className="font-mono text-mono-m tabular-nums">{formatCount(counts.unlinked)}</dd>
+            <dt className="text-label">Position points</dt>
+            <dd className="font-mono text-mono-m tabular-nums">{formatCount(counts.points)}</dd>
+            <dt className="text-label">Events</dt>
+            <dd>
+              <span className="font-mono text-mono-m tabular-nums">
+                {formatCount(counts.events)}
+              </span>
+              <span className="text-body-s block text-ink-muted">
                 {formatCount(counts.autoAccepted)} auto-accepted ·{" "}
                 {formatCount(counts.pendingReview)} pending review
               </span>
             </dd>
-            <dt className="label">Sides</dt>
-            <dd className="body">
+            <dt className="text-label">Sides</dt>
+            <dd>
               {evidence && swapped ? (
                 `Swapped to match shirt numbers (${evidence.swapped} reads)`
               ) : evidence && evidence.kept > 0 ? (
@@ -466,33 +480,33 @@ function CalibrationCard({ b }: { b: MatchBenchmark }) {
   const cal = b.calibration;
   return (
     <div className="wl-card">
-      <h3 className="body-strong">Pitch calibration</h3>
+      <h3 className="font-semibold">Pitch calibration</h3>
       {!cal ? (
-        <p className="body mt-3 text-ink-muted">Not calibrated yet.</p>
+        <p className="mt-3 text-ink-muted">Not calibrated yet.</p>
       ) : cal.source === "manual" ? (
         <>
           <dl className="wl-facts mt-3">
-            <dt className="label">Source</dt>
-            <dd className="body">Manual</dd>
-            <dt className="label">Error</dt>
-            <dd className="data">
+            <dt className="text-label">Source</dt>
+            <dd>Manual</dd>
+            <dt className="text-label">Error</dt>
+            <dd className="font-mono text-mono-m tabular-nums">
               {cal.reprojectionErrorM !== null ? (
                 `${cal.reprojectionErrorM.toFixed(1)} m`
               ) : (
                 <Missing />
               )}
             </dd>
-            <dt className="label">Points</dt>
-            <dd className="data">{cal.pointCount ?? <Missing />}</dd>
-            <dt className="label">Confidence</dt>
+            <dt className="text-label">Points</dt>
+            <dd className="font-mono text-mono-m tabular-nums">{cal.pointCount ?? <Missing />}</dd>
+            <dt className="text-label">Confidence</dt>
             <dd>
               <ConfidenceMeter score={cal.confidence} threshold={0.5} detail />
             </dd>
-            <dt className="label">Saved</dt>
-            <dd className="body">{formatDateTime(cal.createdAt)}</dd>
+            <dt className="text-label">Saved</dt>
+            <dd>{formatDateTime(cal.createdAt)}</dd>
           </dl>
           {cal.sourceVideoId && cal.sourceVideoId !== b.video?.id && (
-            <p className="caption mt-3 text-ink-muted">
+            <p className="text-body-s mt-3 text-ink-muted">
               Reused from an earlier match at this venue and camera.
             </p>
           )}
@@ -500,19 +514,19 @@ function CalibrationCard({ b }: { b: MatchBenchmark }) {
       ) : (
         <>
           <dl className="wl-facts mt-3">
-            <dt className="label">Source</dt>
-            <dd className="body">
+            <dt className="text-label">Source</dt>
+            <dd>
               <span className="wl-inline-status wl-inline-status--warn">
                 <TriangleAlert {...iconProps} />
                 Not calibrated
               </span>
             </dd>
-            <dt className="label">Confidence</dt>
+            <dt className="text-label">Confidence</dt>
             <dd>
               <ConfidenceMeter score={cal.confidence} threshold={0.5} detail />
             </dd>
           </dl>
-          <p className="caption mt-3 text-ink-muted">
+          <p className="text-body-s mt-3 text-ink-muted">
             Positions are approximate until a platform admin calibrates this venue.
           </p>
         </>
@@ -522,7 +536,7 @@ function CalibrationCard({ b }: { b: MatchBenchmark }) {
           <ButtonLink
             href={`/lab/matches/${b.match.id}/calibration`}
             variant="secondary"
-            size="sm"
+            size="s"
             icon={Crosshair}
           >
             Calibrate pitch
@@ -536,7 +550,7 @@ function CalibrationCard({ b }: { b: MatchBenchmark }) {
 function RunSection({ b }: { b: MatchBenchmark }) {
   if (!b.cv) {
     return (
-      <p className="body text-ink-muted">
+      <p className="text-ink-muted">
         The CV job has not been queued yet. It starts when the footage is accepted.
       </p>
     );
@@ -545,26 +559,26 @@ function RunSection({ b }: { b: MatchBenchmark }) {
   const warnings = (done?.metadata.warnings as string[] | undefined) ?? [];
   return (
     <>
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-6 tablet:grid-cols-2 wide:grid-cols-3">
         <PipelineCard b={b} job={b.cv} />
         <CountsCard b={b} from={done} />
         {done ? (
           <CalibrationCard b={b} />
         ) : (
           <div className="wl-card">
-            <h3 className="body-strong">Pitch calibration</h3>
-            <p className="body mt-3 text-ink-muted">Counts appear when the run finishes.</p>
+            <h3 className="font-semibold">Pitch calibration</h3>
+            <p className="mt-3 text-ink-muted">Counts appear when the run finishes.</p>
           </div>
         )}
       </div>
       {warnings.length > 0 && (
         <div className="mt-6">
-          <h3 className="body-strong">Warnings ({warnings.length})</h3>
+          <h3 className="font-semibold">Warnings ({warnings.length})</h3>
           <ul className="wl-issues mt-3">
             {warnings.map((w) => (
               <li key={w} className="wl-issues__warn">
                 <TriangleAlert {...iconProps} />
-                <p className="body break-words">{w}</p>
+                <p className="break-words">{w}</p>
               </li>
             ))}
           </ul>
@@ -619,7 +633,7 @@ export default async function MatchBenchmarkPage({
             href={`/lab/matches/${b.match.id}/calibration`}
             variant="secondary"
             icon={Crosshair}
-            className="max-md:w-full max-md:justify-center"
+            className="touch:w-full touch:justify-center"
           >
             Calibrate pitch
           </ButtonLink>

@@ -99,12 +99,22 @@ export function PlayerCardMenu({
           className="wl-menu"
           onKeyDown={onMenuKeyDown}
         >
-          <Link role="menuitem" href={profileHref} className="wl-menu__item body" tabIndex={-1}>
+          <Link
+            role="menuitem"
+            href={profileHref}
+            className="wl-menu__item text-body"
+            tabIndex={-1}
+          >
             <User {...iconProps} />
             View profile
           </Link>
           {shortlistHref ? (
-            <Link role="menuitem" href={shortlistHref} className="wl-menu__item body" tabIndex={-1}>
+            <Link
+              role="menuitem"
+              href={shortlistHref}
+              className="wl-menu__item text-body"
+              tabIndex={-1}
+            >
               <Star {...iconProps} />
               Add to shortlist
             </Link>
@@ -112,7 +122,7 @@ export function PlayerCardMenu({
             <button
               type="button"
               role="menuitem"
-              className="wl-menu__item body"
+              className="wl-menu__item text-body"
               tabIndex={-1}
               onClick={() => {
                 onAddToShortlist();

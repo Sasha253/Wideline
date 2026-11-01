@@ -108,6 +108,8 @@ const PAGES: [string, () => Promise<{ default: unknown }>, readonly Role[]][] = 
   ],
   ["/scout", () => import("@/app/(app)/scout/page"), session.SCOUT_ROLES],
   ["/settings", () => import("@/app/(app)/settings/page"), session.ORG_ADMIN_ROLES],
+  // C11: every club role reads the thresholds; the action limits saving (Q-070).
+  ["/settings/review", () => import("@/app/(app)/settings/review/page"), session.CLUB_ROLES],
   ["/admin", () => import("@/app/(app)/admin/page"), session.PLATFORM_ROLES],
   ["/admin/scouts", () => import("@/app/(app)/admin/scouts/page"), session.PLATFORM_ROLES],
   [

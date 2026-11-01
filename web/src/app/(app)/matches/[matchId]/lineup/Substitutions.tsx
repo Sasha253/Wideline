@@ -70,10 +70,15 @@ export function Substitutions({
 
   return (
     <section aria-labelledby="substitutions-heading" className="mt-8 max-w-4xl">
-      <h2 id="substitutions-heading" ref={headingRef} tabIndex={-1} className="heading-2">
+      <h2
+        id="substitutions-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-heading-section stretch-wide uppercase outline-none"
+      >
         Substitutions
       </h2>
-      <p className="body mt-2 text-ink-muted">
+      <p className="mt-2 text-ink-muted">
         Add each change with the minute it happened. Minutes played are worked out from these.
       </p>
       <div aria-live="polite" className="mt-4 empty:mt-0">
@@ -81,26 +86,26 @@ export function Substitutions({
         {result && !result.ok && <FormErrorBanner result={result} />}
       </div>
       {!hasLineup ? (
-        <p className="body mt-4">Save the lineup first. Then add substitutions.</p>
+        <p className="mt-4">Save the lineup first. Then add substitutions.</p>
       ) : (
         <>
           {items.length === 0 ? (
-            <p className="body mt-4 text-ink-muted">No substitutions yet.</p>
+            <p className="mt-4 text-ink-muted">No substitutions yet.</p>
           ) : (
-            <ul className="mt-4" role="list">
+            <ul className="mt-4 border border-line bg-panel" role="list">
               {items.map((item) => (
                 <li
                   key={item.offLineupId}
-                  className="flex flex-wrap items-center gap-3 border-b border-line py-3"
+                  className="flex min-h-11.5 flex-wrap items-center gap-3 border-b border-line px-3.5 py-2 last:border-b-0"
                 >
-                  <span className="data">{item.minute} min</span>
-                  <span className="body">
-                    Off: <span className="body-strong">{item.offLabel}</span>
+                  <span className="font-mono tabular-nums">{item.minute} min</span>
+                  <span>
+                    Off: <span className="font-semibold">{item.offLabel}</span>
                   </span>
-                  <span className="body">
+                  <span>
                     On:{" "}
                     {item.onLabel ? (
-                      <span className="body-strong">{item.onLabel}</span>
+                      <span className="font-semibold">{item.onLabel}</span>
                     ) : (
                       <span className="text-ink-muted">No replacement</span>
                     )}
@@ -112,8 +117,9 @@ export function Substitutions({
                       <input type="hidden" name="offLineupId" value={item.offLineupId} />
                       <SubmitButton
                         variant="ghost"
-                        size="sm"
-                        pendingLabel="Removing…"
+                        size="s"
+                        className="touch:h-control-l"
+                        pendingLabel="Removing"
                         aria-label={`Remove the substitution at ${item.minute} min`}
                       >
                         Remove
@@ -125,12 +131,17 @@ export function Substitutions({
             </ul>
           )}
           {!locked && (
-            <form ref={formRef} {...formProps} noValidate className="wl-card mt-4">
+            <form
+              ref={formRef}
+              {...formProps}
+              noValidate
+              className="mt-4 border border-line bg-panel p-4"
+            >
               <FormBusy formRef={formRef} />
               <input type="hidden" name="matchId" value={matchId} />
               <input type="hidden" name="teamId" value={teamId} />
               <input type="hidden" name="maxMinute" value={maxMinute} />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 tablet:grid-cols-3">
                 <Field
                   label="Minute"
                   hint={`1 to ${maxMinute}.`}
@@ -181,7 +192,7 @@ export function Substitutions({
                   <SubmitButton
                     variant="secondary"
                     block
-                    pendingLabel="Adding…"
+                    pendingLabel="Adding"
                     className="justify-center"
                   >
                     Add substitution

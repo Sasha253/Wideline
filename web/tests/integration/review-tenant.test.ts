@@ -161,11 +161,74 @@ describe("ReviewClaim tenant isolation", { timeout: 30_000 }, () => {
       "reviewClaim",
       "auditLog",
       "$queryRaw",
+      // C11: the training rows and the CV job stay off the claim client.
+      "eventCorrection",
+      "processingJob",
     ]) {
       expect(loose[key]).toBeUndefined();
     }
     expect(await rawDb.event.count({ where: { matchId: one.matchId, status: "confirmed" } })).toBe(
       0,
     );
+  });
+});
+
+describe("C11 review writes and EventCorrection tenant isolation", { timeout: 60_000 }, () => {
+  it("scopes EventCorrection by organisation and refuses other organisations' ids", async () => {
+    const { workspaceMatch, sidePlayer, track, cvEvent, claimed } =
+      await import("./helpers/workspace");
+    const { confirmEvent, reassignEvent } = await import("@/server/review/decisions");
+    const { relinkTrack } = await import("@/server/review/tracks");
+    const { favouriteReviewClip } = await import("@/server/review/favourites");
+    const mine = await workspaceMatch(f, "Writes A");
+    const theirs = await workspaceMatch(f, "Writes B");
+    const e = await cvEvent(mine);
+    const { scout: s, scope } = await claimed(f, mine, "writes a");
+    await confirmEvent(s, scope, e.id);
+
+    // The correction is org A's: org B's scoped client sees none of it.
+    expect(await scopedDb(theirs.organisationId).eventCorrection.count()).toBe(0);
+    expect(
+      await scopedDb(theirs.organisationId).eventCorrection.count({ where: { eventId: e.id } }),
+    ).toBe(0);
+    expect(
+      await scopedDb(mine.organisationId).eventCorrection.count({ where: { eventId: e.id } }),
+    ).toBe(1);
+
+    // Ids from org B, through org A's claim: refused, nothing written.
+    const theirEvent = await cvEvent(theirs);
+    const theirTrack = await track(theirs);
+    const theirPlayer = await sidePlayer(theirs, "home", 7, "scout_visible");
+    const theirClip = await rawDb.clip.create({
+      data: {
+        organisationId: theirs.organisationId,
+        matchId: theirs.matchId,
+        eventId: theirEvent.id,
+        blobPath: `orgs/${theirs.organisationId}/matches/${theirs.matchId}/clips/x.mp4`,
+        startMs: 0,
+        endMs: 1000,
+        sizeBytes: BigInt(1),
+        width: 1,
+        height: 1,
+        baseExpiresAt: new Date(Date.now() + 86_400_000),
+        expiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const fails = (p: Promise<unknown>) =>
+      p.then(
+        () => "ok",
+        (err: { code?: string }) => err.code,
+      );
+    expect(await fails(confirmEvent(s, scope, theirEvent.id))).toBe("not_found");
+    expect(await fails(relinkTrack(s, scope, { trackId: theirTrack.id, entryId: null }))).toBe(
+      "not_found",
+    );
+    expect(
+      await fails(reassignEvent(s, scope, { eventId: e.id, entryId: theirPlayer.entryId })),
+    ).toBe("not_in_lineup");
+    expect(await fails(favouriteReviewClip(s, scope, theirClip.id))).toBe("not_found");
+    expect(
+      await rawDb.eventCorrection.count({ where: { organisationId: theirs.organisationId } }),
+    ).toBe(0);
   });
 });

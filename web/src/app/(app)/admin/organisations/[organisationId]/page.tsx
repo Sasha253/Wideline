@@ -138,25 +138,26 @@ export default async function OrganisationEntitlementsPage({ params }: Props) {
     <>
       <PageHeader
         back={{ href: "/admin/organisations?status=all", label: "All organisations" }}
-        eyebrow="Flags and limits"
+        eyebrow="Admin / Organisations / Flags and limits"
         title={org.name}
         intro={intro}
-      />
-      <div className="wl-row mt-3">
-        <OrganisationStatusChip status={org.status} />
-        <span className="caption text-ink-muted">
-          {ORG_TYPE_LABELS[org.type]} · {locationText(org.country, org.region)}
-        </span>
-      </div>
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <OrganisationStatusChip status={org.status} />
+          <span className="text-body-s text-ink-muted">
+            {ORG_TYPE_LABELS[org.type]} · {locationText(org.country, org.region)}
+          </span>
+        </div>
+      </PageHeader>
       {org.status !== "active" && (
-        <div className="mt-4">
+        <div className="mt-5">
           <Banner tone="warn">
             {org.name} is not active. Changes are saved and apply if it becomes active.
           </Banner>
         </div>
       )}
       {basis !== "subscription" && (
-        <div className="mt-4">
+        <div className="mt-3">
           <Banner tone="warn">
             {basis === "pilot_fallback"
               ? `${org.name} has no plan, so it uses the ${planName} plan's limits.`

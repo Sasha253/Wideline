@@ -53,6 +53,9 @@ export const TENANT_SCOPED = new Set<Prisma.ModelName>([
   // C10: review claims. Readable (a club sees when its review is due), never
   // writable: REVIEW_CLAIM_REFUSED_OPS below.
   "ReviewClaim",
+  // C11: review decisions, the training set (REVIEW09). Written only by
+  // src/server/review/ on the raw client inside a claim-checked transaction.
+  "EventCorrection",
 ]);
 
 // Tables no organisation may reach: the Better Auth tables, the scout tables

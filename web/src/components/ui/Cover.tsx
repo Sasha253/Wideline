@@ -1,7 +1,7 @@
 /**
- * The brand cover: the Wideline wordmark and tagline over pitch geometry.
- * Built from Cover/preview.html (the component has no README). The art is
- * decorative, hidden from screen readers, and shows from 1024px.
+ * The brand cover: the Wideline wordmark (Archivo 800, 125% wide, caps) and tagline over
+ * pitch geometry on graphite, with the lime block as the floodlit accent (Floodlight). The
+ * art is decorative, hidden from screen readers, and shows from 1024px.
  */
 export function Cover({
   title = "Wideline",
@@ -31,8 +31,8 @@ export function Cover({
         </svg>
       </div>
       <div className="wl-cover__words">
-        <Title className="wl-cover__name display-xl">{title}</Title>
-        <p className="wl-cover__tag body">{tagline}</p>
+        <Title className="wl-cover__name">{title}</Title>
+        <p className="wl-cover__tag">{tagline}</p>
       </div>
     </div>
   );

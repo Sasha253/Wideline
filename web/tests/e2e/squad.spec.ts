@@ -94,10 +94,12 @@ test("add a team and players; a duplicate number is refused; mark a player depar
     name: `Current players in ${teamLabel}, by shirt number`,
   });
   await expect(table.getByRole("row")).toHaveCount(3);
-  await expect(table.getByRole("row").nth(1)).toContainText("7Thabo Nkosi");
+  // Floodlight: No., then the initials square and the name.
+  await expect(table.getByRole("row").nth(1)).toContainText(/^7.*Thabo Nkosi/);
+  // The team tab counts its current players.
   await expect(
-    page.getByRole("navigation", { name: "Player status" }).getByRole("link", { name: /Current/ }),
-  ).toHaveText("Current 2 players");
+    page.getByRole("navigation", { name: "Teams" }).getByRole("link", { name: teamLabel }),
+  ).toContainText("2");
 
   // Mark Thabo departed: read-only page, records kept.
   await table.getByRole("link", { name: "Thabo Nkosi" }).click();
@@ -114,7 +116,7 @@ test("add a team and players; a duplicate number is refused; mark a player depar
     "Thabo Nkosi is marked as departed. Their records are kept.",
   );
   // C05: the hero shows the ConsentBadge first, then the Departed chip.
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText(["No consent", "Departed"]);
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText(["Not requested", "Departed"]);
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Mark as departed" })).toHaveCount(0);
   await expect(page.getByText("Left on", { exact: true })).toBeVisible();
@@ -123,15 +125,16 @@ test("add a team and players; a duplicate number is refused; mark a player depar
   await page.goto(`/squad?team=${teamId}`);
   await expect(page.getByRole("link", { name: "Thabo Nkosi" })).toHaveCount(0);
   await page
-    .getByRole("navigation", { name: "Player status" })
+    .getByRole("navigation", { name: "Teams" })
     .getByRole("link", { name: /Departed/ })
     .click();
   const departed = page.getByRole("region", {
     name: `Departed players in ${teamLabel}, by date left`,
   });
   await expect(departed.getByRole("row").nth(1)).toContainText("Thabo Nkosi");
-  // C05: the Consent column sits after Name, so the row has two chips.
-  await expect(departed.locator(".wl-chip")).toHaveText(["Departed", "No consent"]);
+  // Floodlight: the departed row says when they left and that scouts can't see them.
+  await expect(departed.getByRole("row").nth(1)).toContainText("Left on");
+  await expect(departed.getByRole("row").nth(1)).toContainText("Hidden from scouts");
 
   // Undo within 7 days (Q-012): back in the squad, then depart again for the later tests.
   await page.goto(thaboPath);
@@ -139,7 +142,7 @@ test("add a team and players; a duplicate number is refused; mark a player depar
   await page.getByRole("button", { name: "Undo departure" }).click();
   await expect(page).toHaveURL(/\?done=restored/);
   await expect(page.getByRole("status")).toHaveText("Thabo Nkosi is back in the squad.");
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText(["No consent"]);
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText(["Not requested"]);
   await page.getByRole("button", { name: "Mark as departed" }).click();
   await page
     .getByRole("dialog", { name: "Mark Thabo Nkosi as departed?" })
@@ -224,7 +227,9 @@ test("add opposition placeholders by shirt number", async ({ page }) => {
   ).toBeVisible();
   // Opposition placeholders never show in the squad.
   await page.goto("/squad");
-  await expect(page.getByRole("option", { name: `${name} (2026)` })).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Teams" }).getByRole("link", { name: `${name} (2026)` }),
+  ).toHaveCount(0);
 });
 
 test("squad list, import and player form pass axe at 375, 768 and 1280", async ({ page }) => {

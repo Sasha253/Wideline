@@ -49,7 +49,7 @@ export function RefusalLinks({ code }: { code: ReviewErrorCode | "failed" }) {
       {code === "conflict" && (
         <Link
           href="/scout#scout-conflicts-heading"
-          className="body wl-link-row text-pitch underline"
+          className="inline-flex min-h-control-l items-center text-brand-text underline tablet:min-h-0"
         >
           Check your list on your scout profile
         </Link>
@@ -94,7 +94,7 @@ export function ClaimForm({
             {formError}
           </Banner>
         </div>
-        <div className="wl-row mt-4">
+        <div className="mt-4 flex flex-col gap-3 tablet:flex-row tablet:items-center">
           <RefusalLinks code={state.code} />
         </div>
       </div>
@@ -120,17 +120,17 @@ export function ClaimForm({
             error ? "claim-declaration-hint claim-declaration-error" : "claim-declaration-hint"
           }
         />
-        <span className="body min-w-0 break-words">
+        <span className="min-w-0 break-words">
           I have no link to either club or to any player in this match.
         </span>
         <Check {...iconProps} />
       </label>
-      <p id="claim-declaration-hint" className="caption mt-2 text-ink-muted">
+      <p id="claim-declaration-hint" className="m-0 mt-2 text-body-s text-ink-muted">
         This includes clubs and players you stopped working with in the last {coolingOffDays} days.
         Wideline records that you confirmed this.
       </p>
       {error && <FieldErrorText id="claim-declaration-error" message={error} />}
-      <div className="wl-row mt-6">
+      <div className="mt-6 flex flex-col gap-3 tablet:flex-row">
         <SubmitButton
           icon={Timer}
           pendingLabel="Claiming…"

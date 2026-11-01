@@ -36,7 +36,7 @@ export default async function NewPlayerPage({
         intro={
           <>
             Add one player to a team. To add a whole squad,{" "}
-            <Link href={`/squad/import${teamQuery}`} className="text-pitch underline">
+            <Link href={`/squad/import${teamQuery}`} className="text-brand-text underline">
               import a CSV file
             </Link>{" "}
             instead.

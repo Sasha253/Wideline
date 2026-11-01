@@ -1,0 +1,127 @@
+# Deploy to VM: runs the local dev stack (`make up`) on a demo VM after CI
+# passes on main, or by hand. A private demo box only: the stack serves the Next
+# dev server, Mailpit (magic links) and the RustFS console over plain HTTP, so
+# Caddy listens on the VM's loopback and you reach it through an SSH tunnel
+# (README, "Demo VM"). Production deploys are C19.
+#
+# Setup, on the GitHub environment "demo-vm":
+#   secrets    VM_HOST, VM_USER, VM_SSH_KEY (private key), VM_SSH_KNOWN_HOSTS
+#              (`ssh-keyscan -p <port> <host>` output, checked from a trusted machine)
+#   variables  VM_PORT (default 22), VM_APP_DIR (default wideline, relative to
+#              the SSH user's home or absolute), VM_HTTP_BIND (default 127.0.0.1:80)
+#
+# Only actions/checkout is used, pinned to a commit SHA as in ci.yml.
+
+name: Deploy to VM
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: Run `make seed` after deploying (resets the seeded admin password)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One deploy at a time. A newer one waits instead of cutting a build short.
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy the dev stack
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: demo-vm
+    env:
+      APP_DIR: ${{ vars.VM_APP_DIR || 'wideline' }}
+      HTTP_BIND: ${{ vars.VM_HTTP_BIND || '127.0.0.1:80' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # After CI: deploy the commit CI tested, not whatever main is now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Configure SSH
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_PORT: ${{ vars.VM_PORT || '22' }}
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_SSH_KNOWN_HOSTS: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+        run: |
+          for v in VM_HOST VM_USER VM_SSH_KEY VM_SSH_KNOWN_HOSTS; do
+            [ -n "${!v}" ] || { echo "::error::Secret $v is not set on the demo-vm environment"; exit 1; }
+          done
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/vm_key
+          chmod 600 ~/.ssh/vm_key
+          # Pinned host key: no ssh-keyscan here, so a spoofed host is refused.
+          printf '%s\n' "$VM_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vm
+            HostName $VM_HOST
+            User $VM_USER
+            Port $VM_PORT
+            IdentityFile ~/.ssh/vm_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Copy the commit to the VM
+        run: |
+          # shellcheck disable=SC2029 # APP_DIR is meant to expand here
+          ssh vm "mkdir -p '$APP_DIR'"
+          # Git-ignored paths (.env, generated files, seed.log) are neither sent
+          # nor deleted, so the VM keeps its secrets and output between deploys.
+          # --delete-after: deletions then follow the .gitignore just sent, not
+          # whatever the VM had (or lacked) before.
+          rsync -az --delete-after --exclude=/.git --filter=':- .gitignore' ./ "vm:$APP_DIR/"
+
+      - name: Build and start the stack
+        env:
+          SEED: ${{ inputs.seed }}
+        run: |
+          # APP_DIR and HTTP_BIND expand here on purpose (SC2029).
+          # `make up` writes .env with fresh secrets on the first deploy only.
+          # shellcheck disable=SC2029
+          first_deploy=$(ssh vm "test -f '$APP_DIR/.env' || echo yes")
+          # shellcheck disable=SC2029
+          ssh vm "cd '$APP_DIR' && CADDY_HTTP_BIND='$HTTP_BIND' make up"
+          if [ "$first_deploy" = yes ] || [ "$SEED" = true ]; then
+            # The seed prints the admin password: keep it on the VM, out of the
+            # Actions log.
+            # shellcheck disable=SC2029
+            ssh vm "cd '$APP_DIR' && (umask 077; make seed > seed.log 2>&1) || { tail -n 40 seed.log; exit 1; }"
+            echo "SEEDED=yes" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check the app answers through Caddy
+        run: |
+          # shellcheck disable=SC2029 # APP_DIR is meant to expand here
+          ssh vm "cd '$APP_DIR' && docker compose exec -T caddy \
+            wget -qO- --header 'Host: wideline.localhost' http://127.0.0.1/api/health"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed \`$(git rev-parse --short HEAD)\` to the demo VM"
+            echo
+            echo "Open a tunnel, then browse http://wideline.localhost in Chrome or Firefox:"
+            echo '```'
+            echo "ssh -L 80:127.0.0.1:80 <user>@<vm-host>"
+            echo '```'
+            if [ "${SEEDED:-}" = yes ]; then
+              echo "Seeded. The admin sign-in is in \`$APP_DIR/seed.log\` on the VM."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

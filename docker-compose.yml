@@ -26,7 +26,8 @@ services:
   caddy:
     image: caddy:2.10-alpine
     ports:
-      - "80:80"
+      # The demo VM deploy sets 127.0.0.1:80 so only an SSH tunnel reaches it.
+      - "${CADDY_HTTP_BIND:-80}:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

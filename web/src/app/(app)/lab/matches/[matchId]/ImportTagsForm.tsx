@@ -85,11 +85,13 @@ export function ImportTagsForm({
       <div aria-live="polite">
         <SuccessBanner result={state} />
       </div>
-      <p className="body text-ink-muted">
+      <p className="text-ink-muted">
         Hand-tagged events are the ground truth for recall. Importing replaces this match&apos;s
         tags from the same source.
       </p>
-      <p className="caption mt-2 text-ink-muted">{nowText ? `Now: ${nowText}` : "No tags yet."}</p>
+      <p className="text-body-s mt-2 text-ink-muted">
+        {nowText ? `Now: ${nowText}` : "No tags yet."}
+      </p>
       <form
         key={formKey}
         ref={formRef}
@@ -134,18 +136,20 @@ export function ImportTagsForm({
               rows={8}
               spellCheck={false}
               autoComplete="off"
-              className="wl-input data h-auto"
+              className="wl-input font-mono text-mono-m tabular-nums h-auto"
             />
           )}
         </Field>
         <details className="mt-2">
-          <summary className="label">CSV format</summary>
-          <p className="body mt-2">
+          <summary className="text-label">CSV format</summary>
+          <p className="mt-2">
             Columns: type, time, teamSide, onTarget. The first row is the header. type is goal, shot
             or touch. time is the video time as 47:12.4 or in ms. teamSide is home, away or blank.
             onTarget is true, false or blank, for shots only. A goal is also a shot: tag both.
           </p>
-          <pre className="data wl-card mt-2 overflow-x-auto bg-surface-sunken">{EXAMPLE}</pre>
+          <pre className="font-mono text-mono-m wl-card mt-2 overflow-x-auto bg-sunken">
+            {EXAMPLE}
+          </pre>
         </details>
         <FormErrorBanner result={state} />
         {rows.length > 0 && (
@@ -154,12 +158,12 @@ export function ImportTagsForm({
               {rows.map((r) => (
                 <li key={r} className="wl-issues__reject">
                   <X {...iconProps} />
-                  <p className="body">{r}</p>
+                  <p>{r}</p>
                 </li>
               ))}
             </ul>
             {more > 0 && (
-              <p className="caption text-ink-muted">and {more} more rows with errors.</p>
+              <p className="text-body-s text-ink-muted">and {more} more rows with errors.</p>
             )}
           </>
         )}
@@ -169,7 +173,7 @@ export function ImportTagsForm({
               icon={Upload}
               pendingLabel="Importing…"
               pending={pending}
-              className="max-md:w-full"
+              className="touch:w-full"
             >
               Import tags
             </SubmitButton>
@@ -182,7 +186,7 @@ export function ImportTagsForm({
             trigger={{ label: "Import tags", variant: "primary", icon: Upload, block: true }}
             title={`Replace ${existing} ${word} tags?`}
             body={
-              <p className="body">
+              <p>
                 Importing replaces this match&apos;s {word} tags. Recall is worked out again from
                 the new ones.
               </p>

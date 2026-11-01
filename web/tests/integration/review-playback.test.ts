@@ -5,8 +5,12 @@ import type { UserContext } from "@/server/auth/session";
 // match through /api/review/claims/{claimId}/hls/..., checked against the
 // claim on every request. Playlists point only at the claim's routes; segments
 // answer 302 to a short-lived presigned URL. 404 after a release, after the
-// claim runs out, and for another scout. Against the compose stack's RustFS
-// and the HLS fixture (`make fixtures`); skipped without them.
+// claim runs out, and for another scout. C11 (REVIEW11): after "Mark as
+// reviewed" the master, the media playlist, a segment and the claim's clip
+// route all answer 404; the clip route also answers 404 for another claim's
+// clip, a deleted clip and a clip of a player who cannot be attributed.
+// Against the compose stack's RustFS and the HLS fixture (`make fixtures`);
+// skipped without them.
 
 let current: UserContext | null = null;
 
@@ -35,6 +39,10 @@ const { fixtures } = await import("./helpers/fixtures");
 const { storageAvailable } = await import("./helpers/matches");
 const { hlsFixtureAvailable, seedHls } = await import("./helpers/transcode");
 const { reviewer, reviewMatch } = await import("./helpers/review");
+const clipRoute = await import("@/app/api/review/claims/[claimId]/clips/[clipId]/route");
+const { submitReview } = await import("@/server/review/submit");
+const { claimScope } = await import("@/server/review/scope");
+const ws = await import("./helpers/workspace");
 
 const hasStorage = await storageAvailable();
 const hasFixture = hlsFixtureAvailable();
@@ -146,3 +154,109 @@ describe.skipIf(!ready)("reviewer playback routes", { timeout: 60_000 }, () => {
     expect((await getMaster(claimId)).status).toBe(403);
   });
 });
+
+const getClip = (claimId: string, clipId: string) =>
+  clipRoute.GET(new Request(`http://test/api/review/claims/${claimId}/clips/${clipId}`), {
+    params: Promise.resolve({ claimId, clipId }),
+  });
+
+async function clipOf(
+  m: Awaited<ReturnType<typeof ws.workspaceMatch>>,
+  playerId: string | null = null,
+) {
+  const t = playerId ? await ws.track(m, { side: "home", playerId }) : null;
+  const e = await ws.cvEvent(m, {
+    status: "auto_accepted",
+    confidence: 0.99,
+    trackId: t?.id ?? null,
+    playerId,
+  });
+  const base = new Date(Date.now() + 14 * 86_400_000);
+  return rawDb.clip.create({
+    data: {
+      organisationId: m.organisationId,
+      matchId: m.matchId,
+      eventId: e.id,
+      blobPath: `orgs/${m.organisationId}/matches/${m.matchId}/clips/${e.id}.mp4`,
+      startMs: 0,
+      endMs: 10_000,
+      sizeBytes: BigInt(1000),
+      width: 1280,
+      height: 720,
+      baseExpiresAt: base,
+      expiresAt: base,
+    },
+  });
+}
+
+describe.skipIf(!hasStorage)("reviewer clip route (C11)", { timeout: 60_000 }, () => {
+  it("answers 302 for the claim's clips and 404 for anything else", async () => {
+    const m = await ws.workspaceMatch(f, "Clip route");
+    orgs.push(m.organisationId);
+    const other = await ws.workspaceMatch(f, "Clip other");
+    const named = await ws.sidePlayer(m, "home", 7, "club_only");
+    const teamClip = await clipOf(m);
+    const playerClip = await clipOf(m, named.playerId);
+    const deleted = await clipOf(m);
+    await rawDb.clip.update({ where: { id: deleted.id }, data: { deletedAt: new Date() } });
+    const theirs = await clipOf(other);
+    const { scout, claimId } = await ws.claimed(f, m, "clip route");
+    current = scout;
+
+    const ok = await getClip(claimId, teamClip.id);
+    expect(ok.status).toBe(302);
+    expect(ok.headers.get("location")).toMatch(/X-Amz-Expires=60/);
+    expect(ok.headers.get("location")).toContain("response-content-type=video%2Fmp4");
+    expect(ok.headers.get("cache-control")).toContain("no-store");
+    // A club_only player may be attributed: their clip is served.
+    expect((await getClip(claimId, playerClip.id)).status).toBe(302);
+    expect((await getClip(claimId, deleted.id)).status).toBe(404);
+    expect((await getClip(claimId, theirs.id)).status).toBe(404);
+
+    // Consent withdrawn (the purge not yet run): the player's clip is refused.
+    await rawDb.consent.create({
+      data: {
+        organisationId: m.organisationId,
+        playerId: named.playerId,
+        state: "withdrawn",
+        clubStats: false,
+        scoutVisible: false,
+        grantedBy: "Thandi Guardian",
+        relationship: "parent",
+        method: "paper_form",
+        wordingVersion: "test",
+        playerWasMinor: true,
+        grantedAt: new Date(),
+        withdrawnAt: new Date(),
+      },
+    });
+    expect((await getClip(claimId, playerClip.id)).status).toBe(404);
+
+    current = await reviewer(f, "clip route other");
+    expect((await getClip(claimId, teamClip.id)).status).toBe(404);
+  });
+});
+
+describe.skipIf(!ready)(
+  "access after Mark as reviewed (C11, REVIEW11)",
+  { timeout: 60_000 },
+  () => {
+    it("answers 404 on every playback route once the review is submitted", async () => {
+      const m = await ws.workspaceMatch(f, "Submitted playback");
+      orgs.push(m.organisationId);
+      await seedHls(m.organisationId, m.matchId, m.videoId);
+      const clip = await clipOf(m);
+      const { scout, claimId } = await ws.claimed(f, m, "submitted playback");
+      current = scout;
+      expect((await getMaster(claimId)).status).toBe(200);
+      expect((await getFile(claimId, "720p", "seg_00000.m4s")).status).toBe(302);
+      expect((await getClip(claimId, clip.id)).status).toBe(302);
+
+      await submitReview(scout, (await claimScope(scout, claimId))!);
+      expect((await getMaster(claimId)).status).toBe(404);
+      expect((await getFile(claimId, "720p", "index.m3u8")).status).toBe(404);
+      expect((await getFile(claimId, "720p", "seg_00000.m4s")).status).toBe(404);
+      expect((await getClip(claimId, clip.id)).status).toBe(404);
+    });
+  },
+);

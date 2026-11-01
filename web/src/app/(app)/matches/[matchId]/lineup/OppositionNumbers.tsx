@@ -32,7 +32,12 @@ export function OppositionNumbers({ matchId, teamId }: { matchId: string; teamId
   }, [okKey]);
 
   return (
-    <form ref={formRef} {...formProps} noValidate className="wl-card mt-6 max-w-4xl">
+    <form
+      ref={formRef}
+      {...formProps}
+      noValidate
+      className="mt-6 max-w-4xl border border-line bg-panel p-4"
+    >
       <FormBusy formRef={formRef} />
       <input type="hidden" name="matchId" value={matchId} />
       <input type="hidden" name="teamId" value={teamId} />

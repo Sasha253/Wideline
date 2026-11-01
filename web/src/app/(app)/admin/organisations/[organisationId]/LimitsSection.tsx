@@ -58,9 +58,9 @@ function ValueRow({
   const [unlimited, setUnlimited] = useState(item.overrideUnlimited);
   const bytes = item.unit === "bytes";
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-start md:gap-4">
+    <div className="flex flex-col gap-2 tablet:flex-row tablet:items-start tablet:gap-4">
       <Field
-        className="md:flex-1"
+        className="tablet:flex-1"
         label={
           <>
             {bytes ? "New limit in GB" : "New limit"}
@@ -100,7 +100,7 @@ function UnlimitedBox({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="wl-choice body md:mt-6">
+    <label className="wl-choice tablet:mt-6">
       <input
         type="checkbox"
         name="unlimited"
@@ -132,64 +132,69 @@ function LimitCard({ organisationId, item }: { organisationId: string; item: Lim
   }, [state, lastWasAlternate]);
 
   return (
-    <li className="wl-card wl-setting" aria-labelledby={headingId}>
+    <li
+      className="wl-card grid grid-cols-1 gap-4 wide:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] wide:items-start wide:gap-6"
+      aria-labelledby={headingId}
+    >
       <div className="flex flex-col gap-3">
-        <h3 id={headingId} className="body-strong">
+        <h3 id={headingId} className="m-0 text-body font-semibold">
           {item.label}
         </h3>
-        <p className="body text-ink-muted">{item.description}</p>
-        <dl className="wl-setting__facts">
+        <p className="m-0 text-ink-muted">{item.description}</p>
+        <dl className="m-0 grid grid-cols-1 gap-2 tablet:grid-cols-3 tablet:gap-4">
           <div>
-            <dt className="label text-ink-muted">Plan</dt>
-            <dd>
-              <span className="data block">{item.planText}</span>
+            <dt className="font-mono text-overline uppercase text-ink-muted">Plan</dt>
+            <dd className="m-0 mt-1">
+              <span className="block font-mono text-mono-m tabular-nums">{item.planText}</span>
               {item.planIsDefault && (
-                <span className="caption block text-ink-muted">Built-in default</span>
+                <span className="block text-body-s text-ink-muted">Built-in default</span>
               )}
             </dd>
           </div>
           <div>
-            <dt className="label text-ink-muted">Override</dt>
-            <dd>
+            <dt className="font-mono text-overline uppercase text-ink-muted">Override</dt>
+            <dd className="m-0 mt-1">
               {item.overrideText === null ? (
-                <span className="body text-ink-muted">None</span>
+                <span className="text-ink-muted">None</span>
               ) : item.overrideText === "invalid" ? (
-                <span className="body text-ink-muted">Not valid</span>
+                <span className="text-ink-muted">Not valid</span>
               ) : (
-                <span className="data block">{item.overrideText}</span>
+                <span className="block font-mono text-mono-m tabular-nums">
+                  {item.overrideText}
+                </span>
               )}
             </dd>
           </div>
           <div>
-            <dt className="label text-ink-muted">Now</dt>
-            <dd>
-              <span className="data block">{item.effectiveText}</span>
-              <span className="caption block text-ink-muted">{item.source}</span>
+            <dt className="font-mono text-overline uppercase text-ink-muted">Now</dt>
+            <dd className="m-0 mt-1">
+              <span className="block font-mono text-mono-m tabular-nums">{item.effectiveText}</span>
+              <span className="block text-body-s text-ink-muted">{item.source}</span>
             </dd>
           </div>
         </dl>
         {item.overrideText === "invalid" && (
-          <p className="wl-inline-status wl-inline-status--warn caption">
+          <p className="m-0 wl-inline-status wl-inline-status--warn text-body-s">
             <TriangleAlert {...iconProps} />
             The stored override is not valid, so it is ignored. Save a new value or use the plan
             default.
           </p>
         )}
         {item.flagInvalid && (
-          <p className="wl-inline-status wl-inline-status--warn caption">
+          <p className="m-0 wl-inline-status wl-inline-status--warn text-body-s">
             <TriangleAlert {...iconProps} />
             The stored flag is not valid, so it is ignored. Save a new value or use the plan
             default.
           </p>
         )}
         {item.flagSet && (
-          <p className="wl-inline-status wl-inline-status--warn caption">
+          <p className="m-0 wl-inline-status wl-inline-status--warn text-body-s">
             <TriangleAlert {...iconProps} />A flag sets this limit, so an override has no effect
             while it is set.
           </p>
         )}
-        {item.setText && <p className="caption text-ink-muted">{item.setText}</p>}
-        {item.reason && <p className="body break-words">Reason: {item.reason}</p>}
+        {item.setText && <p className="m-0 text-body-s text-ink-muted">{item.setText}</p>}
+        {item.reason && <p className="m-0 break-words">Reason: {item.reason}</p>}
       </div>
 
       <form ref={formRef} {...formProps} noValidate className="flex flex-col gap-4">
@@ -219,7 +224,7 @@ function LimitCard({ organisationId, item }: { organisationId: string; item: Lim
           )}
         </Field>
         <FormErrorBanner result={state} />
-        <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+        <div className="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
           <SubmitButton
             ref={saveRef}
             variant="secondary"
@@ -259,20 +264,20 @@ export function LimitsSection({
   const headingId = useId();
   const overridden = items.filter((i) => i.hasOverride).length;
   return (
-    <section aria-labelledby={headingId} className="mt-8">
-      <h2 id={headingId} className="heading-2">
+    <section aria-labelledby={headingId} className="mt-8 flex flex-col gap-2">
+      <h2 id={headingId} className="m-0 font-display text-heading-section stretch-wide uppercase">
         Limits
       </h2>
-      <p className="body mt-2 max-w-prose text-ink-muted">
+      <p className="m-0 max-w-prose text-ink-muted">
         Raise or lower a limit for this organisation only. Limits are recorded now and enforced once
         paid plans start in v2.
       </p>
-      <p className="caption mt-2 text-ink-muted">
+      <p className="m-0 text-body-s text-ink-muted">
         {overridden
           ? `${overridden} of ${items.length} limits overridden.`
           : "No overrides. Every limit follows the plan."}
       </p>
-      <ul role="list" className="mt-4 flex flex-col gap-3">
+      <ul role="list" className="m-0 mt-2 flex list-none flex-col gap-3 p-0">
         {items.map((item) => (
           <LimitCard key={item.key} organisationId={organisationId} item={item} />
         ))}

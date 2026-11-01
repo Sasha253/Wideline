@@ -1,19 +1,24 @@
 import { notFound } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
 import { Banner } from "@/components/forms";
-import { DetailPage, type DetailSection } from "@/components/templates/DetailPage";
+import { DetailPage } from "@/components/templates/DetailPage";
 import { ButtonLink } from "@/components/ui/Button";
-import { expiryLevel, formatDeletionDate } from "@/components/ui/expiry";
-import { ClaimTimeLeft, ExpiryBanner, ExpiryLabel } from "@/components/ui/ExpiryBanner";
+import { ClaimTimeLeft } from "@/components/ui/ExpiryBanner";
 import { ClaimStatusChip } from "@/components/ui/StatusChip";
+import { DEFAULT_THEME } from "@/components/ui/theme-constants";
+import { getThemeChoice } from "@/components/ui/theme-server";
 import type { ReviewClaimStatus, ReviewReleaseReason } from "@/generated/prisma/enums";
 import { fixtureText, formatDateTime, formatMatchDate } from "@/lib/labels";
 import { requireReviewerPage } from "@/server/auth/reviewer";
+import { claimHlsBase } from "@/server/matches/playback";
 import { ownClaim } from "@/server/review/claims";
 import { IMPERSONATION_REFUSED } from "@/server/review/errors";
+import { claimScope } from "@/server/review/scope";
+import { claimFacts, loadWorkspace } from "@/server/review/workspace";
 import { doneMessage } from "../../../matches/shared";
-import { CLAIM_HOURS, CLIPS_ONLY_NOTICE, RawFootageFact, ToCheckText } from "../../shared";
+import { CLAIM_HOURS, RawFootageFact, ToCheckText } from "../../shared";
 import { ReleaseClaim } from "./ReleaseClaim";
+import { ReviewWorkspace } from "./ReviewWorkspace";
 
 export const metadata = { title: "Claimed match" };
 
@@ -44,22 +49,35 @@ function endedReason(status: ReviewClaimStatus, reason: ReviewReleaseReason | nu
 
 function Facts({ items }: { items: [string, ReactNode][] }) {
   return (
-    <dl className="wl-facts">
+    <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-1 tablet:grid-cols-[10rem_minmax(0,1fr)] tablet:gap-y-3">
       {items.map(([term, value]) => (
         <Fragment key={term}>
-          <dt className="label">{term}</dt>
-          <dd className="body">{value}</dd>
+          <dt className="mt-2 font-mono text-overline text-ink-muted uppercase first:mt-0 tablet:mt-0 tablet:pt-0.5">
+            {term}
+          </dt>
+          <dd className="m-0">{value}</dd>
         </Fragment>
       ))}
     </dl>
   );
 }
 
+function SectionHead({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <h2 id={id} className="m-0 font-display text-heading-section uppercase stretch-wide">
+      {children}
+    </h2>
+  );
+}
+
 /**
- * The scout's claimed match (REVIEW01; docs/build/design/C10.md, Surface 3):
- * how long they have, and Release. C11 turns the Review section into the
- * workspace. Another scout's claim, or an unknown id, is not found. An active
- * claim past its end reads as expired (lazy expiry, A-5).
+ * The scout's claimed match (REVIEW01; Floodlight, Screens B "Review workspace"). The
+ * workspace comes first, with its own header (Queue, the fixture as the page's h1,
+ * progress, Mark as reviewed) and the expiry banner under it; then the claim's facts and
+ * Release. Read through claimScope() on this request, footage only from the claim-checked
+ * routes. A "Log in as" session gets it read-only (Q-064). Another scout's claim, or an
+ * unknown id, is not found. An active claim past its end reads as expired (lazy expiry,
+ * A-5).
  */
 export default async function ClaimedMatchPage({ params, searchParams }: Props) {
   const ctx = await requireReviewerPage();
@@ -68,32 +86,33 @@ export default async function ClaimedMatchPage({ params, searchParams }: Props) 
   const claim = await ownClaim(ctx, claimId, now);
   if (!claim) notFound();
   const { match } = claim;
-  const meta = [
-    formatMatchDate(match.playedAt),
-    match.organisationName,
-    match.ageGroup,
-    match.competition,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const hero = {
-    back: BACK,
-    eyebrow: "Your claimed match",
-    title: fixtureText(match),
-    meta,
-  };
 
   if (claim.status !== "active") {
+    const meta = [
+      formatMatchDate(match.playedAt),
+      match.organisationName,
+      match.ageGroup,
+      match.competition,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return (
       <DetailPage
-        {...hero}
+        back={BACK}
+        eyebrow="Your claimed match"
+        title={fixtureText(match)}
+        meta={meta}
         badges={<ClaimStatusChip status={claim.status} />}
         notice={
-          <div className="wl-card mt-6">
-            <h2 className="heading-2">This claim has ended</h2>
-            <p className="body mt-2">{endedReason(claim.status, claim.releaseReason)}</p>
-            <p className="caption mt-1 text-ink-muted">
-              Ended {formatDateTime(claim.endedAt ?? claim.expiresAt)}.
+          <div className="mt-6 max-w-2xl border border-line bg-panel p-5">
+            <SectionHead id="claim-ended">This claim has ended</SectionHead>
+            <p className="m-0 mt-3">{endedReason(claim.status, claim.releaseReason)}</p>
+            <p className="m-0 mt-1 text-body-s text-ink-muted">
+              Ended{" "}
+              <span className="font-mono tabular-nums">
+                {formatDateTime(claim.endedAt ?? claim.expiresAt)}
+              </span>
+              .
             </p>
             <ButtonLink variant="primary" href="/review" className="mt-4">
               Back to the review queue
@@ -109,27 +128,55 @@ export default async function ClaimedMatchPage({ params, searchParams }: Props) 
     { claimed: `Match claimed. It is yours until ${formatDateTime(claim.expiresAt)}.` },
     sp.done,
   );
-  const footageSoon = !match.clipsOnly && expiryLevel(match.rawExpiresAt, now) !== "none";
+  const scope = await claimScope(ctx, claim.claimId, { now });
+  if (!scope) notFound();
+  const [data, facts, themeChoice] = await Promise.all([
+    loadWorkspace(scope, { now }),
+    claimFacts(scope, ctx.user.id),
+    // Outside a request (unit tests) there is no cookie: dark, the default.
+    getThemeChoice().catch(() => DEFAULT_THEME),
+  ]);
+  const meta = [formatMatchDate(match.playedAt), match.competition].filter(Boolean).join(" · ");
 
-  const sections: DetailSection[] = [
-    {
-      id: "claim",
-      title: "Your claim",
-      content: (
-        <div className="max-w-2xl">
-          <div className="wl-card">
+  return (
+    <>
+      <div aria-live="polite" className="mb-4 empty:mb-0">
+        {done && <Banner tone="ok">{done}</Banner>}
+      </div>
+      <ReviewWorkspace
+        claimId={claim.claimId}
+        fixture={fixtureText(match)}
+        meta={meta}
+        teams={{ home: match.homeTeam.name, away: match.awayTeam.name }}
+        data={data}
+        facts={facts}
+        hlsUrl={`${claimHlsBase(claim.claimId)}/master.m3u8`}
+        clipsOnly={match.clipsOnly}
+        rawExpiresAt={match.rawExpiresAt}
+        now={now}
+        scoutName={ctx.user.name}
+        readOnly={!!ctx.impersonator}
+        themeChoice={themeChoice}
+      />
+      <div className="mt-8 grid gap-8 desktop:grid-cols-2">
+        <section aria-labelledby="claim-facts" className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <SectionHead id="claim-facts">Your claim</SectionHead>
+            <ClaimStatusChip status="active" />
+          </div>
+          <div className="border border-line bg-panel p-4">
             <Facts
               items={[
                 ["Time left", <ClaimTimeLeft key="v" expiresAt={claim.expiresAt} now={now} />],
                 [
                   "Claim ends",
-                  <span key="v" className="data">
+                  <span key="v" className="font-mono text-mono-m tabular-nums">
                     {formatDateTime(claim.expiresAt)}
                   </span>,
                 ],
                 [
                   "Claimed",
-                  <span key="v" className="data">
+                  <span key="v" className="font-mono text-mono-m tabular-nums">
                     {formatDateTime(claim.claimedAt)}
                   </span>,
                 ],
@@ -138,29 +185,13 @@ export default async function ClaimedMatchPage({ params, searchParams }: Props) 
               ]}
             />
           </div>
-          <p className="caption mt-2 text-ink-muted">
+          <p className="m-0 text-body-s text-ink-muted">
             Times are South African time. If the time runs out, the match goes back to the queue.
           </p>
-        </div>
-      ),
-    },
-    {
-      id: "review",
-      title: "Review",
-      // Draft copy: C11 replaces this section with the workspace.
-      content: (
-        <p className="body max-w-prose">
-          The review workspace opens here. You will watch the footage, confirm or correct each
-          event, and add missed ones.
-        </p>
-      ),
-    },
-    {
-      id: "release",
-      title: "Release",
-      content: (
-        <div className="max-w-2xl">
-          <p className="body mb-4 max-w-prose">
+        </section>
+        <section aria-labelledby="claim-release" className="flex flex-col gap-4">
+          <SectionHead id="claim-release">Release</SectionHead>
+          <p className="m-0 max-w-prose">
             Release the match if you cannot finish it. It goes back to the queue for other scouts,
             and you can claim it again later if nobody else has.
           </p>
@@ -168,44 +199,12 @@ export default async function ClaimedMatchPage({ params, searchParams }: Props) 
           {ctx.impersonator ? (
             <Banner tone="warn">{IMPERSONATION_REFUSED}</Banner>
           ) : (
-            <ReleaseClaim claimId={claim.claimId} />
-          )}
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <DetailPage
-      {...hero}
-      badges={
-        <>
-          <ClaimStatusChip status="active" />
-          {footageSoon && <ExpiryLabel expiresAt={match.rawExpiresAt} now={now} />}
-        </>
-      }
-      notice={
-        <>
-          <div aria-live="polite" className="mt-6 empty:mt-0">
-            {done && <Banner tone="ok">{done}</Banner>}
-          </div>
-          {match.clipsOnly ? (
-            <div className="mt-4">
-              <Banner tone="warn">{CLIPS_ONLY_NOTICE}</Banner>
+            <div>
+              <ReleaseClaim claimId={claim.claimId} />
             </div>
-          ) : (
-            footageSoon && (
-              <div className="mt-4">
-                <ExpiryBanner expiresAt={match.rawExpiresAt} now={now}>
-                  Finish your review before {formatDeletionDate(match.rawExpiresAt)} to add missed
-                  events. Stats you confirm are kept.
-                </ExpiryBanner>
-              </div>
-            )
           )}
-        </>
-      }
-      sections={sections}
-    />
+        </section>
+      </div>
+    </>
   );
 }

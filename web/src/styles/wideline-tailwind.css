@@ -1,0 +1,120 @@
+/* Wideline · Tailwind CSS v4 theme · maps the --wl-* tokens to utilities.
+   app/globals.css:
+     @import "tailwindcss";
+     @import "./wideline-tokens.css";
+     @import "./wideline-tailwind.css";
+   Default Tailwind colours, radii and shadows are cleared so only Wideline roles exist.
+   Example: <button class="h-control-m px-3.5 rounded-control bg-brand text-on-brand border border-brand-edge text-label font-ui">Confirm</button> */
+
+/* Wideline repo note: copied verbatim from the handoff (docs/design-handoff/). Not edited. */
+
+@custom-variant light (&:where([data-theme=light], [data-theme=light] *));
+@custom-variant touch (@media (max-width: 767px));
+
+@theme inline {
+  --color-*: initial;
+  --color-canvas: var(--wl-color-bg-canvas);
+  --color-panel: var(--wl-color-bg-panel);
+  --color-raised: var(--wl-color-bg-raised);
+  --color-selected: var(--wl-color-bg-selected);
+  --color-sunken: var(--wl-color-bg-sunken);
+  --color-ink: var(--wl-color-ink);
+  --color-ink-muted: var(--wl-color-ink-muted);
+  --color-ink-disabled: var(--wl-color-ink-disabled);
+  --color-ink-inverse: var(--wl-color-ink-inverse);
+  --color-line: var(--wl-color-line);
+  --color-line-strong: var(--wl-color-line-strong);
+  --color-control: var(--wl-color-border-control);
+  --color-focus: var(--wl-color-focus);
+  --color-brand: var(--wl-color-brand);
+  --color-brand-hover: var(--wl-color-brand-hover);
+  --color-brand-press: var(--wl-color-brand-press);
+  --color-on-brand: var(--wl-color-on-brand);
+  --color-brand-edge: var(--wl-color-brand-edge);
+  --color-brand-text: var(--wl-color-brand-text);
+  --color-brand-subtle: var(--wl-color-brand-subtle);
+  --color-home: var(--wl-color-home);
+  --color-on-home: var(--wl-color-on-home);
+  --color-away: var(--wl-color-away);
+  --color-on-away: var(--wl-color-on-away);
+  --color-confirmed: var(--wl-color-confirmed);
+  --color-confirmed-subtle: var(--wl-color-confirmed-subtle);
+  --color-pending: var(--wl-color-pending);
+  --color-pending-subtle: var(--wl-color-pending-subtle);
+  --color-rejected: var(--wl-color-rejected);
+  --color-rejected-subtle: var(--wl-color-rejected-subtle);
+  --color-on-status: var(--wl-color-on-status);
+  --color-danger: var(--wl-color-rejected);
+  --color-warning: var(--wl-color-pending);
+  --color-scrim: var(--wl-color-scrim);
+  --color-pitch: var(--wl-color-pitch);
+  --color-chalk: var(--wl-color-chalk);
+  --color-heat-1: var(--wl-color-heat-1);
+  --color-heat-2: var(--wl-color-heat-2);
+  --color-heat-3: var(--wl-color-heat-3);
+  --color-heat-4: var(--wl-color-heat-4);
+  --color-heat-5: var(--wl-color-heat-5);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-*: initial;
+  --font-ui: var(--wl-font-ui);
+  --font-display: var(--wl-font-display);
+  --font-mono: var(--wl-font-mono);
+
+  --text-*: initial;
+  --text-display-xl: 56px;    --text-display-xl--line-height: 0.92; --text-display-xl--font-weight: 800; --text-display-xl--letter-spacing: -0.015em;
+  --text-display-l: 36px;     --text-display-l--line-height: 0.95;  --text-display-l--font-weight: 800;  --text-display-l--letter-spacing: -0.01em;
+  --text-display-phone: 28px; --text-display-phone--line-height: 0.95; --text-display-phone--font-weight: 800; --text-display-phone--letter-spacing: -0.01em;
+  --text-stat-xl: 38px;       --text-stat-xl--line-height: 0.9;     --text-stat-xl--font-weight: 700;    --text-stat-xl--letter-spacing: -0.02em;
+  --text-stat-m: 22px;        --text-stat-m--line-height: 1;        --text-stat-m--font-weight: 700;     --text-stat-m--letter-spacing: -0.01em;
+  --text-heading-section: 15px; --text-heading-section--line-height: 1.1; --text-heading-section--font-weight: 700; --text-heading-section--letter-spacing: 0.02em;
+  --text-title-guardian: 30px; --text-title-guardian--line-height: 1.12; --text-title-guardian--font-weight: 700; --text-title-guardian--letter-spacing: -0.015em;
+  --text-title-m: 20px;       --text-title-m--line-height: 1.25;    --text-title-m--font-weight: 600;
+  --text-body-guardian: 18px; --text-body-guardian--line-height: 1.5;
+  --text-body: 14px;          --text-body--line-height: 1.45;
+  --text-body-s: 12.5px;      --text-body-s--line-height: 1.4;
+  --text-label: 13.5px;       --text-label--line-height: 1;         --text-label--font-weight: 600;
+  --text-mono-l: 15px;        --text-mono-l--line-height: 1;        --text-mono-l--font-weight: 600;
+  --text-mono-m: 13px;        --text-mono-m--line-height: 1;        --text-mono-m--font-weight: 500;
+  --text-overline: 10.5px;    --text-overline--line-height: 1.2;    --text-overline--font-weight: 500;   --text-overline--letter-spacing: 0.08em;
+
+  --spacing: 4px; /* p-1 = 4px, p-0.5 = 2px, p-6 = 24px */
+  --spacing-control-s: var(--wl-control-s);
+  --spacing-control-m: var(--wl-control-m);
+  --spacing-control-l: var(--wl-control-l);
+  --spacing-control-xl: var(--wl-control-xl);
+  --spacing-row-dense: var(--wl-row-dense);
+  --spacing-row: var(--wl-row-comfortable);
+  --spacing-row-touch: var(--wl-row-touch);
+  --spacing-sidebar: var(--wl-shell-sidebar);
+  --spacing-rail: var(--wl-shell-rail);
+
+  --radius-*: initial;
+  --radius-none: 0;
+  --radius-control: 2px;
+  --radius-overlay: 4px;
+  --radius-full: 999px;
+
+  --shadow-*: initial;
+  --shadow-overlay: var(--wl-shadow-2);
+  --shadow-modal: var(--wl-shadow-3);
+
+  --breakpoint-*: initial;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 992px;
+  --breakpoint-wide: 1280px;
+
+  --ease-enter: var(--wl-ease-enter);
+  --ease-exit: var(--wl-ease-exit);
+  --animate-saved: wl-saved var(--wl-duration-saved) var(--wl-ease-exit);
+}
+
+/* Helpers Tailwind doesn't ship */
+@utility stretch-wide { font-stretch: var(--wl-stretch-wide); }
+@utility stretch-semi { font-stretch: var(--wl-stretch-semi); }
+@utility border-pending { border: var(--wl-border-pending) dashed var(--wl-color-pending); }
+@utility ring-focus { outline: var(--wl-focus-width) solid var(--wl-color-focus); outline-offset: var(--wl-focus-offset); }
+@utility duration-fast { transition-duration: var(--wl-duration-fast); }
+@utility duration-base { transition-duration: var(--wl-duration-base); }
+@utility duration-slow { transition-duration: var(--wl-duration-slow); }

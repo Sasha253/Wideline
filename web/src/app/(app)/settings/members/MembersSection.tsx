@@ -2,7 +2,10 @@
 
 import { Pencil, UserMinus } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Field, SuccessBanner } from "@/components/forms";
+import { SuccessBanner } from "@/components/forms";
+import { personInitials } from "@/components/shell/AccountMenu";
+import { DataTable } from "@/components/templates/DataTable";
+import { Select } from "@/components/ui/TextField";
 import { useSectionAction, useSectionResult, type SectionForm } from "@/components/section-result";
 import { changeMemberRoleAction, removeMemberAction } from "./actions";
 
@@ -27,53 +30,62 @@ function MemberActions({
   roles,
   isOwner,
   forms,
+  block,
 }: {
   member: MemberItem;
   orgName: string;
   roles: RoleOption[];
   isOwner: boolean;
   forms: { changeRole: SectionForm; remove: SectionForm };
+  block?: boolean;
 }) {
   if (!member.canManage) {
-    return <p className="caption text-ink-muted">Only an owner can change this</p>;
+    return (
+      <p
+        className={
+          block ? "m-0 text-body-s text-ink-muted" : "m-0 text-right text-body-s text-ink-muted"
+        }
+      >
+        Only an owner can change this
+      </p>
+    );
   }
   const role = member.roleLabel.toLowerCase();
   return (
-    <div className="wl-row md:justify-end">
+    <div className={block ? "flex gap-2 [&>*]:flex-1" : "flex justify-end gap-2"}>
       <ConfirmDialog
         trigger={{
           label: "Change role",
-          variant: "ghost",
+          variant: block ? "secondary" : "ghost",
           icon: Pencil,
           ariaLabel: `Change role for ${member.name}, ${member.roleLabel}`,
+          block,
+          size: block ? "l" : "s",
         }}
         title={`Change role for ${member.name}`}
         body={`${member.name} is ${article(role)} ${role} at ${orgName}.`}
+        icon={Pencil}
         form={forms.changeRole}
         hidden={{ membershipId: member.id, memberName: member.name }}
         submit={{ label: "Save role", pendingLabel: "Saving…", variant: "primary" }}
       >
-        <Field
+        <Select
           label="New role"
-          hint={isOwner ? undefined : "Only an owner can make someone an owner."}
-        >
-          {(p) => (
-            <select {...p} name="role" defaultValue={member.role} className="wl-input">
-              {roles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
+          name="role"
+          defaultValue={member.role}
+          options={roles}
+          help={isOwner ? undefined : "Only an owner can make someone an owner."}
+        />
       </ConfirmDialog>
       <ConfirmDialog
         trigger={{
           label: "Remove",
-          variant: "danger",
+          // Danger only inside the confirm dialog (Floodlight Button rule).
+          variant: block ? "secondary" : "ghost",
           icon: UserMinus,
           ariaLabel: `Remove ${member.name} as ${member.roleLabel}`,
+          block,
+          size: block ? "l" : "s",
         }}
         title={`Remove ${member.name} as ${role}?`}
         body={
@@ -81,6 +93,7 @@ function MemberActions({
             ? `You lose ${role} access to ${orgName} straight away.`
             : `They lose ${role} access to ${orgName} straight away. Their other roles here stay, and their Wideline account is not deleted.`
         }
+        icon={UserMinus}
         form={forms.remove}
         hidden={{ membershipId: member.id }}
         submit={{ label: "Remove", pendingLabel: "Removing…", variant: "danger" }}
@@ -89,7 +102,7 @@ function MemberActions({
   );
 }
 
-/** Members, one row per membership: a table from 768px, a card list on phones. */
+/** Members, one row per membership: a table from 768px, a list of rows on phones. */
 export function MembersSection({
   orgName,
   members,
@@ -106,75 +119,91 @@ export function MembersSection({
     changeRole: useSectionAction(changeMemberRoleAction, setResult, { okOnly: true }),
     remove: useSectionAction(removeMemberAction, setResult, { okOnly: true }),
   };
-  const actions = (m: MemberItem) => (
-    <MemberActions member={m} orgName={orgName} roles={roles} isOwner={isOwner} forms={forms} />
+  const actions = (m: MemberItem, block?: boolean) => (
+    <MemberActions
+      member={m}
+      orgName={orgName}
+      roles={roles}
+      isOwner={isOwner}
+      forms={forms}
+      block={block}
+    />
   );
   const name = (m: MemberItem) => (
-    <>
-      <span className="body-strong">{m.name}</span>
-      {m.isSelf && <span className="text-ink-muted"> (you)</span>}
-    </>
+    <span className="font-semibold break-words">
+      {m.name}
+      {m.isSelf && <span className="font-normal text-ink-muted"> (you)</span>}
+    </span>
   );
 
   return (
-    <section aria-labelledby="members-heading" className="mt-8">
-      <h2 id="members-heading" ref={headingRef} tabIndex={-1} className="heading-2">
-        Members <span className="data text-ink-muted">{members.length}</span>
+    <section aria-labelledby="members-heading" className="mt-8 flex flex-col gap-3">
+      <h2
+        id="members-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="m-0 font-display text-heading-section stretch-wide uppercase"
+      >
+        Members{" "}
+        <span className="font-mono text-mono-m tabular-nums text-ink-muted normal-case">
+          {members.length}
+        </span>
       </h2>
-      <div aria-live="polite" className="mt-4 empty:mt-0">
+      <div aria-live="polite" className="empty:hidden">
         <SuccessBanner result={result} />
       </div>
 
-      <div className="wl-card mt-4 hidden overflow-x-auto p-0 md:block">
-        <table className="wl-table">
-          <caption className="sr-only">Members of {orgName}, by name</caption>
-          <thead>
-            <tr>
-              <th scope="col" className="label">
-                Member
-              </th>
-              <th scope="col" className="label">
-                Role
-              </th>
-              <th scope="col" className="label">
-                Joined
-              </th>
-              <th scope="col" className="label num">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.id}>
-                <td>
-                  {name(m)}
-                  <span className="caption block break-all text-ink-muted">{m.email}</span>
-                </td>
-                <td className="body">{m.roleLabel}</td>
-                <td className="data whitespace-nowrap">{m.joined}</td>
-                <td>{actions(m)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <ul role="list" className="mt-4 flex flex-col gap-3 md:hidden">
-        {members.map((m) => (
-          <li key={m.id} className="wl-card flex flex-col gap-2">
-            <p>{name(m)}</p>
-            <p className="caption break-all text-ink-muted">{m.email}</p>
-            <p className="caption text-ink-muted">
-              {m.roleLabel} · Joined {m.joined}
-            </p>
-            {actions(m)}
+      <DataTable
+        caption={`Members of ${orgName}, by name`}
+        columns={[
+          { id: "member", header: "Member" },
+          { id: "role", header: "Role", width: "9rem" },
+          { id: "joined", header: "Joined", width: "9rem" },
+          { id: "actions", header: "", label: "Actions", width: "15rem" },
+        ]}
+        rows={members.map((m) => ({
+          id: m.id,
+          cells: [
+            <span key="member" className="flex min-w-0 items-center gap-3">
+              <span className="wl-avatar wl-avatar--m" aria-hidden="true">
+                {personInitials(m.name)}
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                {name(m)}
+                <span className="font-mono text-body-s break-all text-ink-muted">{m.email}</span>
+              </span>
+            </span>,
+            m.roleLabel,
+            <span key="joined" className="font-mono text-mono-m tabular-nums whitespace-nowrap">
+              {m.joined}
+            </span>,
+            <span key="actions">{actions(m)}</span>,
+          ],
+        }))}
+        cards={members.map((m) => (
+          <li
+            key={m.id}
+            className="flex flex-col gap-3 border-b border-line px-3.5 py-3 last:border-b-0"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="wl-avatar wl-avatar--m" aria-hidden="true">
+                {personInitials(m.name)}
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                {name(m)}
+                <span className="font-mono text-body-s break-all text-ink-muted">{m.email}</span>
+                <span className="text-body-s text-ink-muted">
+                  {m.roleLabel} · Joined <span className="font-mono tabular-nums">{m.joined}</span>
+                </span>
+              </span>
+            </div>
+            {actions(m, true)}
           </li>
         ))}
-      </ul>
+      />
 
       {members.length === 1 && (
-        <p className="caption mt-4 text-ink-muted">You are the only member so far.</p>
+        <p className="m-0 text-body-s text-ink-muted">You are the only member so far.</p>
       )}
     </section>
   );

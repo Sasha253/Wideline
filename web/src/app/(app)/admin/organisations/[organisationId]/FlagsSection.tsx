@@ -55,26 +55,29 @@ function FlagCard({ organisationId, item }: { organisationId: string; item: Flag
   ];
 
   return (
-    <li className="wl-card wl-setting" aria-labelledby={headingId}>
+    <li
+      className="wl-card grid grid-cols-1 gap-4 wide:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] wide:items-start wide:gap-6"
+      aria-labelledby={headingId}
+    >
       <div className="flex flex-col gap-2">
-        <h3 id={headingId} className="body-strong">
+        <h3 id={headingId} className="m-0 text-body font-semibold">
           {item.label}
         </h3>
-        <p className="body text-ink-muted">{item.description}</p>
-        <p className="caption text-ink-muted">Release: {item.release}</p>
+        <p className="m-0 text-ink-muted">{item.description}</p>
+        <p className="m-0 font-mono text-body-s text-ink-muted">Release: {item.release}</p>
         <div className="wl-row">
-          <FlagStateChip on={item.on} />
-          <span className="caption text-ink-muted">{item.source}</span>
+          <FlagStateChip on={item.on} size="s" />
+          <span className="text-body-s text-ink-muted">{item.source}</span>
         </div>
         {item.flag === "invalid" && (
-          <p className="wl-inline-status wl-inline-status--warn caption">
+          <p className="m-0 wl-inline-status wl-inline-status--warn text-body-s">
             <TriangleAlert {...iconProps} />
             The stored flag is not valid, so it is ignored. Save a new value or use the plan
             default.
           </p>
         )}
-        {item.setText && <p className="caption text-ink-muted">{item.setText}</p>}
-        {item.reason && <p className="body break-words">Reason: {item.reason}</p>}
+        {item.setText && <p className="m-0 text-body-s text-ink-muted">{item.setText}</p>}
+        {item.reason && <p className="m-0 break-words">Reason: {item.reason}</p>}
       </div>
 
       <form ref={formRef} {...formProps} noValidate className="flex flex-col gap-4">
@@ -85,12 +88,12 @@ function FlagCard({ organisationId, item }: { organisationId: string; item: Flag
           <SuccessBanner result={state} />
         </div>
         <fieldset className="wl-field">
-          <legend className="label">
+          <legend className="wl-field__label">
             Setting<span className="sr-only"> for {item.label}</span>
           </legend>
-          <div className="wl-choice-row">
+          <div className="flex flex-wrap gap-x-6 gap-y-1">
             {choices.map(([value, text]) => (
-              <label key={value} className="wl-choice body">
+              <label key={value} className="wl-choice">
                 <input type="radio" name="state" value={value} defaultChecked={value === checked} />
                 {text}
               </label>
@@ -139,19 +142,19 @@ export function FlagsSection({
   const headingId = useId();
   const set = items.filter((i) => i.flag !== null).length;
   return (
-    <section aria-labelledby={headingId} className="mt-8">
-      <h2 id={headingId} className="heading-2">
+    <section aria-labelledby={headingId} className="mt-8 flex flex-col gap-2">
+      <h2 id={headingId} className="m-0 font-display text-heading-section stretch-wide uppercase">
         Feature flags
       </h2>
-      <p className="body mt-2 max-w-prose text-ink-muted">
+      <p className="m-0 max-w-prose text-ink-muted">
         Turn a feature on or off for this organisation only. A flag beats the plan and any override.
       </p>
-      <p className="caption mt-2 text-ink-muted">
+      <p className="m-0 text-body-s text-ink-muted">
         {set
           ? `${set} of ${items.length} features set by a flag.`
           : "No flags set. Every feature follows the plan."}
       </p>
-      <ul role="list" className="mt-4 flex flex-col gap-3">
+      <ul role="list" className="m-0 mt-2 flex list-none flex-col gap-3 p-0">
         {items.map((item) => (
           <FlagCard key={item.key} organisationId={organisationId} item={item} />
         ))}

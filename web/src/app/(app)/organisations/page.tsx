@@ -1,6 +1,8 @@
+import { Building2 } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/SignOutButton";
 import { PageHeader } from "@/components/templates/PageHeader";
+import { StateMessage } from "@/components/ui/StateMessage";
 import { locationText, ORG_TYPE_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { requireUser } from "@/server/auth/session";
 import { OrganisationList } from "./OrganisationList";
@@ -19,19 +21,22 @@ export default async function OrganisationsPage() {
       />
 
       {ctx.organisations.length === 0 ? (
-        <div className="mt-6">
-          <p className="body-lg text-ink-muted">
-            You are not in an organisation yet. Ask your club admin for an invitation.
-          </p>
-          <p className="body mt-4">
-            Running an academy or club?{" "}
-            <Link href="/apply" className="text-pitch underline">
-              Apply to join the pilot
-            </Link>
-            .
-          </p>
-          <SignOutButton className="mt-6" />
-        </div>
+        <StateMessage
+          kind="empty"
+          icon={Building2}
+          className="mt-6"
+          title="You are not in an organisation yet"
+          body={
+            <>
+              Ask your club admin for an invitation. Running an academy or club?{" "}
+              <Link href="/apply" className="text-brand-text underline underline-offset-3">
+                Apply to join the pilot
+              </Link>
+              .
+            </>
+          }
+          action={<SignOutButton />}
+        />
       ) : (
         <>
           <OrganisationList
@@ -44,7 +49,7 @@ export default async function OrganisationsPage() {
             }))}
           />
           {ctx.organisations.length === 1 && (
-            <p className="caption mt-4 text-ink-muted">You belong to one organisation.</p>
+            <p className="m-0 mt-4 text-body-s text-ink-muted">You belong to one organisation.</p>
           )}
         </>
       )}

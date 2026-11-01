@@ -9,14 +9,16 @@ import type { MatchStatus } from "@/generated/prisma/enums";
  * Processing moves to Awaiting review; a CV job that fails its last attempt
  * moves it to Failed. C10 owns the review claim moves: a claim moves Awaiting
  * review to In review, and a release or expiry moves it back
- * (src/server/review/). C11 and C12 add In review to Published.
+ * (src/server/review/). C11: marking the match as reviewed moves In review to
+ * Published (submitReview in src/server/review/submit.ts); C12 builds the
+ * stats from it.
  */
 export const MATCH_TRANSITIONS: Partial<Record<MatchStatus, readonly MatchStatus[]>> = {
   draft: ["uploading"],
   uploading: ["draft", "processing"],
   processing: ["awaiting_review", "failed"],
   awaiting_review: ["in_review"],
-  in_review: ["awaiting_review"],
+  in_review: ["awaiting_review", "published"],
 };
 
 export function canMove(from: MatchStatus, to: MatchStatus): boolean {

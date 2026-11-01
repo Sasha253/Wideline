@@ -56,19 +56,24 @@ export function AffiliationsSection({
 
   return (
     <section aria-labelledby="scout-conflicts-heading" className="mt-8">
-      <h2 id="scout-conflicts-heading" ref={headingRef} tabIndex={-1} className="heading-2">
+      <h2
+        id="scout-conflicts-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="m-0 font-display text-heading-section uppercase stretch-wide"
+      >
         Clubs and players you are linked to
       </h2>
-      <p className="body mt-2 max-w-prose text-ink-muted">
+      <p className="mt-2 max-w-prose text-ink-muted">
         You cannot review a match involving a club on this list, a player you represent, or that
         player&apos;s club. We check these names against both teams and the lineups of every match,
         and Wideline staff match each name to a club on Wideline, so check the spelling.
       </p>
-      <p className="caption mt-2 text-ink-muted">
+      <p className="text-body-s mt-2 text-ink-muted">
         A club or player you remove keeps blocking matches for {coolingOffDays} days.
       </p>
       {items.length === 0 && (
-        <p className="caption mt-2 text-ink-muted">
+        <p className="text-body-s mt-2 text-ink-muted">
           You told us you have no conflicts. Add any club you start working with, or player you
           start representing.
         </p>
@@ -80,7 +85,7 @@ export function AffiliationsSection({
         )}
       </div>
 
-      <h3 className="body-strong mt-6">Clubs</h3>
+      <h3 className="font-semibold mt-6">Clubs</h3>
       <AffiliationList
         items={clubs}
         empty="No clubs on your list."
@@ -90,7 +95,7 @@ export function AffiliationsSection({
       />
       <AddForm type="club" onAdded={setResult} />
 
-      <h3 className="body-strong mt-6">Players you represent</h3>
+      <h3 className="font-semibold mt-6">Players you represent</h3>
       <AffiliationList
         items={players}
         empty="No players on your list."
@@ -116,28 +121,30 @@ function AffiliationList({
   coolingOffDays: number;
   removedBlocksUntil: string;
 }) {
-  if (items.length === 0) return <p className="body mt-2 text-ink-muted">{empty}</p>;
+  if (items.length === 0) return <p className="mt-2 text-ink-muted">{empty}</p>;
   return (
     <ul role="list" className="wl-card mt-2 divide-y divide-line p-0">
       {items.map((a) => (
         <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="min-w-0">
-            <span className="body-strong block break-words">{a.name}</span>
+            <span className="font-semibold block break-words">{a.name}</span>
             {a.type === "player" && (
-              <span className="caption block text-ink-muted">{a.clubName ?? "Club not given"}</span>
+              <span className="text-body-s block text-ink-muted">
+                {a.clubName ?? "Club not given"}
+              </span>
             )}
             {a.linked ? (
-              <span className="wl-inline-status wl-inline-status--ok caption">
+              <span className="wl-inline-status wl-inline-status--ok text-body-s">
                 <Link2 {...iconProps} />
                 Matched on Wideline
               </span>
             ) : (
-              <span className="wl-inline-status wl-inline-status--muted caption">
+              <span className="wl-inline-status wl-inline-status--muted text-body-s">
                 <CircleDashed {...iconProps} />
                 Not matched yet
               </span>
             )}
-            <span className="caption block text-ink-muted">Added {a.declared}</span>
+            <span className="text-body-s block text-ink-muted">Added {a.declared}</span>
           </div>
           <div className="shrink-0">
             <ConfirmDialog

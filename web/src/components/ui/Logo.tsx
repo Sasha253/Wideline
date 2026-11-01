@@ -1,38 +1,58 @@
 import { cx } from "./cx";
 
 /**
- * The Wideline mark, design 1b "The wide channel": a pitch seen from above with
- * the near touchline lit in `pitch`, where scouts look for the player others
- * miss. Lines take `currentColor`, so the mark follows the surrounding text.
+ * Logo sizes, from the Floodlight design files:
+ * - `l` (default): 46 by 22 mark, 17px wordmark, 12px gap. Page and document headers,
+ *   sign-in, consent, print.
+ * - `m`: 34 by 16 mark, 14px wordmark, 10px gap. The app sidebar.
+ * - `s`: 30 by 14 mark. The tablet rail (mark only, use LogoMark).
  */
-export function LogoMark({ className }: { className?: string }) {
+export type LogoSize = "l" | "m" | "s";
+
+// Each size keeps the design's stroke and inset, so the outline stays crisp at that size.
+const MARK: Record<LogoSize, { width: number; height: number; stroke: number; inset: number }> = {
+  l: { width: 46, height: 22, stroke: 1.5, inset: 0.75 },
+  m: { width: 34, height: 16, stroke: 2, inset: 1 },
+  s: { width: 30, height: 14, stroke: 2.2, inset: 1.1 },
+};
+
+/**
+ * The Wideline mark, "The wide channel": a pitch outline seen from above, with the halfway
+ * line and centre circle, and the near touchline as a solid lime bar (4px under an 18px
+ * pitch), where scouts look for the player others miss. The lines take `currentColor`, so
+ * the mark follows the surrounding ink; the bar is always brand lime.
+ */
+export function LogoMark({ className, size = "l" }: { className?: string; size?: LogoSize }) {
+  const m = MARK[size];
+  const i = m.inset;
   return (
     <svg
-      viewBox="0 0 32 24"
+      width={m.width}
+      height={m.height}
+      viewBox="0 0 46 22"
       className={cx("wl-logo__mark", className)}
       fill="none"
+      stroke="currentColor"
+      strokeWidth={m.stroke}
       aria-hidden="true"
       focusable="false"
     >
-      <g stroke="currentColor" strokeWidth="1.75">
-        <path d="M3 18.5V3h26v15.5" strokeLinejoin="round" />
-        <path d="M16 3v15.5" />
-        <circle cx="16" cy="11" r="3.5" />
-      </g>
-      <rect x="1.5" y="18.5" width="29" height="3.5" rx="1" fill="var(--pitch)" />
+      <rect x={i} y={i} width={46 - 2 * i} height={18 - 2 * i} />
+      <line x1="23" y1={size === "l" ? i : 1} x2="23" y2={size === "l" ? 18 - i : 17} />
+      <circle cx="23" cy="9" r="3.6" />
+      <rect x="0" y="18" width="46" height="4" stroke="none" className="wl-logo__bar" />
     </svg>
   );
 }
 
 /**
- * The mark beside the tracked uppercase wordmark. The text stays "Wideline" in
- * the DOM (CSS sets the case), so links and headings keep that accessible name.
- * In the tablet rail only the mark shows.
+ * The mark beside the WIDELINE wordmark (Archivo 800, 125% width, tracked 0.1em). The text
+ * stays "Wideline" in the DOM (CSS sets the caps), so a link around it is named "Wideline".
  */
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className, size = "l" }: { className?: string; size?: LogoSize }) {
   return (
-    <span className={cx("wl-logo", className)}>
-      <LogoMark />
+    <span className={cx("wl-logo", `wl-logo--${size}`, className)}>
+      <LogoMark size={size} />
       <span className="wl-logo__word">Wideline</span>
     </span>
   );

@@ -93,11 +93,15 @@ test("create a match and find it under Draft", async ({ page }) => {
   await expect(page.getByText("Dobsonville Stadium · 2 × 35 min")).toBeVisible();
   await expect(page.getByRole("link", { name: "Upload footage" })).toBeVisible();
 
-  await page.goto(`/matches?team=${ownId}`);
-  await expect(page.getByRole("heading", { level: 2, name: "Draft 1 match" })).toBeVisible();
-  const draft = page.getByRole("region", { name: "Draft matches, newest first" });
-  await expect(draft.getByRole("link", { name: new RegExp(ownName) })).toBeVisible();
-  await expect(draft.getByText("No footage yet")).toBeVisible();
+  // Floodlight: one list, newest first, filtered by who has to act.
+  await page.goto(`/matches?team=${ownId}&filter=needs-you`);
+  await expect(page.getByRole("link", { name: /Needs you/ })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  const list = page.getByRole("region", { name: "Matches, newest first", exact: true });
+  await expect(list.getByRole("link", { name: new RegExp(ownName) })).toBeVisible();
+  await expect(list.getByRole("link", { name: "Upload footage" })).toBeVisible();
 });
 
 test("enter a lineup with a shirt number other than the squad number, and a substitution", async ({
@@ -118,10 +122,10 @@ test("enter a lineup with a shirt number other than the squad number, and a subs
   await expect(thabo.getByLabel("Shirt number")).toHaveValue("7");
   await thabo.getByLabel("Selection").selectOption("starter");
   await thabo.getByLabel("Shirt number").fill("17");
-  await thabo.getByLabel("Position").selectOption({ label: "Striker" });
+  await thabo.getByLabel("Position").selectOption("ST");
   await sipho.getByLabel("Selection").selectOption("starter");
   await lebo.getByLabel("Selection").selectOption("substitute");
-  await expect(page.getByText(/2\s+starters · 1\s+substitute/)).toBeVisible();
+  await expect(page.getByText(/2\s+starting · 1\s+sub/)).toBeVisible();
   await page.getByRole("button", { name: "Save lineup" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Lineup saved." })).toBeVisible();
 

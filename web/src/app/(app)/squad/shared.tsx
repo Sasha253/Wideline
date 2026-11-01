@@ -37,8 +37,8 @@ export function Facts({ items }: { items: [string, ReactNode][] }) {
     <dl className="wl-facts">
       {items.map(([label, value]) => (
         <Fragment key={label}>
-          <dt className="label">{label}</dt>
-          <dd className="body">{value ?? <Missing />}</dd>
+          <dt className="text-label">{label}</dt>
+          <dd>{value ?? <Missing />}</dd>
         </Fragment>
       ))}
     </dl>

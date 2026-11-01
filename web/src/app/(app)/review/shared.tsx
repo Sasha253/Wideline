@@ -45,7 +45,7 @@ export function RawFootageFact({ row, now }: { row: QueueRow; now: Date }) {
     );
   }
   return (
-    <span className="data">
+    <span className="font-mono text-mono-m tabular-nums">
       Deleted {formatDeletionDate(row.rawExpiresAt)}, in{" "}
       {formatTimeLeft(row.rawExpiresAt.getTime() - now.getTime())}
     </span>

@@ -43,42 +43,47 @@ export function DetailsSection({
 
   return (
     <section aria-labelledby="scout-details-heading" className="mt-8">
-      <h2 id="scout-details-heading" ref={headingRef} tabIndex={-1} className="heading-2">
+      <h2
+        id="scout-details-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="m-0 font-display text-heading-section uppercase stretch-wide"
+      >
         Your details
       </h2>
       <div aria-live="polite" className="mt-4 empty:mt-0">
         <SuccessBanner result={state} />
       </div>
-      <dl className="wl-card mt-4 grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-[auto_1fr]">
-        <dt className="label text-ink-muted">Name</dt>
-        <dd className="body-strong break-words">{name}</dd>
-        <dt className="label text-ink-muted">Email</dt>
-        <dd className="body">
+      <dl className="wl-card mt-4 grid grid-cols-1 gap-x-6 gap-y-3 tablet:grid-cols-[auto_1fr]">
+        <dt className="text-label text-ink-muted">Name</dt>
+        <dd className="font-semibold break-words">{name}</dd>
+        <dt className="text-label text-ink-muted">Email</dt>
+        <dd>
           <span className="block break-all">{email}</span>
           {emailVerified ? (
-            <span className="wl-inline-status wl-inline-status--ok caption">
+            <span className="wl-inline-status wl-inline-status--ok text-body-s">
               <MailCheck {...iconProps} />
               Confirmed
             </span>
           ) : (
-            <span className="wl-inline-status wl-inline-status--warn caption">
+            <span className="wl-inline-status wl-inline-status--warn text-body-s">
               <MailWarning {...iconProps} />
               Not confirmed
             </span>
           )}
         </dd>
-        <dt className="label text-ink-muted">Identity document</dt>
-        <dd className="body">
+        <dt className="text-label text-ink-muted">Identity document</dt>
+        <dd>
           <span className="block">{identity}</span>
-          <span className="wl-inline-status wl-inline-status--muted caption">
+          <span className="wl-inline-status wl-inline-status--muted text-body-s">
             <LockKeyhole {...iconProps} />
             Number stored as a check value only.
           </span>
         </dd>
-        <dt className="label text-ink-muted">Registered</dt>
-        <dd className="data">{registered}</dd>
+        <dt className="text-label text-ink-muted">Registered</dt>
+        <dd className="font-mono tabular-nums">{registered}</dd>
       </dl>
-      <p className="caption mt-2 text-ink-muted">
+      <p className="text-body-s mt-2 text-ink-muted">
         Your name and identity document cannot be changed here.
       </p>
 

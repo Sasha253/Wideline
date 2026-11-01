@@ -1,16 +1,35 @@
 import { cx } from "./cx";
 
 /**
- * Theme mechanism. <html data-theme> follows the system light or dark setting;
- * ThemeScope forces a subtree to one theme.
+ * Theme mechanism (Floodlight, docs/design-handoff/README.md, rule 6).
  *
- * Without JavaScript, the prefers-color-scheme block in tokens.css applies.
- * There is no user toggle and nothing is stored.
+ * - Dark is the default everywhere. The user can pick Dark, Light or Match system in the
+ *   account menu. <html data-theme> holds the choice itself: "dark", "light" or "system"
+ *   (wideline-tokens.css resolves "system" with prefers-color-scheme).
+ * - The choice is stored in this browser: localStorage (so other tabs follow at once) and a
+ *   cookie (so server components, like the review workspace scope, can read it).
+ * - ThemeScript applies the stored choice before first paint, so nothing flashes.
+ * - ThemeScope forces a subtree to one theme. ReviewThemeScope (theme-server.tsx) forces dark
+ *   unless the user explicitly chose Light.
+ *
+ * Client API (theme-client.tsx): useTheme() and setThemeChoice().
+ * Without JavaScript, the page is dark (the :root defaults in wideline-tokens.css).
  */
 
-// Runs before first paint, so the page never flashes the wrong theme. It also
-// follows the system setting live, with no reload.
-const script = `(function(){try{var m=window.matchMedia("(prefers-color-scheme: dark)");var d=document.documentElement;var s=function(){d.dataset.theme=m.matches?"dark":"light"};s();m.addEventListener("change",s)}catch(e){}})();`;
+import { THEME_STORAGE_KEY, type ResolvedTheme } from "./theme-constants";
+
+export {
+  DEFAULT_THEME,
+  isThemeChoice,
+  THEME_OPTIONS,
+  THEME_STORAGE_KEY,
+  type ResolvedTheme,
+  type ThemeChoice,
+} from "./theme-constants";
+
+// Runs before first paint. Reads localStorage, then the cookie, and falls back to dark.
+// It also follows a change made in another tab (the storage event), with no reload.
+const script = `(function(){var K=${JSON.stringify(THEME_STORAGE_KEY)};var d=document.documentElement;function ok(v){return v==="dark"||v==="light"||v==="system"}function read(){var v=null;try{v=localStorage.getItem(K)}catch(e){}if(!ok(v)){var m=document.cookie.match(new RegExp("(?:^|; )"+K+"=([^;]*)"));v=m?m[1]:null}return ok(v)?v:"dark"}function apply(){d.dataset.theme=read()}apply();try{window.addEventListener("storage",function(e){if(e.key===K)apply()})}catch(e){}})();`;
 
 /** Inline script for <head>. Pair it with suppressHydrationWarning on <html>. */
 export function ThemeScript() {
@@ -19,23 +38,25 @@ export function ThemeScript() {
 
 /**
  * Forces its subtree to one theme, server-rendered so it never flashes.
- * tokens.css supports nested [data-theme] scopes.
+ * wideline-tokens.css supports nested [data-theme] scopes.
  *
- * The CV Lab and the review workspace (C11) wrap themselves in
- * `<ThemeScope theme="dark">`: video reads better on dark.
+ * For the review workspace use ReviewThemeScope instead: it stays dark unless the user
+ * chose Light. ThemeScope theme="light" is for print views.
  */
 export function ThemeScope({
   theme,
   className,
   children,
 }: {
-  theme: "light" | "dark";
+  theme: ResolvedTheme;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div data-theme={theme} className={cx("bg-surface text-ink", className)}>
+    <div data-theme={theme} className={cx("bg-canvas text-ink", className)}>
       {children}
     </div>
   );
 }
+
+export { setThemeChoice, useTheme } from "./theme-client";

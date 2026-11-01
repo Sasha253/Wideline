@@ -24,7 +24,7 @@ export default async function TemplatesIndex() {
       <ul role="list" className="mt-6 flex flex-col gap-1">
         {PAGES.map((p) => (
           <li key={p.href}>
-            <Link href={p.href} className="wl-link-row body text-pitch underline">
+            <Link href={p.href} className="wl-link-row text-brand-text underline">
               {p.label}
             </Link>
           </li>

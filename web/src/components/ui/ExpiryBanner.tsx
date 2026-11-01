@@ -1,53 +1,68 @@
-import { Clock, Scissors, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Clock, Scissors, Timer, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cx } from "./cx";
+import { ExpiryBannerLive } from "./ExpiryChip";
 import { expiryLevel, formatTimeLeft } from "./expiry";
 import { iconProps } from "./icons";
 
 /**
- * Warns that a match's raw footage is about to be deleted. Nothing above 72h,
- * warning (role=status) from 72h down to 24h, danger (role=alert) under 24h.
+ * Raw footage is deleted on a fixed schedule, so time left is always visible (Floodlight,
+ * "Expiry banner"). It sits under the workspace header and can't be dismissed.
  *
- * `children` carries the consequence, for example:
- * - warning: "Review this match before {formatDeletionDate(expiresAt)} to add
- *   missed events. Stats you confirm are kept."
- * - danger, unclaimed: "This match has no reviewer yet. Claim it now or it will
- *   publish with auto-accepted events only."
+ * - More than 3 days: neutral, "Raw footage for this match is kept until 12 Nov 2026."
+ * - 3 days or less: pending, "… is deleted in 2 days. Review it before then to add missed
+ *   events."
+ * - Under 24 hours: rejected, `role=alert`, "… is deleted in 9 hours. After that, missed
+ *   events can't be added."
+ * - Deleted (past `deletesAt`, or `deleted`): lock, "Raw footage was deleted on 28 Oct 2026.
+ *   Confirmed clips are kept. Missed events can no longer be added."
+ *
+ * The countdown on the right updates once a minute from the server time (`now`) and is not
+ * announced; screen readers hear the message when the page loads and when the step changes.
+ * `children` replaces the default consequence after the first sentence.
+ *
+ * Server-safe: the ticking half is ExpiryBannerLive in ./ExpiryChip.
  */
 export function ExpiryBanner({
+  deletesAt,
   expiresAt,
-  now = new Date(),
+  now,
+  deleted,
   children,
+  className,
 }: {
-  expiresAt: Date;
+  /** When the raw footage is deleted. Shows every step, neutral included. */
+  deletesAt?: Date;
+  /**
+   * @deprecated Use `deletesAt`. With `expiresAt` the banner keeps its old behaviour and
+   * renders nothing above 72 hours.
+   */
+  expiresAt?: Date;
+  /** The server's time at render. */
   now?: Date;
+  deleted?: boolean;
   children?: ReactNode;
+  className?: string;
 }) {
-  const level = expiryLevel(expiresAt, now);
-  if (level === "none") return null;
-
-  const left = expiresAt.getTime() - now.getTime();
-  const danger = level === "danger";
-  const Icon = danger ? TriangleAlert : Clock;
+  const at = deletesAt ?? expiresAt;
+  if (!at) return null;
   return (
-    <div
-      className={cx("wl-banner", danger && "wl-banner--danger")}
-      role={danger ? "alert" : "status"}
+    <ExpiryBannerLive
+      deletesAt={at}
+      now={now}
+      deleted={deleted}
+      hideNeutral={!deletesAt}
+      className={className}
     >
-      <Icon {...iconProps} />
-      <div>
-        <b>
-          {left <= 0
-            ? "Footage is due for deletion now."
-            : `Footage deleted in ${formatTimeLeft(left)}.`}
-        </b>
-        {children && <> {children}</>}
-      </div>
-    </div>
+      {children}
+    </ExpiryBannerLive>
   );
 }
 
-/** The compact clock-and-time label for review queue rows. Nothing above 72h. */
+/**
+ * @deprecated Use ExpiryChip (every step, updates once a minute). The compact clock-and-time
+ * label for review queue rows; nothing above 72h.
+ */
 export function ExpiryLabel({ expiresAt, now = new Date() }: { expiresAt: Date; now?: Date }) {
   const level = expiryLevel(expiresAt, now);
   if (level === "none") return null;
@@ -84,7 +99,7 @@ export function InlineStatus({
   children: ReactNode;
 }) {
   return (
-    <span className={cx("wl-inline-status caption", `wl-inline-status--${tone}`)}>
+    <span className={cx("wl-inline-status text-body-s", `wl-inline-status--${tone}`)}>
       <Icon {...iconProps} />
       {children}
     </span>

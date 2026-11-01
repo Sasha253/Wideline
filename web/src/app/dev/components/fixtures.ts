@@ -1,34 +1,44 @@
+import type { PitchSpot } from "@/components/ui/MiniPitch";
 import type { PlayerPosition } from "@/components/ui/PitchHeatmap";
-import type { PlayerStat } from "@/components/ui/PlayerCard";
+import type { PlayerFigure } from "@/components/ui/PlayerCard";
 import type { InvitationState } from "@/components/ui/StatusChip";
 import type { ClubStatus, OrganisationStatus, ScoutStatus } from "@/generated/prisma/enums";
 
-// Deterministic sample data for the component gallery. Copy comes from the
-// design-system README and component previews. Nothing here is tenant data.
+// Deterministic sample data for the component gallery. Copy comes from the Floodlight
+// design files (Wideline Components and Wideline Patterns). Nothing here is tenant data.
 
 const HOUR = 60 * 60 * 1000;
 
 /** A fixed clock (a Wednesday), so the expiry examples never drift. */
-export const now = new Date("2025-10-22T10:00:00+02:00");
-/** Friday 24 Oct, 10:00: the warning level. */
-export const warningExpiry = new Date(now.getTime() + 48 * HOUR);
-/** Six hours away: the danger level. */
-export const dangerExpiry = new Date(now.getTime() + 6 * HOUR);
+export const now = new Date("2026-10-28T10:00:00+02:00");
 
-/** Time-left examples for the C10 pieces: hours from `now`. */
+/** Expiry examples for the four steps: hours from `now`. */
 export const hoursFromNow = (h: number) => new Date(now.getTime() + h * HOUR);
+/** More than 3 days: neutral. */
+export const neutralExpiry = hoursFromNow(5 * 24 + 4);
+/** 3 days or less: pending. */
+export const pendingExpiry = hoursFromNow(46);
+/** Under 24 hours: urgent. */
+export const urgentExpiry = hoursFromNow(6);
 
 export const HOME_TEAM = "Orlando Pirates U17";
 export const AWAY_TEAM = "SuperSport Academy U17";
 
-// Shares that bucket to the same heat levels as PitchHeatmap/preview.html
-// (0.01 → h1, 0.03 → h2, 0.05 → h3, 0.07 → h4, 0.09 → h5; 0 draws no zone).
-export const heatmapZones: number[][] = [
-  [0.01, 0.01, 0.03, 0.03, 0.05, 0.03],
-  [0.01, 0.03, 0.05, 0.07, 0.09, 0.07],
-  [0.01, 0.03, 0.05, 0.05, 0.07, 0.05],
-  [0, 0.01, 0.01, 0.03, 0.03, 0.01],
-];
+/**
+ * A 10 × 16 heatmap (rows from the top touchline, columns from the own goal), as shares
+ * of minutes: most time in central midfield and the left half-space, attacking left to
+ * right. Built from a smooth bump, so it is the same on every render.
+ */
+export const heatmapZones: number[][] = Array.from({ length: 10 }, (_, r) =>
+  Array.from({ length: 16 }, (_, c) => {
+    const main = Math.exp(-((r - 3.5) ** 2) / 5 - (c - 9) ** 2 / 9);
+    const box = Math.exp(-((r - 4.5) ** 2) / 3 - (c - 13) ** 2 / 2) * 0.6;
+    return Number((0.09 * Math.max(main, box)).toFixed(3));
+  }),
+);
+
+/** A thin sample: under 3 matches. */
+export const thinZones: number[][] = heatmapZones.map((row) => row.map((v) => (v > 0.04 ? v : 0)));
 
 export const averagePositions: PlayerPosition[] = [
   { side: "home", label: "7", x: 78, y: 22 },
@@ -39,30 +49,26 @@ export const averagePositions: PlayerPosition[] = [
   { side: "away", label: "8", x: 62, y: 48 },
 ];
 
-export const thaboStats: PlayerStat[] = [
-  { label: "Matches", value: "14" },
-  { label: "Goals per 90", value: "0.62" },
-  { label: "Shots per 90", value: "2.1" },
-  { label: "Distance", value: "8.4 km" },
+/** The usual position (metres: 0–105 along, 0–68 across) and the others played. */
+export const usualSpot: PitchSpot = { x: 70, y: 14, label: "Left wing" };
+export const alsoSpots: PitchSpot[] = [
+  { x: 62, y: 34, label: "Attacking midfield" },
+  { x: 84, y: 30, label: "Striker" },
 ];
 
-// Five stats on purpose: the card shows only the first four.
-export const siphoStats: PlayerStat[] = [
-  { label: "Matches", value: "11" },
-  { label: "Tackles per 90", value: "3.4" },
-  { label: "Interceptions per 90", value: "2.2" },
-  { label: "Distance", value: "9.1 km" },
-  { label: "Headers won", value: "61%" },
+export const thaboFigures: PlayerFigure[] = [
+  { label: "Goals", value: "0.62", unit: "per 90" },
+  { label: "Shots", value: "2.06", unit: "per 90" },
+  { label: "Distance", value: "9.1", unit: "km" },
 ];
 
-export const leboStats: PlayerStat[] = [
-  { label: "Matches", value: "6" },
-  { label: "Passes per 90", value: "48" },
-  { label: "Chances created per 90", value: "1.3" },
-  { label: "Distance", value: "10.2 km" },
+export const siphoFigures: PlayerFigure[] = [
+  { label: "Tackles", value: "3.4", unit: "per 90" },
+  { label: "Interceptions", value: "2.2", unit: "per 90" },
+  { label: "Distance", value: "10.2", unit: "km" },
 ];
 
-// C01 chip presets, in the order of docs/build/design/C01.md (Surface 8).
+// Chip presets, in the order of docs/build/design/C01.md (Surface 8).
 export const INVITATION_STATE_FIXTURES: InvitationState[] = [
   "pending",
   "expired",

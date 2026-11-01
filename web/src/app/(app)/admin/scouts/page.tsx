@@ -2,6 +2,7 @@ import { CircleDashed } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/templates/PageHeader";
 import { iconProps } from "@/components/ui/icons";
+import { SegmentedFilter } from "@/components/ui/SegmentedFilter";
 import type { ScoutStatus } from "@/generated/prisma/enums";
 import { formatDate, identityText, ORG_TYPE_LABELS } from "@/lib/labels";
 import { PLATFORM_ROLES, requirePageRole } from "@/server/auth/session";
@@ -18,10 +19,10 @@ import { ScoutApplications, type ScoutItem } from "./ScoutApplications";
 export const metadata = { title: "Scout registrations" };
 
 const TABS: { status: ScoutStatus; label: string }[] = [
-  { status: "pending", label: "Pending" },
+  { status: "pending", label: "Waiting" },
   { status: "approved", label: "Approved" },
   { status: "suspended", label: "Suspended" },
-  { status: "rejected", label: "Not approved" },
+  { status: "rejected", label: "Rejected" },
 ];
 
 const DATE_LABEL: Record<ScoutStatus, string> = {
@@ -99,34 +100,34 @@ export default async function ScoutRegistrationsPage({
   return (
     <>
       <PageHeader
+        eyebrow="Admin / Scout approvals"
         title="Scout registrations"
         intro="Independent scouts who asked to review matches. Approving a scout opens the review queue to them. Wideline never stores ID or passport numbers, so they are not shown here."
       />
       <AdminNav current="scouts" />
-      <nav aria-label="Registration status" className="wl-tabs mt-6">
-        {TABS.map((t) => (
-          <Link
-            key={t.status}
-            href={`/admin/scouts?status=${t.status}`}
-            className="body-strong"
-            aria-current={status === t.status ? "page" : undefined}
-          >
-            {t.label}
-            {t.status === "pending" && <span className="data">{pendingCount}</span>}
-          </Link>
-        ))}
-      </nav>
+      <div className="mt-5">
+        <SegmentedFilter
+          aria-label="Registration status"
+          value={status}
+          options={TABS.map((t) => ({
+            value: t.status,
+            label: t.label,
+            count: t.status === "pending" ? pendingCount : undefined,
+            href: `/admin/scouts?status=${t.status}`,
+          }))}
+        />
+      </div>
       {filterable && (uncheckedCount > 0 || unchecked) && (
-        <p className="body mt-4">
+        <p className="m-0 mt-4 flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="wl-inline-status wl-inline-status--warn">
             <CircleDashed {...iconProps} />
             {uncheckedCount === 1
               ? "1 scout here has a club or player nobody has checked."
               : `${uncheckedCount} scouts here have clubs or players nobody has checked.`}
-          </span>{" "}
+          </span>
           <Link
             href={`/admin/scouts?status=${status}${unchecked ? "" : "&unchecked=1"}`}
-            className="text-pitch underline"
+            className="font-semibold text-brand-text"
           >
             {unchecked ? "Show all scouts" : "Show only these"}
           </Link>

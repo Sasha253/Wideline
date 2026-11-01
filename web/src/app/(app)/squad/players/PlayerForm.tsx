@@ -206,7 +206,7 @@ export function PlayerForm({
           <Banner tone="ok">
             {state.message}{" "}
             {state.href && (
-              <Link href={state.href} className="text-pitch underline">
+              <Link href={state.href} className="text-brand-text underline">
                 View player
               </Link>
             )}

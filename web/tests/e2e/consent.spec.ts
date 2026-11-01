@@ -17,14 +17,14 @@ const name = `${first} Consent${tag}`;
 let playerPath = "";
 let teamId = "";
 
-/** axe at 375, 768 and 1280 px, in the light and dark system themes. */
+/** axe at 375, 768 and 1280 px, in the light and dark themes. */
 async function axeEverywhere(page: Page) {
-  for (const colorScheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme });
-    // Without JavaScript the tokens follow prefers-color-scheme directly.
-    if (await page.evaluate(() => "theme" in document.documentElement.dataset)) {
-      await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
-    }
+  for (const theme of ["light", "dark"] as const) {
+    // The account menu's choice lands on <html data-theme> (server-rendered as dark).
+    await page.evaluate((t) => {
+      document.documentElement.dataset.theme = t;
+    }, theme);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     // Buttons and inputs animate their colours for 150ms; measure after that.
     await page.waitForTimeout(300);
     for (const width of WIDTHS) {
@@ -72,7 +72,7 @@ test("an admin records and withdraws a guardian's consent", async ({ page }) => 
   playerPath = new URL(page.url()).pathname;
 
   const hero = page.locator(".wl-hero");
-  await expect(hero.locator(".wl-chip")).toHaveText("No consent");
+  await expect(hero.locator(".wl-chip")).toHaveText("Not requested");
   await expect(
     page.getByText(`No consent recorded yet. Wideline keeps no stats for ${first}.`),
   ).toBeVisible();
@@ -110,14 +110,15 @@ test("an admin records and withdraws a guardian's consent", async ({ page }) => 
   await expect(page.getByRole("status").filter({ hasText: "Consent saved." })).toHaveText(
     `Consent saved. ${first}'s consent is now Scout-visible.`,
   );
-  await expect(hero.locator(".wl-chip")).toHaveText("Scout-visible");
+  await expect(hero.locator(".wl-chip")).toHaveText("Consent given");
   await expect(page.getByRole("heading", { level: 2, name: "Consent", exact: true })).toBeFocused();
   await expect(page.getByText("Thandi Mokoena", { exact: true }).first()).toBeVisible();
 
   // The squad list shows the badge in the Consent column.
   await page.goto(`/squad?team=${teamId}`);
   const row = page.getByRole("row").filter({ hasText: name });
-  await expect(row.locator(".wl-chip")).toHaveText("Scout-visible");
+  // The S chip's short word (ConsentBadge, core); the design table reads "Consent given".
+  await expect(row.locator(".wl-chip")).toHaveText("Given");
 
   // Withdraw through the dialog.
   await page.goto(playerPath);
@@ -137,14 +138,14 @@ test("an admin records and withdraws a guardian's consent", async ({ page }) => 
   await expect(page.getByRole("status").filter({ hasText: "Consent withdrawn." })).toHaveText(
     `Consent withdrawn. Scouts and the club can no longer see ${first}'s stats.`,
   );
-  await expect(hero.locator(".wl-chip")).toHaveText("Withdrawn");
+  await expect(hero.locator(".wl-chip")).toHaveText("Consent withdrawn");
   await expect(page.getByRole("button", { name: "Withdraw consent" })).toHaveCount(0);
 
   // The history: two rows, newest first (table at 1280, cards at 375).
   const history = page.getByRole("region", { name: `Consent history for ${name}, newest first` });
   await expect(history.getByRole("row")).toHaveCount(3);
   await expect(history.getByRole("row").nth(1)).toContainText("Withdrawn");
-  await expect(history.getByRole("row").nth(2)).toContainText("Scout-visible");
+  await expect(history.getByRole("row").nth(2)).toContainText("Consent given");
   await page.setViewportSize({ width: 375, height: 900 });
   const cards = page
     .getByRole("heading", { level: 2, name: "Consent history" })
@@ -182,7 +183,7 @@ test("a guardian answers through the link, with and without JavaScript", async (
   await expect(page.getByRole("status").filter({ hasText: "Guardian link created." })).toHaveText(
     `Guardian link created. We emailed the link to g***@${guardianEmail.split("@")[1]}.`,
   );
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Requested");
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Awaiting consent");
   await axeEverywhere(page);
   const linkPath = new URL(await linkBox.inputValue()).pathname;
   expect(page.url()).not.toContain(linkPath);
@@ -212,24 +213,26 @@ test("a guardian answers through the link, with and without JavaScript", async (
   const { context, page: g } = await guardianContext(browser);
   await g.setViewportSize({ width: 375, height: 800 });
   await g.goto(emailed.url);
-  await expect(g.getByRole("heading", { level: 1 })).toContainText(`record ${first}'s match stats`);
+  await expect(g.getByRole("heading", { level: 1 })).toHaveText(`${first}'s club records matches`);
+  await expect(g.getByText(`would like to record ${first}'s match stats`)).toBeVisible();
+  // The full notice is shown open under the summary (NFR09, Q-073).
+  await expect(g.getByRole("heading", { level: 2, name: "The full privacy notice" })).toBeVisible();
   await expect(g.getByText("outside South Africa", { exact: false })).toBeVisible();
   await axeEverywhere(g);
-  await g.getByRole("button", { name: "Continue" }).click();
+  await g.getByRole("button", { name: "Next" }).click();
   await expect(
     g.getByRole("heading", { level: 1, name: `Can Wideline Demo FC record ${first}'s stats?` }),
   ).toBeVisible();
   await expectNothingChecked(g);
   await axeEverywhere(g);
-  await g.getByText("Yes, the club can record them").click();
-  await g.getByRole("button", { name: "Continue" }).click();
+  // Each answer is its own button and submits the step.
+  await g.getByRole("button", { name: "Yes, the club can record them" }).click();
   await expect(
     g.getByRole("heading", { level: 1, name: `Can scouts see ${first}'s stats?` }),
   ).toBeVisible();
   await expectNothingChecked(g);
   await axeEverywhere(g);
-  await g.getByText("No, keep them inside the club").click();
-  await g.getByRole("button", { name: "Continue" }).click();
+  await g.getByRole("button", { name: "No, keep them inside the club" }).click();
   await expect(g.getByRole("heading", { level: 1, name: "Who is answering?" })).toBeVisible();
   await expect(g.getByText("Step 4 of 4")).toBeVisible();
   await expectNothingChecked(g);
@@ -239,8 +242,9 @@ test("a guardian answers through the link, with and without JavaScript", async (
   await g.getByText(`I am ${first}'s parent or guardian and I am 18 or over.`).click();
   await g.getByRole("button", { name: "Save my answer" }).click();
   await expect(
-    g.getByRole("heading", { level: 1, name: "Thank you. Your answer is saved." }),
+    g.getByRole("heading", { level: 1, name: `${first}'s stats stay inside the club` }),
   ).toBeVisible();
+  await expect(g.getByText("Thank you. Your answer is saved.")).toBeVisible();
   await axeEverywhere(g);
 
   // The club sees it at once.
@@ -250,9 +254,7 @@ test("a guardian answers through the link, with and without JavaScript", async (
 
   // The same link: the guardian's answer, then stop sharing.
   await g.goto(linkPath);
-  await expect(
-    g.getByRole("heading", { level: 1, name: `Your answer for ${first}` }),
-  ).toBeVisible();
+  await expect(g.getByRole("heading", { level: 1, name: `${first}'s stats` })).toBeVisible();
   await axeEverywhere(g);
   await g.getByRole("link", { name: `Stop sharing ${first}'s stats` }).click();
   await expect(
@@ -266,7 +268,7 @@ test("a guardian answers through the link, with and without JavaScript", async (
   await axeEverywhere(g);
   await context.close();
   await page.reload();
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Withdrawn");
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Consent withdrawn");
 
   // A new link replaces the old one; the old one is closed.
   await page.getByRole("button", { name: "Create a new link" }).click();
@@ -297,21 +299,23 @@ test("a guardian answers through the link, with and without JavaScript", async (
     noJs.page.getByRole("heading", { level: 1, name: "This link no longer works" }),
   ).toBeVisible();
   await noJs.page.goto(newPath);
-  await noJs.page.getByRole("button", { name: "Continue" }).click();
-  await noJs.page.getByText("No, do not record them").click();
-  await noJs.page.getByRole("button", { name: "Continue" }).click();
+  await noJs.page.getByRole("button", { name: "Next" }).click();
+  await noJs.page.getByRole("button", { name: "No, do not record them" }).click();
   await expect(noJs.page.getByText("Step 3 of 3")).toBeVisible();
   await noJs.page.getByLabel("Your full name").fill("Thandi Mokoena");
   await noJs.page.getByText("Legal guardian", { exact: true }).click();
   await noJs.page.getByText(`I am ${first}'s parent or guardian and I am 18 or over.`).click();
   await noJs.page.getByRole("button", { name: "Save my answer" }).click();
   await expect(
-    noJs.page.getByRole("heading", { level: 1, name: "Thank you. Your answer is saved." }),
+    noJs.page.getByRole("heading", {
+      level: 1,
+      name: `Wideline Demo FC will keep no stats about ${first}`,
+    }),
   ).toBeVisible();
   await expect(noJs.page.getByText("Club stats")).toBeVisible();
   await noJs.context.close();
   await page.reload();
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("No consent");
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Not requested");
   await expect(page.getByText(/Thandi Mokoena \(Legal guardian\) said no on/)).toBeVisible();
 
   // Turn the link off: it closes, and the state stays.
@@ -323,7 +327,7 @@ test("a guardian answers through the link, with and without JavaScript", async (
   await expect(
     page.getByRole("status").filter({ hasText: "Guardian link turned off." }),
   ).toBeVisible();
-  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("No consent");
+  await expect(page.locator(".wl-hero .wl-chip")).toHaveText("Not requested");
 });
 
 test("the print page hides the shell when printed", async ({ page }) => {
